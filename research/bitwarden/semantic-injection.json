@@ -1,0 +1,51 @@
+[
+  {
+    "repo": "clients",
+    "fact_node": "terra_clients_client_surfaces",
+    "source_node": "terra_clients_client_surfaces_source",
+    "source_file": "README.md",
+    "commit": "e40ce6f08ebf963db3561464e77b4defe05247e8"
+  },
+  {
+    "repo": "sdk-internal",
+    "fact_node": "terra_sdk_internal_internal_sdk_boundary",
+    "source_node": "terra_sdk_internal_internal_sdk_boundary_source",
+    "source_file": "README.md",
+    "commit": "6ad7094edb4f2d391c6468f1fdfe8ac474a3c7e1"
+  },
+  {
+    "repo": "sdk-internal",
+    "fact_node": "terra_sdk_internal_crypto_contract",
+    "source_node": "terra_sdk_internal_crypto_contract_source",
+    "source_file": "crates/bitwarden-crypto/README.md",
+    "commit": "6ad7094edb4f2d391c6468f1fdfe8ac474a3c7e1"
+  },
+  {
+    "repo": "sdk-sm",
+    "fact_node": "terra_sdk_sm_public_sm_sdk",
+    "source_node": "terra_sdk_sm_public_sm_sdk_source",
+    "source_file": "README.md",
+    "commit": "559b73b4b0572bb22e3b46242e62052b4e8a9c90"
+  },
+  {
+    "repo": "sdk-sm",
+    "fact_node": "terra_sdk_sm_sdk_sm_license",
+    "source_node": "terra_sdk_sm_sdk_sm_license_source",
+    "source_file": "LICENSE",
+    "commit": "559b73b4b0572bb22e3b46242e62052b4e8a9c90"
+  },
+  {
+    "repo": "server",
+    "fact_node": "terra_server_server_backend",
+    "source_node": "terra_server_server_backend_source",
+    "source_file": "README.md",
+    "commit": "6ba6612fbd83a9bb1004a830062501346af2a57d"
+  },
+  {
+    "repo": "server",
+    "fact_node": "terra_server_server_license",
+    "source_node": "terra_server_server_license_source",
+    "source_file": "LICENSE.txt",
+    "commit": "6ba6612fbd83a9bb1004a830062501346af2a57d"
+  }
+]

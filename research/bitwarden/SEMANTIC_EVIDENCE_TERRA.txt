@@ -1,0 +1,115 @@
+# Bitwarden integration evidence
+
+Model provenance: `gpt-5.6-terra`.
+
+This is an extractive design-research note. It records only relationships supported
+by the pinned checkout paths below. It does not propose or implement a product.
+
+## Public boundary and client reach
+
+`clients/README.md` states that the repository contains Bitwarden's web, browser
+extension, desktop, and CLI applications. It identifies `server` as the core
+infrastructure backend and links the mobile clients separately. This establishes
+the client repository as a multi-surface consumer boundary, not a stable external
+API contract.
+
+`sdk-internal/README.md` says the password-manager SDK is internal, unsupported
+for public use, and unstable. The same file identifies `sdk-sm` as the public
+Secrets Manager SDK. Therefore a WitnessProtectionProgram integration that needs
+a public integration surface must not depend on the password-manager SDK's
+internal API as its external contract.
+
+Pinned paths:
+
+- `clients/README.md`
+- `sdk-internal/README.md`
+
+## Client binding paths
+
+`sdk-internal/README.md` documents WASM bindings consumed by web clients and
+UniFFI bindings consumed by Android and iOS. `crates/bitwarden-wasm-internal/README.md`
+states that its role is WASM conversions and bindings rather than business logic.
+This separates client-specific adaptation from core behavior in the documented
+architecture.
+
+Pinned paths:
+
+- `sdk-internal/README.md`
+- `sdk-internal/crates/bitwarden-wasm-internal/README.md`
+- `sdk-internal/crates/bitwarden-uniffi/`
+
+## Key and crypto protection observations
+
+`sdk-internal/crates/bitwarden-crypto/README.md` describes the crypto crate as
+the place for cryptographic primitives and higher-level concepts; it calls for
+minimal public interfaces and indefinitely supported serialized representations
+of keys and encrypted data. `bitwarden-core/README.md` lists `KeyStore` as secure
+in-memory key management and marks internal APIs unstable. `key-connector/README.md`
+describes a self-hosted service that stores and provides cryptographic keys to
+Bitwarden clients.
+
+These sources support treating key custody, crypto operations, and an integration
+protocol as separate boundaries. They do not establish that any particular
+WitnessProtectionProgram feature is available, authorized, or safe to expose.
+
+Pinned paths:
+
+- `sdk-internal/crates/bitwarden-crypto/README.md`
+- `sdk-internal/crates/bitwarden-core/README.md`
+- `key-connector/README.md`
+
+## License boundary
+
+`clients/LICENSE.txt` says GPLv3 is the default and code under `bitwarden_license/`
+uses Bitwarden License v1.0. `sdk-internal/LICENSE` says the default is GPLv3 or
+the Bitwarden SDK License v2.0, while `bitwarden_license/` is solely under the
+SDK License. Any later design or code reuse requires a separate license review
+against the exact source file and distribution plan.
+
+Pinned paths:
+
+- `clients/LICENSE.txt`
+- `sdk-internal/LICENSE`
+
+## Server boundary
+
+`server/README.md` identifies the server as the APIs, database, and core backend
+infrastructure for all Bitwarden client applications. It also describes deployable
+containerized components including API, Identity, Events, Notifications, SCIM, and
+SSO. This supports locating any server-side integration at an explicitly reviewed
+API/service boundary rather than treating a client implementation detail as the
+server contract.
+
+`server/LICENSE.txt` states that AGPLv3 is the default and that code under
+`bitwarden_license/` uses Bitwarden License v1.0. This differs from the client
+and SDK license statements and must be evaluated independently for any reuse.
+
+Pinned paths:
+
+- `server/README.md`
+- `server/LICENSE.txt`
+
+## Secrets Manager SDK boundary
+
+`sdk-sm/README.md` describes this as the Bitwarden Secrets Manager SDK and
+documents a Rust API, CLI, language bindings, a JSON-based `run_command`
+binding boundary, generated schemas, and the `bws` CLI. This is the identified
+public SDK surface in the requested corpus; its documented scope is Secrets
+Manager rather than the password-manager SDK.
+
+`sdk-sm/LICENSE` defines the SDK license and says a compatible application must
+interoperate with a current Bitwarden server product. It also restricts use,
+including a prohibition on offering, licensing, or selling a compatible
+application to a third party under the cited license terms. This is a design
+and distribution constraint that needs legal review before reuse.
+
+Pinned paths:
+
+- `sdk-sm/README.md`
+- `sdk-sm/LICENSE`
+
+## Pending source coverage
+
+The file-level commit hashes for all cited paths are recorded through their
+repository default-branch commit in `SOURCE_LOCK_AND_INVENTORY.md`, generated
+after the full sync and graph batch completes.

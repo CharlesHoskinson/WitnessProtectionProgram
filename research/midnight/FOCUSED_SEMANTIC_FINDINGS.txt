@@ -1,0 +1,53 @@
+# Focused semantic findings
+
+Scope: private state, witness capture, Midnight JS, Compact JS, wallet and
+Passport material, and metadata/proposal sources. All claims below are limited
+to the named sources and current commits in `clone-update-status.tsv`.
+
+* [`midnight-js/packages/types/src/private-state-provider.ts`](../midnight-js/packages/types/src/private-state-provider.ts)
+  defines `PrivateStateExport` as format `midnight-private-state-export`, with
+  a base64 AES-256-GCM encrypted JSON payload and a 32-byte hex salt. It says
+  the version, metadata, and serialized state reside in the encrypted payload.
+  It limits exports and imports to 10,000 states by default; import conflict
+  handling defaults to `error`, with `skip` and `overwrite` as explicit choices.
+  The native encrypted export should therefore be kept opaque by a backup
+  wrapper, rather than decoded and repackaged.
+
+* [`midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts`](../midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts)
+  implements `exportPrivateStates` and `importPrivateStates`; its in-source
+  migration message directs callers to the export/import APIs for backups. This
+  supports capturing provider-native exports and their required password flow,
+  rather than copying a LevelDB directory.
+
+* [`passport/docs/plans/components/C16-wallet-local-storage.md`](../passport/docs/plans/components/C16-wallet-local-storage.md)
+  identifies local wallet state, including account encryption material and sync
+  state, as a design concern. It treats device state separately from chain data
+  and calls out an encrypted inbox backup. This is planning material, not a
+  shipping storage-adapter API.
+
+* [`passport/demo/mn-passport-foundations/src/wallet/witnesses.ts`](../passport/demo/mn-passport-foundations/src/wallet/witnesses.ts)
+  stores three optional secrets as hexadecimal strings in private state and
+  returns them from locally evaluated witnesses. The adjacent
+  [`DECISIONS.md`](../passport/demo/mn-passport-foundations/DECISIONS.md)
+  explicitly says witness functions operate over wallet private state. This is
+  a demo-specific witness model; it does not define a general witness-backup
+  standard.
+
+* [`midnight-improvement-proposals/mps/mps-0006-shielded-asset-custody.md`](../midnight-improvement-proposals/mps/mps-0006-shielded-asset-custody.md)
+  says shielded spending depends on private coin information and proof
+  generation, and that a proving component handling such material is within the
+  custody security boundary. It also calls for recoverable, specified private
+  state management. The proposal is marked Proposed.
+
+* [`midnight-improvement-proposals/mps/mps-0021-phase2-contract-to-contract.md`](../midnight-improvement-proposals/mps/mps-0021-phase2-contract-to-contract.md)
+  says witnesses execute locally and never on chain, and describes a future
+  phase where contracts can hold and update private state. It does not specify
+  a portable witness metadata or backup envelope standard.
+
+Integration implication: a future WitnessProtectionProgram can use a
+purpose-separated secret to invoke the native Midnight JS exporter and store
+only its opaque export envelope in a storage provider. Any application witness
+records require a separate, opt-in codec with its own versioning, account
+binding, and restore validation. Neither Passport planning material nor the MIP
+sources establish a released Passport backup adapter or a current witness
+metadata standard.

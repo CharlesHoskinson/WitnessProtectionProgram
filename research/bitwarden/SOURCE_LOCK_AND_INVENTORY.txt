@@ -1,0 +1,84 @@
+# Bitwarden source lock and graph inventory
+
+Generated at 2026-09-13T22:01:24.419185+00:00.
+
+Repositories enumerated: 68. Initial clones use depth 1 on each default branch. Existing checkout policy is fetch then merge --ff-only only when clean.
+
+| Repository | Branch | Remote commit | Local commit | Sync | KiB | Graph |
+|---|---|---|---|---|---:|---|
+| clients | main | `e40ce6f08ebf963db3561464e77b4defe05247e8` | `e40ce6f08ebf963db3561464e77b4defe05247e8` | CLONED_DEPTH_1 | 210924 | GRAPH_BUILT |
+| sdk-internal | main | `6ad7094edb4f2d391c6468f1fdfe8ac474a3c7e1` | `6ad7094edb4f2d391c6468f1fdfe8ac474a3c7e1` | CLONED_DEPTH_1 | 19164 | GRAPH_BUILT |
+| key-connector | main | `b7d76b899383e3522c68b1010f663dc488e6ac0e` | `b7d76b899383e3522c68b1010f663dc488e6ac0e` | CLONED_DEPTH_1 | 972 | GRAPH_BUILT |
+| contributing-docs | main | `9e078b5b32a86ce5eeaee61aed8d41d68708d6ca` | `9e078b5b32a86ce5eeaee61aed8d41d68708d6ca` | CLONED_DEPTH_1 | 12028 | GRAPH_BUILT |
+| passwordless-server | main | `1261a60945c199e2f53991dcec6e669e49c77330` | `1261a60945c199e2f53991dcec6e669e49c77330` | CLONED_DEPTH_1 | 19788 | GRAPH_BUILT |
+| passwordless-docs | main | `a0963e8247844774e743e36c23b18da572587ef7` | `a0963e8247844774e743e36c23b18da572587ef7` | CLONED_DEPTH_1 | 10756 | GRAPH_BUILT |
+| ios | main | `81be7a7fad5bcdad0c108957919daac6997f5fec` | `81be7a7fad5bcdad0c108957919daac6997f5fec` | CLONED_DEPTH_1 | 290988 | GRAPH_BUILT |
+| gh-actions | main | `b05a37717d558616c348e76af8b9077cbbb8aff1` | `b05a37717d558616c348e76af8b9077cbbb8aff1` | CLONED_DEPTH_1 | 144656 | GRAPH_BUILT |
+| splunk | main | `5277261976eec830ff630d37b70af73e7f799de8` | `5277261976eec830ff630d37b70af73e7f799de8` | CLONED_DEPTH_1 | 1972 | GRAPH_BUILT |
+| passwordless-python | main | `6a533fbdf31ea6b783e59f0233a4b3f2a9cc14ca` | `6a533fbdf31ea6b783e59f0233a4b3f2a9cc14ca` | CLONED_DEPTH_1 | 940 | GRAPH_BUILT |
+| renovate-config | main | `3166bbe4d2badeb2233502dce479c7d4a0d11997` | `3166bbe4d2badeb2233502dce479c7d4a0d11997` | CLONED_DEPTH_1 | 492 | GRAPH_BUILT |
+| f-droid | main | `19bd963a06650ecf9aee624bcfd561ff819b5120` | `19bd963a06650ecf9aee624bcfd561ff819b5120` | CLONED_DEPTH_1 | 3327612 | GRAPH_BUILT |
+| android | main | `65bab9f27a4834f80418ea1d94b61e63f20bcb35` | `65bab9f27a4834f80418ea1d94b61e63f20bcb35` | CLONED_DEPTH_1 | 62956 | GRAPH_BUILT |
+| agent-access | main | `512756278c41d19314b462ca978c40d29c51bd36` | `512756278c41d19314b462ca978c40d29c51bd36` | CLONED_DEPTH_1 | 23024 | GRAPH_BUILT |
+| server | main | `6ba6612fbd83a9bb1004a830062501346af2a57d` | `6ba6612fbd83a9bb1004a830062501346af2a57d` | CLONED_DEPTH_1 | 119980 | GRAPH_BUILT |
+| .github | main | `0600e6653107d48ccaecacbac958c64f3fcf2466` | `0600e6653107d48ccaecacbac958c64f3fcf2466` | CLONED_DEPTH_1 | 328 | GRAPH_BUILT |
+| sm-kubernetes | main | `0dbd2d500663124998fc689311bdab0a7c2cca4b` | `0dbd2d500663124998fc689311bdab0a7c2cca4b` | CLONED_DEPTH_1 | 916 | GRAPH_BUILT |
+| workflow-linter | main | `0bcabb659febb9129ed0fe075791f16f9925a8e0` | `0bcabb659febb9129ed0fe075791f16f9925a8e0` | CLONED_DEPTH_1 | 1032 | GRAPH_BUILT |
+| browser-interactions-testing | main | `0e220a000c8c6818be66856aa38b63dfe1e46c87` | `0e220a000c8c6818be66856aa38b63dfe1e46c87` | CLONED_DEPTH_1 | 3272 | GRAPH_BUILT |
+| ai-plugins | main | `8283164eb4757cdefb09e8bedc0556eb83e758d1` | `8283164eb4757cdefb09e8bedc0556eb83e758d1` | CLONED_DEPTH_1 | 4516 | GRAPH_BUILT |
+| passwordless-nodejs | main | `5a81dc4dfde2d4d9dcb83c50e14d4fd826c988ef` | `5a81dc4dfde2d4d9dcb83c50e14d4fd826c988ef` | CLONED_DEPTH_1 | 836 | GRAPH_BUILT |
+| passkeys-index | main | `e84aae93ed3217ab102b5086705d48581ea09686` | `e84aae93ed3217ab102b5086705d48581ea09686` | CLONED_DEPTH_1 | 1536 | GRAPH_BUILT |
+| passwordless-react-example | main | `828b145c8f1c93a2d50b4d90d34eb7bc89324d86` | `828b145c8f1c93a2d50b4d90d34eb7bc89324d86` | CLONED_DEPTH_1 | 696 | GRAPH_BUILT |
+| passwordless-client-js | main | `0c113a61c6b4d03fcc70ea694213425e2185fd71` | `0c113a61c6b4d03fcc70ea694213425e2185fd71` | CLONED_DEPTH_1 | 692 | GRAPH_BUILT |
+| passwordless-java | main | `8fbc0593e25ed77a9304c0f06b9c4a88d32c6928` | `8fbc0593e25ed77a9304c0f06b9c4a88d32c6928` | CLONED_DEPTH_1 | 764 | GRAPH_BUILT |
+| sdk-swift | main | `4af24c1e9aa17b90f2cd6ac62c626d0cedbc66a1` | `4af24c1e9aa17b90f2cd6ac62c626d0cedbc66a1` | CLONED_DEPTH_1 | 904 | GRAPH_BUILT |
+| autopush-manager | main | `aad2ff56e64089a6406c37e9c206cf640e7dad9f` | `aad2ff56e64089a6406c37e9c206cf640e7dad9f` | CLONED_DEPTH_1 | 1444 | GRAPH_BUILT |
+| map-the-web | main | `41b8ab6fc1d2669e5c4b26d23261a3343a2a5b5b` | `41b8ab6fc1d2669e5c4b26d23261a3343a2a5b5b` | CLONED_DEPTH_1 | 856 | GRAPH_BUILT |
+| directory-connector | main | `c6fa95a950cada5d2bd244ca060984d4d6e0fa60` | `c6fa95a950cada5d2bd244ca060984d4d6e0fa60` | CLONED_DEPTH_1 | 22948 | GRAPH_BUILT |
+| helm-charts | main | `2744c47dc366349474983c43f637ed505b94be18` | `2744c47dc366349474983c43f637ed505b94be18` | CLONED_DEPTH_1 | 1336 | GRAPH_BUILT |
+| akd-watch | main | `ed4c9936c1b94aced433760c5116ee5c112688ae` | `ed4c9936c1b94aced433760c5116ee5c112688ae` | CLONED_DEPTH_1 | 956 | GRAPH_BUILT |
+| credential-exchange | main | `22a87d9852ae64a659ae37774bd9194fd362bdde` | `22a87d9852ae64a659ae37774bd9194fd362bdde` | CLONED_DEPTH_1 | 496 | GRAPH_BUILT |
+| passwordless-caniuse | main | `9ffb78304f79bd7174ef839dd2bb5bb216dae8d9` | `9ffb78304f79bd7174ef839dd2bb5bb216dae8d9` | CLONED_DEPTH_1 | 304 | GRAPH_BUILT |
+| sdk-sm | main | `559b73b4b0572bb22e3b46242e62052b4e8a9c90` | `559b73b4b0572bb22e3b46242e62052b4e8a9c90` | CLONED_DEPTH_1 | 2704 | GRAPH_BUILT |
+| terraform-provider-bitwarden-secrets | main | `3824d56c8246baeeb471c9a55834bc72b8093c83` | `3824d56c8246baeeb471c9a55834bc72b8093c83` | CLONED_DEPTH_1 | 676 | GRAPH_BUILT |
+| passwordless-dotnet | main | `486c4e93de361542dcf8d3a2a116bdda0e04d6c3` | `486c4e93de361542dcf8d3a2a116bdda0e04d6c3` | CLONED_DEPTH_1 | 10232 | GRAPH_BUILT |
+| passwordless-android | main | `3122e4dbce76e1f7702e6e3f21035236b9235b0d` | `3122e4dbce76e1f7702e6e3f21035236b9235b0d` | CLONED_DEPTH_1 | 2260 | GRAPH_BUILT |
+| passwordless-blazor-webassembly | main | `76edaf85474cbb4650fc09b1a8a62dd36c5fa496` | `76edaf85474cbb4650fc09b1a8a62dd36c5fa496` | CLONED_DEPTH_1 | 1208 | GRAPH_BUILT |
+| dotnet-extensions | main | `bcc1560dbae8d8787eeb0aee1353c51b7c1f9c65` | `bcc1560dbae8d8787eeb0aee1353c51b7c1f9c65` | CLONED_DEPTH_1 | 2128 | GRAPH_BUILT |
+| passwordless-blazor | main | `741b63b68422970f7e3b9359742083dbc95221e4` | `741b63b68422970f7e3b9359742083dbc95221e4` | CLONED_DEPTH_1 | 2068 | GRAPH_BUILT |
+| self-host | main | `7a1e4860529d3af797913473b05cad83038e7e25` | `7a1e4860529d3af797913473b05cad83038e7e25` | CLONED_DEPTH_1 | 804 | GRAPH_BUILT |
+| Handlebars.conf | main | `03d0aeb59277c840e638375fa6e44416528ef682` | `03d0aeb59277c840e638375fa6e44416528ef682` | CLONED_DEPTH_1 | 360 | GRAPH_BUILT |
+| sm-action | main | `58972b54eebdda5b46f771e08c135fd41e50445a` | `58972b54eebdda5b46f771e08c135fd41e50445a` | CLONED_DEPTH_1 | 472 | GRAPH_BUILT |
+| rotation-daemon | main | `411066b65c0e41af95d5c6b3e9a15e605aa98bd7` | `411066b65c0e41af95d5c6b3e9a15e605aa98bd7` | CLONED_DEPTH_1 | 336 | GRAPH_BUILT |
+| test-the-web | main | `64e8ee71161074c1e88c8c0be1214da04b22262a` | `64e8ee71161074c1e88c8c0be1214da04b22262a` | CLONED_DEPTH_1 | 2172 | GRAPH_BUILT |
+| billing-relay | main | `9b71a13b8721a6b7e7f10b39faf5ef220b020ff2` | `9b71a13b8721a6b7e7f10b39faf5ef220b020ff2` | CLONED_DEPTH_1 | 536 | GRAPH_BUILT |
+| mcp-server | main | `5eea5494854b740d21270798634f894b431f6a5b` | `5eea5494854b740d21270798634f894b431f6a5b` | CLONED_DEPTH_1 | 1396 | GRAPH_BUILT |
+| template | main | `452005496298624722fa60bf7c31fc21572c84ac` | `452005496298624722fa60bf7c31fc21572c84ac` | CLONED_DEPTH_1 | 348 | GRAPH_BUILT |
+| sm-ansible | main | `f1ed65c5ec5058c80c4239dcbee95e795c373d39` | `f1ed65c5ec5058c80c4239dcbee95e795c373d39` | CLONED_DEPTH_1 | 444 | GRAPH_BUILT |
+| passwordless-ios | main | `d11e5ffba1d0d30a6f0063092b0a26b08812eebc` | `d11e5ffba1d0d30a6f0063092b0a26b08812eebc` | CLONED_DEPTH_1 | 8284 | GRAPH_BUILT |
+| sdk-go | main | `8265b8d1202f08cb9a352b698f4b1423c189acf2` | `8265b8d1202f08cb9a352b698f4b1423c189acf2` | CLONED_DEPTH_1 | 214484 | GRAPH_BUILT |
+| phishing-test-page | main | `832677cd8082ac850e5c487ff3a9937bf1a57f5e` | `832677cd8082ac850e5c487ff3a9937bf1a57f5e` | CLONED_DEPTH_1 | 196 | SEMANTIC_FALLBACK_BUILT |
+| brand | main | `a354b22f62a9c5fc52daf1ae28468f8fbcd83d9f` | `a354b22f62a9c5fc52daf1ae28468f8fbcd83d9f` | CLONED_DEPTH_1 | 14496 | SEMANTIC_FALLBACK_BUILT |
+| bitwarden-russh | main | `cc20a849c5a11669be835ddc21785867aa6949ab` | `cc20a849c5a11669be835ddc21785867aa6949ab` | CLONED_DEPTH_1 | 280 | GRAPH_BUILT |
+| passkey-rs | main | `043279e92e2eb5f509bf87eb7fa50987fd377e32` | `043279e92e2eb5f509bf87eb7fa50987fd377e32` | CLONED_DEPTH_1 | 2300 | SEMANTIC_FALLBACK_BUILT |
+| rustcrypto-formats | master | `408348415c63fd06c7f179573c645ab23e216a1f` | `408348415c63fd06c7f179573c645ab23e216a1f` | CLONED_DEPTH_1 | 8808 | SEMANTIC_FALLBACK_BUILT |
+| com.bitwarden.desktop | master | `45efb784cb0911b5122615d60331a36998eb8fd4` | `45efb784cb0911b5122615d60331a36998eb8fd4` | CLONED_DEPTH_1 | 196 | SEMANTIC_FALLBACK_BUILT |
+| mobile | main | `b543459f8d71324aa11914da1e6f6ad3d7abce54` | `b543459f8d71324aa11914da1e6f6ad3d7abce54` | CLONED_DEPTH_1 | 88868 | SEMANTIC_FALLBACK_BUILT |
+| authenticator-android | main | `1fa1322827a4fefc1cac4666402e6ef3b4aceded` | `1fa1322827a4fefc1cac4666402e6ef3b4aceded` | CLONED_DEPTH_1 | 15024 | SEMANTIC_FALLBACK_BUILT |
+| authenticator-ios | main | `9fbbceb1bd030a6360ba50e4c143ea5440e7428f` | `9fbbceb1bd030a6360ba50e4c143ea5440e7428f` | CLONED_DEPTH_1 | 35084 | SEMANTIC_FALLBACK_BUILT |
+| importer | master | `db88da0c335b7b595b34954885ca34525dc3952e` | `db88da0c335b7b595b34954885ca34525dc3952e` | CLONED_DEPTH_1 | 944 | GRAPH_BUILT |
+| adr | master | `a80f52e2076cac2dac7f3b743b3f5e2e398ce01f` | `a80f52e2076cac2dac7f3b743b3f5e2e398ce01f` | CLONED_DEPTH_1 | 344 | GRAPH_BUILT |
+| desktop | master | `d7674f5c91cc620fbcb0c48347c78c4cbafff8ab` | `d7674f5c91cc620fbcb0c48347c78c4cbafff8ab` | CLONED_DEPTH_1 | 19980 | SEMANTIC_FALLBACK_BUILT |
+| jslib | master | `6008a03395989060e984f6bc331642367ac1ab79` | `6008a03395989060e984f6bc331642367ac1ab79` | CLONED_DEPTH_1 | 12808 | GRAPH_BUILT |
+| web | master | `ee4afdd0f215ddbfdd0e90bd229dfde6b4a4bffb` | `ee4afdd0f215ddbfdd0e90bd229dfde6b4a4bffb` | CLONED_DEPTH_1 | 14436 | GRAPH_BUILT |
+| cli | master | `09d1e15e69dd9246aa4e177409bb4679cbced700` | `09d1e15e69dd9246aa4e177409bb4679cbced700` | CLONED_DEPTH_1 | 1548 | GRAPH_BUILT |
+| help | master | `18aa730c0156f7e25da39ad81bf13809b13471c6` | `18aa730c0156f7e25da39ad81bf13809b13471c6` | CLONED_DEPTH_1 | 366440 | SEMANTIC_FALLBACK_BUILT |
+| docs | master | `3cc9c24ed38fe15314446162469d91d6f5745b22` | `3cc9c24ed38fe15314446162469d91d6f5745b22` | CLONED_DEPTH_1 | 400 | GRAPH_BUILT |
+
+Coverage limits:
+
+- `GRAPH_BUILT` represents a nonempty Graphify AST structural graph plus its graph JSON and report. `server` has no HTML because Graphify rejected a 5,412-node aggregated view above its 5,000-node visualization limit.
+- `SEMANTIC_FALLBACK_BUILT` represents a nonempty provenance-backed repository/README/license metadata graph after Graphify produced no structural graph or an empty structural graph. It is not AST coverage.
+- Selected integration evidence is injected as `terra_semantic` nodes and EXTRACTED `supported_by` edges; see `semantic-injection.json` for source paths and commit pins.
+- No semantic token counts are reported because no provider token telemetry exists.
+- Generated graph outputs are locally ignored via each checkout `.git/info/exclude`.

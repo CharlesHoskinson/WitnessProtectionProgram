@@ -42,6 +42,8 @@ Exit evidence: application-consistent snapshots; prepared/submitted/confirmed/fa
 
 ## M6 — Passport integration and production review
 
+Entry blocker: a released, version-pinned Passport API must supply authorized capture, kernel-owned secret handling and ciphertext storage/sync operations. The inspected planning/beta repositories do not establish that availability. Until this predicate is met, the adapter stays unimplemented and WPP makes no Passport restore or grant/ceremony compatibility claim; the standalone product can progress independently.
+
 Implement against released/reviewed kernel and storage interfaces. Keep root access and encryption within the trusted kernel, integrate Passport ceremonies/grants, and send only ciphertext to storage adapters. Preserve account recovery boundaries and mandatory redundancy for irreplaceable state.
 
 Exit evidence: integration tests on the actual Passport path, authorized dApp capture and denied unauthorized export, fresh-device restore with account recovery separately satisfied, independent security review, supply-chain/license inventory, measured UX and resource limits, and a rehearsed disaster-recovery procedure. Native adapter installation and provider developer review are publisher release tasks, not consumer setup steps.

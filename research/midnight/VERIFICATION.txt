@@ -1,0 +1,38 @@
+# Verification
+
+Generated at 2026-09-13 America/Denver time.
+
+* All 76 `midnightntwrk` lock entries were verified after cloning: the recorded
+  commit, checked-out `HEAD`, and its configured upstream reference matched for
+  every entry (`verified=76`, `mismatches=0`).
+* The LFDT-Minokawa Compact checkout was separately verified at
+  `c47230cc8c3e743634166d9b84698ac2b238c418` on `main` tracking `origin/main`.
+* Structural graph coverage is 76 public repositories plus LFDT-Minokawa
+  Compact: 77 `graph.json` files. The per-repository structural inventory is
+  `structural-graph-status.tsv` and rendering inventory is
+  `graph-render-status.tsv`.
+* The merged public-repository graph contains 143,681 nodes and 357,666 edges.
+  Graphify clustered it into 5,345 communities and wrote
+  `merged/GRAPH_REPORT.md`. Its HTML aggregation was not emitted because the
+  aggregated graph still contains 8,085 nodes, above Graphify's 5,000-node
+  limit. The failure is captured in the command result and is an explicit tool
+  limit, not a missing source graph.
+* All structural runs completed with exit status `GRAPH_OK`. Seven repositories
+  had no supported-code AST nodes; each now has a separate README/license
+  semantic fallback graph, report, and HTML view. This is semantic coverage and
+  is not presented as structural AST coverage.
+
+## Unsupported and semantic coverage
+
+The code-only Graphify run deliberately did not send documents, papers, or
+images to a semantic provider. Each extraction log under `/tmp/graphify-*.log`
+reports its exact skipped file count and examples. Across the corpus the common
+unsupported or excluded classes are build/configuration files, lockfiles,
+binary databases and release archives, non-supported Compact source extensions,
+and files Graphify flags as potentially sensitive (notably `.envrc`, `.npmrc`,
+and files whose names imply secrets). These remain outside the structural graph.
+
+`FOCUSED_SEMANTIC_FINDINGS.md` documents the selected manual source review. It
+does not claim whole-corpus document semantic coverage, does not invent
+relations, and does not report model token counts. Requested semantic model:
+`gpt-5.6-terra`; this worker performed that selected source review directly.

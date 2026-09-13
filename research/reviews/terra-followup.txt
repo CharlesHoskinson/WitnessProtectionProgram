@@ -1,0 +1,60 @@
+# WPP design review follow-up — Terra
+
+Date: 2026-09-13.  This confirms five requested design resolutions against the
+current working tree and the pinned Midnight source.  It is not a security
+assessment or certification.
+
+## Resolution check
+
+1. **Resolved — native representation.**  AGENTS now correctly says the native
+   API returns an object and WPP preserves its field values, rather than
+   promising canonical native bytes ([AGENTS.md:8](../WitnessProtectionProgram/AGENTS.md)).
+   The format requires unchanged inner ciphertext/salt strings, structural
+   field/value round-trip tests, and a producer/consumer compatibility matrix
+   ([witness-package-format.md:86](../WitnessProtectionProgram/docs/witness-package-format.md)).
+   This matches the pinned `PrivateStateExport` object surface
+   ([private-state-provider.ts:27-43](../midnight/midnight-js/packages/types/src/private-state-provider.ts)).
+
+2. **Resolved — Passport API blocker.**  M6 now requires a released,
+   version-pinned API with authorized capture, kernel-owned secret handling, and
+   ciphertext storage/sync.  Until then, WPP makes no Passport restore or
+   grant/ceremony claim ([ROADMAP.md:43-49](../WitnessProtectionProgram/ROADMAP.md)).
+
+3. **Resolved — Bitwarden item/session handling.**  The design selects the
+   note by UUID plus provider/account identity, not a name search
+   ([design.md:52](../WitnessProtectionProgram/docs/superpowers/specs/2026-09-13-witness-protection-program-design.md)).
+   It separately requires private raw-unlock handling and a per-child,
+   allowlisted `BW_SESSION`, with no argv/global-parent use
+   ([design.md:58](../WitnessProtectionProgram/docs/superpowers/specs/2026-09-13-witness-protection-program-design.md)).
+   That directly addresses the pinned CLI’s session behavior.  Minor wording
+   note: call this a **stable item UUID**, not an “immutable vault item,” since
+   the item content is deliberately revised.
+
+4. **Resolved — root record and rollback.**  The root record has an exact
+   schema, canonical decoding rules, 64 KiB and epoch bounds, unique IDs, and
+   an exactly-one-active-epoch rule
+   ([witness-package-format.md:108-110](../WitnessProtectionProgram/docs/witness-package-format.md)).
+   Revision parents, read-back, encrypted receipts, fork handling, and
+   unknown-freshness behavior for total-loss rollback are explicitly specified
+   ([witness-package-format.md:112](../WitnessProtectionProgram/docs/witness-package-format.md)).
+
+5. **Resolved — capture validation uses available API behavior.**  The capture
+   receipt records wrapper-owned scope and application-supplied expected IDs;
+   verification uses an isolated staging import and checks imported count and
+   IDs ([witness-package-format.md:88](../WitnessProtectionProgram/docs/witness-package-format.md)).
+   It correctly does not invent a cleartext count or scope getter.  The pinned
+   implementation only returns the opaque export object
+   ([level-private-state-provider.ts:884-903](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts))
+   and reveals state IDs/count after import/decryption
+   ([level-private-state-provider.ts:936-1024](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts)).
+
+## Inspected file hashes
+
+```text
+58bafdca5b3a2905f873af6c59d93b5d09e68f2b2a628caa77d948e9cac086ca  WitnessProtectionProgram/AGENTS.md
+a2d687ac8ef52ad1266df5ea012b146e1b4e0a1d0936e3f493e51482c298b792  WitnessProtectionProgram/ROADMAP.md
+21429dd38bd0d00be021c20124fa84a9ca81a83bb270aa01c881595015675152  WitnessProtectionProgram/docs/witness-package-format.md
+2db18116c264a8b7e4b5dfa70fa8b3b0774244e2433898008a2e344315ff8ca0  WitnessProtectionProgram/docs/superpowers/specs/2026-09-13-witness-protection-program-design.md
+d027a72b35339935f834d9ecfb39457b4c5be154f59e94ed0c1b0d6554286326  midnight-js/packages/types/src/private-state-provider.ts
+e0788b8f48b58d69d80b034cbf9d3a3c6775f1a3637eb8b472e1c26af9f24eaf  midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts
+```

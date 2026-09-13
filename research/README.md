@@ -11,9 +11,12 @@ The design is grounded in the Midnight and Bitwarden repositories and official p
 | Passport's kernel owns witness/secret lifecycle; storage receives ciphertext; irreplaceable inputs need durable redundant backup | [Passport SDK architecture](https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/docs/architecture.md) |
 | The SDK identifies itself as planning/spec and its reference beta does not generally access stored witnesses | [SDK README](https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/README.md), [beta scope](https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/docs/beta-scope.md) |
 | Bitwarden's personal vault CLI and organizational Secrets Manager SDK are different integration surfaces | [Password Manager CLI](https://bitwarden.com/help/cli/), [Secrets Manager SDK](https://bitwarden.com/help/secrets-manager-sdk/) |
+| The CLI accepts encoded create/edit item data through stdin, permitting a bridge to keep the root out of argument lists | [Vault CLI command definitions](https://github.com/bitwarden/clients/blob/e40ce6f08ebf963db3561464e77b4defe05247e8/apps/cli/src/vault.program.ts), [create command input](https://github.com/bitwarden/clients/blob/e40ce6f08ebf963db3561464e77b4defe05247e8/apps/cli/src/vault/create.command.ts) |
 | Bitwarden SDK internals are not a stable supported public Password Manager SDK; component licensing varies | Terra evidence and file/commit pins in [design-source-lock.json](design-source-lock.json) |
 
 The source lock includes repository URL, full commit, file path, permanent GitHub link, retrieval timestamp and SHA-256 of inspected bytes. `matches_commit` verifies the inspected local file matches the cited Git object. An upstream branch may move after inspection; the pin records the observation used for this design.
+
+[Terra's design review and follow-up](reviews/README.md) preserve the findings, resolutions and inspected-file hashes. [Duplicate checkout receipts](duplicate-sync-results.json) and [verification](duplicate-sync-verification.json) record the separate maintenance of existing vendor checkouts, including preserved local work.
 
 ## Cryptographic specifications
 
@@ -24,6 +27,10 @@ The source lock includes repository URL, full commit, file path, permanent GitHu
 These specify building blocks. They do not validate WPP's composition. Independent vectors, interoperability, and review remain roadmap requirements.
 
 ## Local research locations
+
+Published inventories: [Midnight source and coverage report](midnight/README.txt), [Midnight verification](midnight/VERIFICATION.txt), [Bitwarden source and coverage report](bitwarden/SOURCE_LOCK_AND_INVENTORY.txt), and [independent corpus verification](corpus-verification.json). All 145 repository graphs were checked for pinned source identity, nonempty nodes, unique IDs, and valid edge endpoints. Coverage includes 7 Midnight and 10 Bitwarden documentation/metadata fallbacks; these are not AST coverage.
+
+The final Bitwarden merged JSON is available locally. Its optional full merged clustering was stopped to prioritize the public repository launch; earlier merged report/HTML files are explicitly renamed `PROVISIONAL_` and must not be treated as final. Final per-repository graphs and reports remain available. Midnight's merged visualization exceeds Graphify's aggregation limit; its JSON and report remain available.
 
 The organization checkouts and large generated graphs live outside this small design repository:
 

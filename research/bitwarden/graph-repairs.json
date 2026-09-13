@@ -1,0 +1,14 @@
+{
+  "repaired": [
+    "phishing-test-page",
+    "brand",
+    "passkey-rs",
+    "rustcrypto-formats",
+    "mobile",
+    "authenticator-android",
+    "authenticator-ios",
+    "desktop",
+    "help"
+  ],
+  "generated_at": "2026-09-13T21:51:33.650277+00:00"
+}

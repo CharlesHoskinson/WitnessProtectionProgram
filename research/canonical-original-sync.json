@@ -1,0 +1,35 @@
+[
+  {
+    "name": "midnight-docs",
+    "path": "/home/charl/midnight/midnight-docs",
+    "before": "c0ddaae82d2d5eb6afcb1dbc7b16c35f1520140e",
+    "upstream": "origin/main",
+    "observed_at": "2026-09-13T21:53:29.403258+00:00",
+    "status": "fast-forwarded",
+    "exit": 0,
+    "after": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+    "upstream_commit": "7cd3bc1681699b41d5a856f7ab2efd9892c27166"
+  },
+  {
+    "name": "midnight-ledger",
+    "path": "/home/charl/midnight/midnight-ledger",
+    "before": "a8ab82ba2124c36f92795c683e70bd888bc1d1fb",
+    "upstream": "origin/ledger-8",
+    "observed_at": "2026-09-13T21:53:29.498937+00:00",
+    "status": "fast-forwarded",
+    "exit": 0,
+    "after": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+    "upstream_commit": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2"
+  },
+  {
+    "name": "midnight-zkir",
+    "path": "/home/charl/midnight/midnight-zkir",
+    "before": "2ffe2d17bbb736aec36fb300aeaca679a10d2278",
+    "upstream": "origin/zkir-v3",
+    "observed_at": "2026-09-13T21:53:29.587925+00:00",
+    "status": "fast-forwarded",
+    "exit": 0,
+    "after": "7dff84a685cd8baed2e69a2b66ae63573fe5a575",
+    "upstream_commit": "7dff84a685cd8baed2e69a2b66ae63573fe5a575"
+  }
+]

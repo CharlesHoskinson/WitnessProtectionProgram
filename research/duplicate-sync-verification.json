@@ -1,0 +1,726 @@
+{
+  "verified_at": "2026-09-13T21:45:27.691837+00:00",
+  "records": [
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/night-token-distribution",
+      "status": "current-tracking-branch",
+      "head": "5d740a2050cd19206cfe0cefec6628a9d5b8119f",
+      "upstream": "5d740a2050cd19206cfe0cefec6628a9d5b8119f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-indexer",
+      "status": "current-tracking-branch",
+      "head": "9de7fd76c1fa4e741d2679bf737ed8c75991d027",
+      "upstream": "9de7fd76c1fa4e741d2679bf737ed8c75991d027",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/compact-zed",
+      "status": "current-tracking-branch",
+      "head": "37447e0c4653424c40a005e6dd4aa2c50037cccf",
+      "upstream": "37447e0c4653424c40a005e6dd4aa2c50037cccf",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-did",
+      "status": "current-tracking-branch",
+      "head": "438c3d331a4a87b2f4d52f01aa27d598194a080f",
+      "upstream": "438c3d331a4a87b2f4d52f01aa27d598194a080f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-ledger",
+      "status": "current-tracking-branch",
+      "head": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "upstream": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-zkloan",
+      "status": "current-tracking-branch",
+      "head": "eff9030d509f98938914c1b2b721acb88fc1e42c",
+      "upstream": "eff9030d509f98938914c1b2b721acb88fc1e42c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/compact-playground",
+      "status": "current-tracking-branch",
+      "head": "f6f9cebe65acdd94a284f69f2b9afacd9f529aae",
+      "upstream": "f6f9cebe65acdd94a284f69f2b9afacd9f529aae",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-counter",
+      "status": "current-tracking-branch",
+      "head": "273f083ab36a52407f16ec9a9796d902226e05d6",
+      "upstream": "273f083ab36a52407f16ec9a9796d902226e05d6",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/servicedesk",
+      "status": "current-tracking-branch",
+      "head": "db43d690440b7cb41e99b38d81b03d01bcb178ff",
+      "upstream": "db43d690440b7cb41e99b38d81b03d01bcb178ff",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-faucet-ui",
+      "status": "current-tracking-branch",
+      "head": "c06a9563666e77506e8f005127f31ef08c696c9d",
+      "upstream": "c06a9563666e77506e8f005127f31ef08c696c9d",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/compact-tree-sitter",
+      "status": "fetched-preserved-local-changes",
+      "head": "6693aff01384a8cf1d928d830f67978c441a2506",
+      "upstream": null,
+      "predicate": "original HEAD preserved",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-engineering",
+      "status": "current-tracking-branch",
+      "head": "f00271747b279b32cb18ed6ec8545e82e3b127e1",
+      "upstream": "f00271747b279b32cb18ed6ec8545e82e3b127e1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/learn-compact",
+      "status": "current-tracking-branch",
+      "head": "73d34a0afcfbfc0938cbd25dd19d1002655671c3",
+      "upstream": "73d34a0afcfbfc0938cbd25dd19d1002655671c3",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-trusted-setup",
+      "status": "current-tracking-branch",
+      "head": "3ea610263b228af24840f7b00661ee22360db6d8",
+      "upstream": "3ea610263b228af24840f7b00661ee22360db6d8",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-node-cli",
+      "status": "current-tracking-branch",
+      "head": "a233981caad73de945036e4d80d888b593d36895",
+      "upstream": "a233981caad73de945036e4d80d888b593d36895",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-expert",
+      "status": "current-tracking-branch",
+      "head": "59f08faa86d1a59d739fba94c38d866496e2fe86",
+      "upstream": "59f08faa86d1a59d739fba94c38d866496e2fe86",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-kitties",
+      "status": "current-tracking-branch",
+      "head": "2854b0964136033022eaf7110900802fcfb6ef91",
+      "upstream": "2854b0964136033022eaf7110900802fcfb6ef91",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-node-docker",
+      "status": "current-tracking-branch",
+      "head": "60ef78c7f4244803d1386aa59c544aa775eecd8f",
+      "upstream": "60ef78c7f4244803d1386aa59c544aa775eecd8f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/halo2",
+      "status": "current-tracking-branch",
+      "head": "92d9356722f4e7943bec2dd5d2dcc5ebbedd4ff1",
+      "upstream": "92d9356722f4e7943bec2dd5d2dcc5ebbedd4ff1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-awesome-dapps",
+      "status": "current-tracking-branch",
+      "head": "e37cf3a1b9704c0405db6baa4b19f583943f1df1",
+      "upstream": "e37cf3a1b9704c0405db6baa4b19f583943f1df1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/dApp-idea-board",
+      "status": "current-tracking-branch",
+      "head": "6ba7988c5917f573c1f6b2fe027d27cdfaa37a36",
+      "upstream": "6ba7988c5917f573c1f6b2fe027d27cdfaa37a36",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-private-party",
+      "status": "current-tracking-branch",
+      "head": "62ca6e7e35f9df725f7f77d280d294ac37f2aca7",
+      "upstream": "62ca6e7e35f9df725f7f77d280d294ac37f2aca7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/rust-yamux",
+      "status": "current-tracking-branch",
+      "head": "5c19d4e744ffe9dab5d9eac662d88ae1f361dae1",
+      "upstream": "5c19d4e744ffe9dab5d9eac662d88ae1f361dae1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-tip-jar",
+      "status": "current-tracking-branch",
+      "head": "5008eb8aa786f09aadc594ff5fc8baff3cc3be74",
+      "upstream": "5008eb8aa786f09aadc594ff5fc8baff3cc3be74",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/partner-chains-smart-contracts",
+      "status": "current-tracking-branch",
+      "head": "8d57492a9d9a8e3ccda4165bf2ec61f98aa9430c",
+      "upstream": "8d57492a9d9a8e3ccda4165bf2ec61f98aa9430c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/k-rust",
+      "status": "fetched-preserved-divergence",
+      "head": "687ccd01e4708c495358c834c3685f297ecc8ac6",
+      "upstream": null,
+      "predicate": "original HEAD preserved",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-template-repo",
+      "status": "current-tracking-branch",
+      "head": "3b6911731a8bdb25ea98ed6f3cb3de833a6be3bf",
+      "upstream": "3b6911731a8bdb25ea98ed6f3cb3de833a6be3bf",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-battleship",
+      "status": "current-tracking-branch",
+      "head": "c0af8e10b2673d9f034ec9db5213778d33cfbc4f",
+      "upstream": "c0af8e10b2673d9f034ec9db5213778d33cfbc4f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/partner-chains",
+      "status": "current-tracking-branch",
+      "head": "ea4f8bdf9b894fbd4d9e7a9250e6485df3054106",
+      "upstream": "ea4f8bdf9b894fbd4d9e7a9250e6485df3054106",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-trust-registry",
+      "status": "current-tracking-branch",
+      "head": "9e46b27c19f4d3bb4f2a4d2ce46c69caee4ba03f",
+      "upstream": "9e46b27c19f4d3bb4f2a4d2ce46c69caee4ba03f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-dapp-connector-api",
+      "status": "current-tracking-branch",
+      "head": "4392de7cd0f147659456e0830adcfad377adbdbb",
+      "upstream": "4392de7cd0f147659456e0830adcfad377adbdbb",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-cnight-to-dust-dapp",
+      "status": "current-tracking-branch",
+      "head": "3a8d8c16e628f204144616aff0863670004fc3d9",
+      "upstream": "3a8d8c16e628f204144616aff0863670004fc3d9",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/rs-merkle",
+      "status": "current-tracking-branch",
+      "head": "7c997a58410ae9a23e0513d5eed6cfb410633dc8",
+      "upstream": "7c997a58410ae9a23e0513d5eed6cfb410633dc8",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-passport-sdk",
+      "status": "current-tracking-branch",
+      "head": "5dff89f62151de5ed91f88ef036c48899186a0e7",
+      "upstream": "5dff89f62151de5ed91f88ef036c48899186a0e7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/whisky",
+      "status": "current-tracking-branch",
+      "head": "bae4b2e34bff68fe0be328e1f8290f708b9e1172",
+      "upstream": "bae4b2e34bff68fe0be328e1f8290f708b9e1172",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-shielded-chips",
+      "status": "current-tracking-branch",
+      "head": "c492c85fbe9a95f90a210453cb0f87f87c175f73",
+      "upstream": "c492c85fbe9a95f90a210453cb0f87f87c175f73",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/substrate-telemetry",
+      "status": "current-tracking-branch",
+      "head": "4c07632af506ab984b3bd8bf012473dfa9af32a6",
+      "upstream": "4c07632af506ab984b3bd8bf012473dfa9af32a6",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/platform-js",
+      "status": "current-tracking-branch",
+      "head": "5a20f685e6ff0f6cc3424002aa00601ffbab346d",
+      "upstream": "5a20f685e6ff0f6cc3424002aa00601ffbab346d",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/k-framework-ts",
+      "status": "current-tracking-branch",
+      "head": "120e1dba90adb04f4730f90d8c0c516b30822811",
+      "upstream": "120e1dba90adb04f4730f90d8c0c516b30822811",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-docs",
+      "status": "current-tracking-branch",
+      "head": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+      "upstream": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/releases",
+      "status": "current-tracking-branch",
+      "head": "3799247d424b8a1480735507b9388a83c0b56c2e",
+      "upstream": "3799247d424b8a1480735507b9388a83c0b56c2e",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-wallet-dapp",
+      "status": "current-tracking-branch",
+      "head": "0e6fdf9f3d7ee43d3ec4ef895ec2a79f4eaf50c7",
+      "upstream": "0e6fdf9f3d7ee43d3ec4ef895ec2a79f4eaf50c7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/cquisitor-lib",
+      "status": "current-tracking-branch",
+      "head": "9cbd642e1b4112a102b43b7f78f0f39467013d6b",
+      "upstream": "9cbd642e1b4112a102b43b7f78f0f39467013d6b",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-local-dev",
+      "status": "current-tracking-branch",
+      "head": "902561ddc27a4b096f19835ab1528f38ace515f1",
+      "upstream": "902561ddc27a4b096f19835ab1528f38ace515f1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/passport-demo",
+      "status": "current-tracking-branch",
+      "head": "18453a9e70bed4b8b9c7dd18b2ebc97ce3e980ec",
+      "upstream": "18453a9e70bed4b8b9c7dd18b2ebc97ce3e980ec",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-architecture",
+      "status": "current-tracking-branch",
+      "head": "eabbedf33080b7ed033264e52c26c0dbb75bc57c",
+      "upstream": "eabbedf33080b7ed033264e52c26c0dbb75bc57c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-verifiable-credential-digital-passport",
+      "status": "current-tracking-branch",
+      "head": "cdeb860bc426590adeca3f39dc8d8efc8a62638f",
+      "upstream": "cdeb860bc426590adeca3f39dc8d8efc8a62638f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-sdk",
+      "status": "current-tracking-branch",
+      "head": "f5404d29d9fb5b2c37e494e47734cbeb76bd080d",
+      "upstream": "f5404d29d9fb5b2c37e494e47734cbeb76bd080d",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/workflows",
+      "status": "current-tracking-branch",
+      "head": "2a516da4425edff87dd8d080bfb1c4125866f727",
+      "upstream": "2a516da4425edff87dd8d080bfb1c4125866f727",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-did-resolver",
+      "status": "current-tracking-branch",
+      "head": "49912b214a985d582d2964f8a620bb6b94e1e560",
+      "upstream": "49912b214a985d582d2964f8a620bb6b94e1e560",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/passport",
+      "status": "current-tracking-branch",
+      "head": "dcff0065b82ab5aeb5ab3a5e4eebf3587a96b583",
+      "upstream": "dcff0065b82ab5aeb5ab3a5e4eebf3587a96b583",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-locker",
+      "status": "current-tracking-branch",
+      "head": "b72a82d01df1817f90871fd4909b24ec78c1df7a",
+      "upstream": "b72a82d01df1817f90871fd4909b24ec78c1df7a",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-hello-world",
+      "status": "current-tracking-branch",
+      "head": "2aa2c7c6eb85069ca9c6383ef977910527080530",
+      "upstream": "2aa2c7c6eb85069ca9c6383ef977910527080530",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/renovate-config",
+      "status": "current-tracking-branch",
+      "head": "5a65461c33f64f9ac40d9102956a8e3b70d6321a",
+      "upstream": "5a65461c33f64f9ac40d9102956a8e3b70d6321a",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/create-mn-app",
+      "status": "current-tracking-branch",
+      "head": "bdc86733d2a9d2e381cb050aec4fdde7b33559b4",
+      "upstream": "bdc86733d2a9d2e381cb050aec4fdde7b33559b4",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-dust-generator",
+      "status": "current-tracking-branch",
+      "head": "ac7c3fc1d8c9c652ba75e1ab0fe1e03ac59d9ff0",
+      "upstream": "ac7c3fc1d8c9c652ba75e1ab0fe1e03ac59d9ff0",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-faucet-api",
+      "status": "current-tracking-branch",
+      "head": "5468595850e624445555a81850710e1315225c01",
+      "upstream": "5468595850e624445555a81850710e1315225c01",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/lfdt-project-proposals",
+      "status": "current-tracking-branch",
+      "head": "8adeefb93325d7755cf8e244c160828b6a6ba150",
+      "upstream": "8adeefb93325d7755cf8e244c160828b6a6ba150",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-zk",
+      "status": "current-tracking-branch",
+      "head": "695351f1cdb3909affd1c89fef0a5eb3e9fa3ab7",
+      "upstream": "695351f1cdb3909affd1c89fef0a5eb3e9fa3ab7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-verifiable-credentials",
+      "status": "current-tracking-branch",
+      "head": "437cd6de3f4a86f312c895bf136f324fdd214d96",
+      "upstream": "437cd6de3f4a86f312c895bf136f324fdd214d96",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-js",
+      "status": "current-tracking-branch",
+      "head": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+      "upstream": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-nft-contracts",
+      "status": "current-tracking-branch",
+      "head": "212223d340ba6e4655ce40aa89725f156d69403e",
+      "upstream": "212223d340ba6e4655ce40aa89725f156d69403e",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/compact",
+      "status": "current-tracking-branch",
+      "head": "5e4946cca6abd8039e242ebcfc06be01391c35d6",
+      "upstream": "5e4946cca6abd8039e242ebcfc06be01391c35d6",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-reserve-contracts",
+      "status": "current-tracking-branch",
+      "head": "4aa85437f4c4077c8cbbf1d0386776e91870678f",
+      "upstream": "4aa85437f4c4077c8cbbf1d0386776e91870678f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-wallet",
+      "status": "current-tracking-branch",
+      "head": "6e1050e5fcb6ac82b6c9fe8eabf4536e3f5807ca",
+      "upstream": "6e1050e5fcb6ac82b6c9fe8eabf4536e3f5807ca",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-improvement-proposals",
+      "status": "current-tracking-branch",
+      "head": "e74fc44ac6bd07adfa8159926a78cdb0263efd1c",
+      "upstream": "e74fc44ac6bd07adfa8159926a78cdb0263efd1c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-leaderboard",
+      "status": "current-tracking-branch",
+      "head": "69a2956df4a072a1d918531c44683001964a7daf",
+      "upstream": "69a2956df4a072a1d918531c44683001964a7daf",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/parity-db",
+      "status": "current-tracking-branch",
+      "head": "d44ef4fafd15ed8326e74b88f2558afaf458f7f6",
+      "upstream": "d44ef4fafd15ed8326e74b88f2558afaf458f7f6",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/example-bboard",
+      "status": "current-tracking-branch",
+      "head": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "upstream": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/compact-js",
+      "status": "fetched-preserved-divergence",
+      "head": "4d455329d9b267ef4e314f02607a3028fa246f20",
+      "upstream": null,
+      "predicate": "original HEAD preserved",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/setup-compact-action",
+      "status": "current-tracking-branch",
+      "head": "a6d20c7416e9c1bcd27e6aafb6a50b30bff9831c",
+      "upstream": "a6d20c7416e9c1bcd27e6aafb6a50b30bff9831c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/upload-sarif-github-action",
+      "status": "current-tracking-branch",
+      "head": "362d0346b194663004cb371e8e8523bd1c910917",
+      "upstream": "362d0346b194663004cb371e8e8523bd1c910917",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-zkir",
+      "status": "fetched-preserved-local-changes",
+      "head": "2ffe2d17bbb736aec36fb300aeaca679a10d2278",
+      "upstream": null,
+      "predicate": "original HEAD preserved",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/Moriarty/repos/midnightntwrk/midnight-node",
+      "status": "current-tracking-branch",
+      "head": "658a8c52e18f0ba347a9f036f50e4f0141cc62a7",
+      "upstream": "658a8c52e18f0ba347a9f036f50e4f0141cc62a7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-indexer",
+      "status": "current-tracking-branch",
+      "head": "9de7fd76c1fa4e741d2679bf737ed8c75991d027",
+      "upstream": "9de7fd76c1fa4e741d2679bf737ed8c75991d027",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-ledger",
+      "status": "current-tracking-branch",
+      "head": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "upstream": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/lfdt-minokawa-compact",
+      "status": "current-tracking-branch",
+      "head": "c47230cc8c3e743634166d9b84698ac2b238c418",
+      "upstream": "c47230cc8c3e743634166d9b84698ac2b238c418",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-local-dev",
+      "status": "current-tracking-branch",
+      "head": "902561ddc27a4b096f19835ab1528f38ace515f1",
+      "upstream": "902561ddc27a4b096f19835ab1528f38ace515f1",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-architecture",
+      "status": "current-tracking-branch",
+      "head": "eabbedf33080b7ed033264e52c26c0dbb75bc57c",
+      "upstream": "eabbedf33080b7ed033264e52c26c0dbb75bc57c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-js",
+      "status": "current-tracking-branch",
+      "head": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+      "upstream": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/compact",
+      "status": "current-tracking-branch",
+      "head": "5e4946cca6abd8039e242ebcfc06be01391c35d6",
+      "upstream": "5e4946cca6abd8039e242ebcfc06be01391c35d6",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-wallet",
+      "status": "current-tracking-branch",
+      "head": "6e1050e5fcb6ac82b6c9fe8eabf4536e3f5807ca",
+      "upstream": "6e1050e5fcb6ac82b6c9fe8eabf4536e3f5807ca",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/example-bboard",
+      "status": "current-tracking-branch",
+      "head": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "upstream": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/midnight/midnight-node",
+      "status": "current-tracking-branch",
+      "head": "658a8c52e18f0ba347a9f036f50e4f0141cc62a7",
+      "upstream": "658a8c52e18f0ba347a9f036f50e4f0141cc62a7",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/midnight-ledger",
+      "status": "current-tracking-branch",
+      "head": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "upstream": "3fa0d1d15a3cfabd41c806546a006b1ce406b7b2",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/example-zkloan",
+      "status": "current-tracking-branch",
+      "head": "eff9030d509f98938914c1b2b721acb88fc1e42c",
+      "upstream": "eff9030d509f98938914c1b2b721acb88fc1e42c",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/midnight-docs",
+      "status": "current-tracking-branch",
+      "head": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+      "upstream": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/compact",
+      "status": "fetched-preserved-local-changes",
+      "head": "986cf787dfd487d848a92c204c4d24fea31a69ee",
+      "upstream": null,
+      "predicate": "original HEAD preserved",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/midnight-leaderboard",
+      "status": "current-tracking-branch",
+      "head": "69a2956df4a072a1d918531c44683001964a7daf",
+      "upstream": "69a2956df4a072a1d918531c44683001964a7daf",
+      "predicate": "head equals upstream",
+      "pass": true
+    },
+    {
+      "path": "/home/charl/explorations/repos/kachina-compact/example-bboard",
+      "status": "current-tracking-branch",
+      "head": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "upstream": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+      "predicate": "head equals upstream",
+      "pass": true
+    }
+  ],
+  "all_pass": true
+}

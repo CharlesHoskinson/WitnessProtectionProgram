@@ -124,5 +124,32 @@
     "sha256": "807613bbf6692e6809a571bc694a4719a5aa6863f7a62bd714003ab73de588e6",
     "matches_commit": true,
     "observed_at": "2026-09-13T21:40:39.293328+00:00"
+  },
+  {
+    "repository": "https://github.com/bitwarden/clients",
+    "commit": "e40ce6f08ebf963db3561464e77b4defe05247e8",
+    "path": "apps/cli/src/vault.program.ts",
+    "url": "https://github.com/bitwarden/clients/blob/e40ce6f08ebf963db3561464e77b4defe05247e8/apps/cli/src/vault.program.ts",
+    "sha256": "80ed05c87c57ebd34d38e631205cddd37ff85fb51ebdc5ff19e3e84f9583f7c8",
+    "matches_commit": true,
+    "observed_at": "2026-09-13T21:43:59.060770+00:00"
+  },
+  {
+    "repository": "https://github.com/bitwarden/clients",
+    "commit": "e40ce6f08ebf963db3561464e77b4defe05247e8",
+    "path": "apps/cli/src/vault/create.command.ts",
+    "url": "https://github.com/bitwarden/clients/blob/e40ce6f08ebf963db3561464e77b4defe05247e8/apps/cli/src/vault/create.command.ts",
+    "sha256": "25ae18cf8986af8f7651c9c59575f32cebfe0ed07c02b13a9300590e8d53958d",
+    "matches_commit": true,
+    "observed_at": "2026-09-13T21:43:59.062540+00:00"
+  },
+  {
+    "repository": "https://github.com/bitwarden/clients",
+    "commit": "e40ce6f08ebf963db3561464e77b4defe05247e8",
+    "path": "apps/cli/src/key-management/commands/unlock.command.ts",
+    "url": "https://github.com/bitwarden/clients/blob/e40ce6f08ebf963db3561464e77b4defe05247e8/apps/cli/src/key-management/commands/unlock.command.ts",
+    "sha256": "4b76af419f15a0b943b604d8e73ca44facc51270ae394435c494abb79c125950",
+    "matches_commit": true,
+    "observed_at": "2026-09-13T21:47:16.455032+00:00"
   }
 ]

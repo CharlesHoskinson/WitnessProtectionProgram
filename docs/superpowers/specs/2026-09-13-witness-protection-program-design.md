@@ -8,7 +8,7 @@ Protect the irreplaceable private data used or produced by a Midnight applicatio
 
 “Witness” has several meanings. WPP distinguishes persistent application private state, explicitly retained application inputs/outputs, and transient proving material. The first is protected by default for an integrated application. The second requires an application codec and an explicit retention policy. The third is excluded by default. The chain and indexer cannot reconstruct arbitrary private inputs. A universal browser hook that silently collects every witness is outside scope.
 
-The first implementation target is TypeScript with a Node desktop/CLI companion and Web Crypto primitives. This matches the inspected Midnight.js surface and permits browser reuse. A hardened native secret-handling component is a later option; JavaScript does not provide reliable memory zeroization. iCloud automatic integration needs a native platform bridge. These are design decisions, not implemented capabilities.
+The first implementation target is TypeScript with a desktop companion and Web Crypto primitives; a CLI serves development and interoperability testing. The consumer interface uses provider-native sign-in buttons and guided Bitwarden linking. This matches the inspected Midnight.js surface and permits browser reuse. A hardened native secret-handling component is a later option; JavaScript does not provide reliable memory zeroization. iCloud automatic integration needs a native platform bridge. These are design decisions, not implemented capabilities.
 
 ## Alternatives
 
@@ -49,11 +49,13 @@ Rotation after a root compromise generates an independent random root epoch. Mer
 
 ## Bitwarden workflow
 
-The initial desktop design uses the supported Password Manager CLI through a narrow subprocess adapter, pinned and integration-tested at implementation time. It reads or writes only a specifically selected WPP secure note. Secure-note content is the WPP root record, not a whole-vault export. Do not parse local Bitwarden database files or borrow the user's master password to derive WPP keys.
+The initial desktop design uses the supported Password Manager CLI through a narrow subprocess adapter, pinned and integration-tested at implementation time. It reads or writes only a specifically selected WPP secure note, pinned by its immutable item UUID and provider/account identity rather than a name search. Secure-note content is the WPP root record, not a whole-vault export. Do not parse local Bitwarden database files or borrow the user's master password to derive WPP keys.
 
-Unlock requires the user's normal Bitwarden ceremony. A bridge must keep secret input off command arguments and logs, keep session material in tightly scoped process state, redact failures, and lock on timeout. The CLI session has broader vault authority than one note; a narrow WPP adapter does not reduce the CLI token's privileges. This is an acknowledged first-release limitation and must be tested before a smooth browser/mobile integration is promised. An external CLI cannot simply be called by a web page.
+Unlock requires the user's normal Bitwarden ceremony. A bridge must keep secret input off command arguments and logs, keep session material in tightly scoped process state, redact failures, and lock on timeout. The inspected CLI supports encoded create/edit input through stdin, so the desktop bridge can supply the selected root record through a private pipe. The CLI session has broader vault authority than one note; a narrow WPP adapter does not reduce the CLI token's privileges. This is an acknowledged first-release limitation and must be tested before a smooth browser/mobile integration is promised. An external CLI cannot simply be called by a web page. The publisher supplies a reviewed install/update experience for the companion's dependency; consumers do not run shell commands to link an account.
 
 Setup creates a separately exportable recovery record protected by a freshly generated 32-byte recovery key. Store the encrypted record and the recovery key separately, then rehearse restore. This route provides independence from Bitwarden availability. It does not recover absent ciphertext. Bitwarden emergency access can complement, but does not replace, a tested WPP recovery procedure.
+
+The session bridge captures raw unlock output privately and never displays or logs it. Set `BW_SESSION` only in an explicitly allowlisted child environment for the selected operation, never in arguments or the global parent environment. Disable inherited debug/tracing output, capture and redact stderr, discard per-child environments on exit, and clear the retained in-memory session on lock/timeout. A same-user process or compromised OS may still inspect a child environment; this containment reduces accidental exposure and is not an OS security boundary. Root updates follow the revision and rollback rules in the package format.
 
 ## Capture and backup lifecycle
 

@@ -1,0 +1,123 @@
+# WPP design review — Terra
+
+Date: 2026-09-13.  This is a source-grounded design review, not a security
+assessment or certification.  “Upstream” below means the commits pinned in
+`WitnessProtectionProgram/research/design-source-lock.json`; the checked-out
+commit IDs equal those pins.
+
+## Result
+
+The proposed boundary is coherent: WPP encrypts locally, storage receives only
+ciphertext, and the proposed future Passport boundary is appropriately
+kernel-owned.  The provider-login design now also meets the stated product
+requirement: it includes official Apple, Microsoft, Google, and Dropbox entry
+points, while correctly treating Apple identity authentication and iCloud Drive
+authorization as distinct operations.
+
+Midnight’s pinned provider exports an object with the three fields
+`format`, `encryptedPayload`, and `salt`, and defines the payload as encrypted
+AES-256-GCM JSON ([private-state-provider.ts:27-43](../midnight/midnight-js/packages/types/src/private-state-provider.ts)).
+It exports only the selected contract’s states ([level-private-state-provider.ts:844-903](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts))
+and requires a contract scope for both export and import
+([:845-848](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts),
+[:906-920](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts)).
+That supports WPP’s native-envelope approach and its staging/contract-binding
+rules.  The Passport SDK is still planning/spec work ([README.md:3-10](../midnight/midnight-passport-sdk/README.md)); its beta explicitly defers witness
+provisioning and recovery ([beta-scope.md:142-159](../midnight/midnight-passport-sdk/docs/beta-scope.md)).
+
+## Findings requiring design resolution
+
+1. **[High] Do not promise preservation of “native export bytes.”**  The native
+   API returns a JSON-serializable object, not a byte string
+   ([private-state-provider.ts:357-375](../midnight/midnight-js/packages/types/src/private-state-provider.ts)).
+   WPP says `content` is the “exact native JSON object” but then canonicalizes
+   the outer payload as JCS ([witness-package-format.md:50-52](../WitnessProtectionProgram/docs/witness-package-format.md),
+   [:84-90](../WitnessProtectionProgram/docs/witness-package-format.md)).
+   This is safe only as *field/value preservation* of `format`,
+   `encryptedPayload`, and `salt`; there are no upstream-native bytes to
+   preserve.  Change AGENTS/format wording to that claim and require a
+   structural equality check before `importPrivateStates`.  Keep a native
+   producer/version compatibility matrix, because the implementation rejects
+   unsupported encrypted payload versions after decryption
+   ([level-private-state-provider.ts:961-965](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts)).
+
+2. **[High] Make Passport integration a capability-gated future adapter, not an
+   M6 assumption.**  WPP already calls it eventual, but the roadmap’s M6 exit
+   condition could be read as an available target.  At the pinned Passport
+   state, the storage/witness seam is architectural planning and beta has no
+   witness provisioning or recovery.  Add an explicit release blocker:
+   no Passport adapter, no claim of Passport restore, and no grant/ceremony
+   mapping until a released, version-pinned API supplies the required
+   authorized capture and ciphertext-storage operations.  This maintains the
+   correct proposed boundary: Passport says only its kernel holds decrypted
+   secrets and adapters receive ciphertext ([architecture.md:113-125](../midnight/midnight-passport-sdk/docs/architecture.md)).
+
+3. **[High] Specify the Bitwarden CLI session containment protocol.**  A narrow
+   selected secure-note *operation* does not narrow the CLI credential’s vault
+   authority.  More concretely, the pinned CLI unlock implementation places a
+   session key in `BW_SESSION` ([unlock.command.ts:79-83](../bitwarden/clients/apps/cli/src/key-management/commands/unlock.command.ts))
+   and returns/displays it with examples for environment and `--session`
+   ([unlock.command.ts:85-101](../bitwarden/clients/apps/cli/src/key-management/commands/unlock.command.ts)).
+   The design acknowledges broad authority, but needs an executable
+   requirement: capture unlock output without displaying it; pass the session
+   only via the child process environment (never argv); isolate/clear that
+   child environment after each operation; redact inherited diagnostics; and
+   use an immutable item UUID, not a search result.  CLI `get` can search and
+   returns multiple matching objects ([get.command.ts:123-143](../bitwarden/clients/apps/cli/src/commands/get.command.ts)), so a name-selected note is ambiguous.
+
+4. **[Medium] Define strict root-record decoding and epoch selection.**  Package
+   JSON has canonicalization, duplicate-key rejection, and bounds
+   ([witness-package-format.md:5-9](../WitnessProtectionProgram/docs/witness-package-format.md));
+   the equally security-critical root record only states its fields and that
+   one epoch is active ([witness-package-format.md:106-112](../WitnessProtectionProgram/docs/witness-package-format.md)).
+   Define its canonical serialization/size limits, reject duplicate/unknown
+   fields and invalid base64url lengths, and make `active` selection fail if it
+   is absent or non-unique.  Also define how a root-note rollback or concurrent
+   edit is detected and recovered.  This is format completeness work, not a
+   claim that Bitwarden provides rollback protection.
+
+5. **[Medium] Bind native snapshot scope evidence at the capture boundary.**
+   The provider selects states by the mutable current contract address
+   ([level-private-state-provider.ts:844-870](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts));
+   the exported payload itself carries state count and raw state IDs only after
+   decryption ([level-private-state-provider.ts:884-903](../midnight/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts)).
+   WPP’s quiescing rule is good, but add a concrete capture receipt containing
+   the exact provider instance identity, requested contract address, returned
+   state count, and a post-export scope recheck before encrypting WPP metadata.
+   On restore, compare the imported count/IDs in staging before activation.
+   This narrows the mutable-scope race without asserting transaction finality.
+
+## Confirmed provider-login direction
+
+The WPP design explicitly describes Google, Microsoft, Dropbox, and Apple
+buttons plus their native authorization mechanisms
+([integrations.md:13-20](../WitnessProtectionProgram/docs/integrations.md)).
+It correctly states that Sign in with Apple authenticates identity while iCloud
+Drive needs separate native folder authorization, and it does not substitute
+CloudKit or a generic iCloud OAuth permission ([integrations.md:18-20](../WitnessProtectionProgram/docs/integrations.md)).
+Keep that wording.  “One click” should continue to mean a single WPP action
+that starts the provider’s native login; it cannot bypass provider account
+selection, MFA, or consent ([integrations.md:7-11](../WitnessProtectionProgram/docs/integrations.md)).
+
+## Cryptographic derivation observations
+
+No obvious key/nonce collision is introduced by the written profile: object
+keys include purpose, kind, record, and fresh generation identifiers, native
+export-password keys use a distinct label, and AES-GCM nonces are fresh
+([witness-package-format.md:37-59](../WitnessProtectionProgram/docs/witness-package-format.md)).
+The derived base64url native password exceeds Midnight’s documented minimum of
+16 characters ([private-state-provider.ts:55-68](../midnight/midnight-js/packages/types/src/private-state-provider.ts)).
+This remains a design observation only.  The required independent vectors,
+negative interoperability tests, restore-fault tests, and security review in
+the repository rules remain necessary before cryptographic behavior ships.
+
+## Bitwarden support boundary
+
+The selected Password Manager CLI route is the defensible current integration
+surface: its README describes a full-featured vault-management CLI
+([README.md:3-8](../bitwarden/clients/apps/cli/README.md)).  Do not replace it
+with `sdk-internal`: that repository says its password-manager SDK is not
+publicly supported and can change without warning
+([README.md:1-12](../bitwarden/sdk-internal/README.md)).  Its license also
+limits SDK use to a Compatible Application and bars offering/licensing/selling
+such an application to a third party ([LICENSE_SDK.txt:45-74](../bitwarden/sdk-internal/LICENSE_SDK.txt)).
