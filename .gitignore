@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.wpp
+*.wpp.json
+*.wpp-recovery.json
+node_modules/
+target/
+dist/
+.DS_Store
+.foreman/
+graphify-out/
+research/graphs/
+research/checkouts/
