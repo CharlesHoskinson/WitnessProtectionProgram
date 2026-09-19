@@ -60,27 +60,6 @@
               "revisionId": "synFixtureRev1"
             }
           ]
-        },
-        {
-          "entryKind": "tombstone",
-          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
-          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
-          "reason": "user-request",
-          "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
-          "entryKind": "root-update-receipt",
-          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
-          "parentRootRecordSha256": [
-            "0202020202020202020202020202020202020202020202020202020202020202"
-          ],
-          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
-          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
-          "retainedOldEpochs": [
-            "UFFSU1RVVldYWVpbXF1eXw"
-          ],
-          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
-          "recordedAt": "2026-09-19T12:30:00.123Z"
         }
       ],
       "observations": [
@@ -224,27 +203,6 @@
               "revisionId": "synFixtureRev1"
             }
           ]
-        },
-        {
-          "entryKind": "tombstone",
-          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
-          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
-          "reason": "user-request",
-          "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
-          "entryKind": "root-update-receipt",
-          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
-          "parentRootRecordSha256": [
-            "0202020202020202020202020202020202020202020202020202020202020202"
-          ],
-          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
-          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
-          "retainedOldEpochs": [
-            "UFFSU1RVVldYWVpbXF1eXw"
-          ],
-          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
-          "recordedAt": "2026-09-19T12:30:00.123Z"
         }
       ],
       "observations": [
@@ -264,6 +222,25 @@
           "outcome": {
             "status": "digest-mismatch",
             "observedSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        },
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
           }
         }
       ]
@@ -387,27 +364,6 @@
               "revisionId": "synFixtureRev1"
             }
           ]
-        },
-        {
-          "entryKind": "tombstone",
-          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
-          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
-          "reason": "user-request",
-          "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
-          "entryKind": "root-update-receipt",
-          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
-          "parentRootRecordSha256": [
-            "0202020202020202020202020202020202020202020202020202020202020202"
-          ],
-          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
-          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
-          "retainedOldEpochs": [
-            "UFFSU1RVVldYWVpbXF1eXw"
-          ],
-          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
-          "recordedAt": "2026-09-19T12:30:00.123Z"
         }
       ],
       "observations": [
@@ -427,6 +383,25 @@
           "outcome": {
             "status": "authentication-failed",
             "reason": "aead-rejected"
+          }
+        },
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
           }
         }
       ]
@@ -499,20 +474,6 @@
           "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
           "reason": "user-request",
           "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
-          "entryKind": "root-update-receipt",
-          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
-          "parentRootRecordSha256": [
-            "0202020202020202020202020202020202020202020202020202020202020202"
-          ],
-          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
-          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
-          "retainedOldEpochs": [
-            "UFFSU1RVVldYWVpbXF1eXw"
-          ],
-          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
-          "recordedAt": "2026-09-19T12:30:00.123Z"
         }
       ],
       "observations": [
@@ -532,6 +493,25 @@
           "outcome": {
             "status": "not-found",
             "reason": "object-not-found"
+          }
+        },
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
           }
         }
       ]
@@ -599,13 +579,6 @@
           ]
         },
         {
-          "entryKind": "tombstone",
-          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
-          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
-          "reason": "user-request",
-          "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
           "entryKind": "root-update-receipt",
           "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
           "parentRootRecordSha256": [
@@ -637,6 +610,25 @@
           "outcome": {
             "status": "access-denied",
             "reason": "permission-denied"
+          }
+        },
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
           }
         }
       ]
@@ -704,13 +696,6 @@
           ]
         },
         {
-          "entryKind": "tombstone",
-          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
-          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
-          "reason": "user-request",
-          "recordedAt": "2026-09-19T12:00:00Z"
-        },
-        {
           "entryKind": "root-update-receipt",
           "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
           "parentRootRecordSha256": [
@@ -742,6 +727,25 @@
           "outcome": {
             "status": "unavailable",
             "reason": "provider"
+          }
+        },
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
           }
         }
       ]

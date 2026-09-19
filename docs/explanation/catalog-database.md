@@ -18,18 +18,28 @@ against the recovered root record. Never follow a URL from a marker.
 
 ## Full snapshots, not deltas
 
-Each catalog is a complete logical snapshot of retained entries. A successor
-catalog copies forward every retained snapshot, tombstone, and root-update
-receipt it still needs. It is not a patch against a parent catalog.
+Each catalog is a complete logical snapshot of retained entries and known
+observations. A successor catalog copies forward every retained snapshot,
+tombstone, root-update receipt, and known observation. It is not a patch against
+a parent catalog.
 
 This profile has no pagination. The catalog may hold at most 1000 entries and
 4000 observations. The independent 16 MiB plaintext ceiling still applies. An
 implementation must reject an oversize union rather than drop entries or invent
 pages.
 
-There is no automatic pruning. Tombstones hide exact targets in a default
-listing only after a later product implements listing. The tombstone remains
-history. Automatic ciphertext deletion stays disabled.
+There is no automatic pruning. Known observations stay in the successor. If the
+4000 bound would be exceeded, reject the union. Identical observation IDs with
+identical bodies deduplicate. Identical IDs with different bodies are a
+conflict.
+
+Tombstones hide exact targets in a default listing only after a later product
+implements listing. The tombstone remains history. Automatic ciphertext deletion
+stays disabled.
+
+A snapshot fork shares `scopeId` and `recordId`, uses a distinct `generationId`,
+and names the ancestor snapshot digest in `metadata.parents`. Catalog `parents`
+name predecessor catalog bytes. They do not prove a snapshot fork.
 
 ## Index lifetime is a future M1 concern
 

@@ -42,9 +42,18 @@ REQUIRED_DEFS = (
     "id32",
     "digest",
     "timestamp",
+    "text",
+    "labelText",
     "binding",
     "metadata",
     "locator",
+)
+SUCCESSOR_CATALOG_NAMES = (
+    "forkA",
+    "forkB",
+    "tombstoned",
+    "rootUpdateOldEpoch",
+    "rootUpdateNewEpoch",
 )
 
 MAX_PARENTS = 16
@@ -57,6 +66,8 @@ MAX_PACKAGE_BYTES = 25165824
 MAX_CODEC_VERSION = 2147483647
 MAX_RETAINED_OLD_EPOCHS = 255
 MAX_RECEIPT_PARENTS = 2
+PLAINTEXT_CEILING_BYTES = 16 * 1024 * 1024
+METADATA_BYTE_CEILING = 64 * 1024
 
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
@@ -110,8 +121,15 @@ class CatalogSchemaTestCase(unittest.TestCase):
     def setUpClass(cls):
         cls.schema = load_json(SCHEMA_PATH)
         Draft202012Validator.check_schema(cls.schema)
+        format_checker = FormatChecker()
+        if "date-time" not in format_checker.checkers:
+            raise AssertionError(
+                "FormatChecker has no date-time checker. Install "
+                "jsonschema==4.19.2 and rfc3339-validator==0.1.4 from "
+                "tests/requirements.txt and run this suite in that environment."
+            )
         cls.validator = Draft202012Validator(
-            cls.schema, format_checker=FormatChecker()
+            cls.schema, format_checker=format_checker
         )
         cls.fixtures = load_json(FIXTURES_PATH)
 
@@ -178,13 +196,13 @@ class TestCatalogSchemaDocument(CatalogSchemaTestCase):
         )
 
     def test_schema_is_self_contained(self):
-        remote_refs = []
+        bad_refs = []
 
         def walk(node):
             if isinstance(node, dict):
                 ref = node.get("$ref")
-                if isinstance(ref, str) and ref.startswith("http"):
-                    remote_refs.append(ref)
+                if isinstance(ref, str) and not ref.startswith("#"):
+                    bad_refs.append(ref)
                 for child in node.values():
                     walk(child)
             elif isinstance(node, list):
@@ -192,7 +210,11 @@ class TestCatalogSchemaDocument(CatalogSchemaTestCase):
                     walk(child)
 
         walk(self.schema)
-        self.assertEqual(remote_refs, [])
+        self.assertEqual(bad_refs, [])
+
+    def test_format_checker_registers_date_time(self):
+        self.assertIsNotNone(self.validator.format_checker)
+        self.assertIn("date-time", self.validator.format_checker.checkers)
 
     def test_schema_exposes_named_defs(self):
         defs = self.schema.get("$defs")
@@ -242,31 +264,108 @@ class TestCatalogFixtures(CatalogSchemaTestCase):
             for binding in bindings:
                 self.assertEqual(binding["scheme"], "synthetic-fixture")
 
+    def test_baseline_contains_only_snapshot_entry(self):
+        kinds = [
+            entry["entryKind"] for entry in self.catalog("baseline")["entries"]
+        ]
+        self.assertEqual(kinds, ["snapshot"])
+
+    def test_successors_retain_baseline_observations_unchanged(self):
+        baseline_observations = self.catalog("baseline")["observations"]
+        self.assertTrue(baseline_observations)
+        for name in SUCCESSOR_CATALOG_NAMES:
+            with self.subTest(catalog=name):
+                successor_observations = self.catalog(name)["observations"]
+                for observation in baseline_observations:
+                    self.assertIn(observation, successor_observations)
+
+    def test_forks_carry_baseline_snapshot_entry(self):
+        baseline_entry = first_entry(self.catalog("baseline"), "snapshot")
+        for name in ("forkA", "forkB"):
+            with self.subTest(catalog=name):
+                snapshots = [
+                    entry
+                    for entry in self.catalog(name)["entries"]
+                    if entry.get("entryKind") == "snapshot"
+                ]
+                self.assertIn(baseline_entry, snapshots)
+
     def test_fork_heads_share_record_and_differ_in_generation(self):
+        baseline = first_entry(self.catalog("baseline"), "snapshot")
         fork_a = first_entry(self.catalog("forkA"), "snapshot")
         fork_b = first_entry(self.catalog("forkB"), "snapshot")
         self.assertEqual(
+            fork_a["package"]["scopeId"], fork_b["package"]["scopeId"]
+        )
+        self.assertEqual(
             fork_a["package"]["recordId"], fork_b["package"]["recordId"]
+        )
+        self.assertEqual(
+            fork_a["package"]["scopeId"], baseline["package"]["scopeId"]
+        )
+        self.assertEqual(
+            fork_a["package"]["recordId"], baseline["package"]["recordId"]
         )
         self.assertNotEqual(
             fork_a["package"]["generationId"],
             fork_b["package"]["generationId"],
         )
+        self.assertNotEqual(
+            fork_a["package"]["generationId"],
+            baseline["package"]["generationId"],
+        )
+        self.assertNotEqual(
+            fork_b["package"]["generationId"],
+            baseline["package"]["generationId"],
+        )
         self.assertNotEqual(fork_a["package"]["sha256"], fork_b["package"]["sha256"])
+        self.assertNotEqual(
+            fork_a["package"]["sha256"], baseline["package"]["sha256"]
+        )
+        self.assertNotEqual(
+            fork_b["package"]["sha256"], baseline["package"]["sha256"]
+        )
 
     def test_fork_heads_share_a_known_ancestor(self):
+        baseline_digest = first_entry(self.catalog("baseline"), "snapshot")[
+            "package"
+        ]["sha256"]
         fork_a = self.catalog("forkA")
         fork_b = self.catalog("forkB")
         snapshot_a = first_entry(fork_a, "snapshot")
         snapshot_b = first_entry(fork_b, "snapshot")
-        catalog_shared = set(fork_a["parents"]) & set(fork_b["parents"])
-        metadata_shared = set(snapshot_a["metadata"]["parents"]) & set(
-            snapshot_b["metadata"]["parents"]
+        self.assertIn(baseline_digest, snapshot_a["metadata"]["parents"])
+        self.assertIn(baseline_digest, snapshot_b["metadata"]["parents"])
+        self.assertNotIn(
+            baseline_digest,
+            fork_a["parents"],
+            "catalog parents are not snapshot-fork ancestry",
         )
-        self.assertTrue(
-            catalog_shared or metadata_shared,
-            "fork catalogs must share a known ancestor digest",
+        self.assertNotIn(
+            baseline_digest,
+            fork_b["parents"],
+            "catalog parents are not snapshot-fork ancestry",
         )
+
+    def test_tombstoned_has_snapshot_and_tombstone_only(self):
+        kinds = [
+            entry["entryKind"]
+            for entry in self.catalog("tombstoned")["entries"]
+        ]
+        self.assertEqual(set(kinds), {"snapshot", "tombstone"})
+        self.assertEqual(kinds.count("snapshot"), 1)
+        self.assertEqual(kinds.count("tombstone"), 1)
+
+    def test_root_update_catalogs_have_snapshot_and_receipt_only(self):
+        for name in ("rootUpdateOldEpoch", "rootUpdateNewEpoch"):
+            with self.subTest(catalog=name):
+                kinds = [
+                    entry["entryKind"]
+                    for entry in self.catalog(name)["entries"]
+                ]
+                self.assertEqual(set(kinds), {"snapshot", "root-update-receipt"})
+                self.assertEqual(kinds.count("snapshot"), 1)
+                self.assertEqual(kinds.count("root-update-receipt"), 1)
 
     def test_tombstone_targets_baseline_snapshot(self):
         baseline_digest = first_entry(self.catalog("baseline"), "snapshot")[
@@ -490,7 +589,7 @@ class TestUnknownAndMissingKeys(CatalogSchemaTestCase):
 class TestIdentifierAndTimestampMutations(CatalogSchemaTestCase):
     def test_malformed_digest_uppercase(self):
         catalog = self.catalog()
-        catalog["parents"] = [first_entry(catalog, "snapshot")["package"]["sha256"].upper()]
+        catalog["parents"] = ["A" * 64]
         self.assert_invalid(catalog)
 
     def test_malformed_digest_length(self):
@@ -648,6 +747,73 @@ class TestTextAndBindingMutations(CatalogSchemaTestCase):
             entry["metadata"]["accountBinding"]["scheme"] = "1synthetic"
 
         self.assert_invalid(self.mutate_snapshot(mutate))
+
+
+class TestAbsoluteStringEnd(CatalogSchemaTestCase):
+    TRAILING_CASES = (
+        (
+            "applicationId",
+            lambda entry, value: entry["metadata"].__setitem__(
+                "applicationId", value
+            ),
+            "wpp-vector-fixture",
+        ),
+        (
+            "label",
+            lambda entry, value: entry.__setitem__("label", value),
+            "synthetic-baseline",
+        ),
+        (
+            "binding.scheme",
+            lambda entry, value: entry["metadata"]["accountBinding"].__setitem__(
+                "scheme", value
+            ),
+            "synthetic-fixture",
+        ),
+        (
+            "locator.objectId",
+            lambda entry, value: entry["locators"][0].__setitem__(
+                "objectId", value
+            ),
+            "synFixtureObjectBaseline",
+        ),
+        (
+            "sourceCommit40",
+            lambda entry, value: entry["metadata"]["codec"].__setitem__(
+                "sourceCommit", value
+            ),
+            "a" * 40,
+        ),
+    )
+    NEWLINES = (
+        ("LF", "\n"),
+        ("CR", "\r"),
+        ("CRLF", "\r\n"),
+    )
+
+    def test_trailing_newlines_are_rejected(self):
+        for field, setter, base in self.TRAILING_CASES:
+            for suffix_name, suffix in self.NEWLINES:
+                with self.subTest(field=field, suffix=suffix_name):
+                    def mutate(entry, assign=setter, value=base + suffix):
+                        assign(entry, value)
+
+                    self.assert_invalid(self.mutate_snapshot(mutate))
+
+    def test_values_without_trailing_newline_remain_valid(self):
+        for field, setter, base in self.TRAILING_CASES:
+            with self.subTest(field=field):
+                def mutate(entry, assign=setter, value=base):
+                    assign(entry, value)
+
+                self.assert_valid(self.mutate_snapshot(mutate))
+
+    def test_controls_free_unicode_still_passes(self):
+        def mutate(entry):
+            entry["metadata"]["applicationId"] = "应用-σύνθετο-アプリ"
+            entry["label"] = "标签-ετικέτα"
+
+        self.assert_valid(self.mutate_snapshot(mutate))
 
 
 class TestBoundAndCountMutations(CatalogSchemaTestCase):
@@ -1076,11 +1242,22 @@ class TestValidBoundaries(CatalogSchemaTestCase):
 
 class TestSchemaOnlyLimits(CatalogSchemaTestCase):
     def test_parsed_duplicate_keys_are_not_visible_to_schema(self):
-        parsed = json.loads('{"payloadVersion": 1, "payloadVersion": 2}')
-        self.assertEqual(parsed["payloadVersion"], 2)
-        catalog = self.catalog()
-        catalog["payloadVersion"] = 1
-        self.assert_valid(catalog)
+        catalog = self.catalog("baseline")
+        serialized = json.dumps(catalog, ensure_ascii=False)
+        marker = '"payloadVersion": 1'
+        self.assertIn(marker, serialized)
+        duplicate_raw = serialized.replace(
+            marker, '"payloadVersion": 2, "payloadVersion": 1', 1
+        )
+        two_at = duplicate_raw.find('"payloadVersion": 2')
+        one_at = duplicate_raw.find('"payloadVersion": 1')
+        self.assertNotEqual(two_at, -1)
+        self.assertNotEqual(one_at, -1)
+        self.assertLess(two_at, one_at)
+        self.assertGreaterEqual(duplicate_raw.count('"payloadVersion"'), 2)
+        parsed = json.loads(duplicate_raw)
+        self.assertEqual(parsed["payloadVersion"], 1)
+        self.assert_valid(parsed)
 
     def test_readback_digest_equality_is_not_schema_checked(self):
         catalog = self.catalog()
@@ -1134,7 +1311,35 @@ class TestSchemaOnlyLimits(CatalogSchemaTestCase):
         self.assert_valid(catalog)
 
     def test_schema_does_not_enforce_encoded_plaintext_ceiling(self):
-        self.assert_valid(self.catalog())
+        catalog = self.catalog("baseline")
+        template = copy.deepcopy(first_entry(catalog, "snapshot"))
+        state_ids = ["id%03d-%s" % (index, "p" * 180) for index in range(200)]
+        sample = copy.deepcopy(template)
+        sample["package"]["sha256"] = make_digest(0)
+        sample["package"]["generationId"] = make_id32(0)
+        sample["label"] = "n0"
+        sample["metadata"]["privateStateIds"] = list(state_ids)
+        metadata_size = len(
+            json.dumps(sample["metadata"], ensure_ascii=False).encode("utf-8")
+        )
+        self.assertLessEqual(metadata_size, METADATA_BYTE_CEILING)
+        sample_size = len(json.dumps(sample, ensure_ascii=False).encode("utf-8"))
+        self.assertGreater(sample_size, 0)
+        count = min(MAX_ENTRIES, (PLAINTEXT_CEILING_BYTES // sample_size) + 2)
+        entries = []
+        for index in range(count):
+            entry = copy.deepcopy(template)
+            entry["package"]["sha256"] = make_digest(index)
+            entry["package"]["generationId"] = make_id32(index)
+            entry["label"] = "n%d" % index
+            entry["metadata"]["privateStateIds"] = list(state_ids)
+            entries.append(entry)
+        catalog["entries"] = entries
+        catalog["observations"] = []
+        encoded = json.dumps(catalog, ensure_ascii=False).encode("utf-8")
+        self.assertGreater(len(encoded), PLAINTEXT_CEILING_BYTES)
+        self.assertLessEqual(len(entries), MAX_ENTRIES)
+        self.assert_valid(catalog)
 
 
 if __name__ == "__main__":

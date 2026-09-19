@@ -20,9 +20,12 @@ The encrypted catalog payload is one JSON object:
 ```
 
 All four keys are required. No other root keys are permitted. Catalogs are full
-logical snapshots, not deltas. Carry retained snapshot entries, tombstones, and
-receipts forward. Bound the union. Reject an oversize catalog. Do not prune
-automatically. Pagination is unsupported in this profile.
+logical snapshots, not deltas.
+
+Carry retained snapshot entries, tombstones, receipts, and all known
+observations forward. Bound the union at 1000 entries and 4000 observations.
+Reject an oversize catalog. Do not prune automatically. Pagination is
+unsupported in this profile.
 
 Counts:
 
@@ -55,12 +58,16 @@ Reusable `$defs`:
 | `digest` | 64 lowercase hex characters |
 | `timestamp` | UTC RFC 3339 with a `Z` suffix only, seconds plus optional 1–3 fractional digits, `format: date-time` |
 | `text` | Unicode, minimum length 1, no C0 controls or DEL |
+| `labelText` | Unicode, length 0–256, empty string allowed, no C0 controls or DEL |
 | `binding` | `{scheme, value}` |
 
 The base64url alphabet is `A-Z`, `a-z`, `0-9`, `_`, `-`. Schema `maxLength` is a
 Unicode character count, not a UTF-8 byte ceiling.
 
-`scheme` matches `^[a-z][a-z0-9.-]{0,63}$`. `value` is text of length 1–1024.
+Every `pattern` ends with `(?![\s\S])` rather than `$`. `$` matches before a
+final newline in Python and ECMAScript.
+
+`scheme` matches `^[a-z][a-z0-9.-]{0,63}(?![\s\S])`. `value` is text of length 1–1024.
 Fixtures use scheme `synthetic-fixture` only. Production Google account mapping
 is unresolved until adapter validation. Do not auto-merge accounts by email.
 
@@ -103,7 +110,7 @@ registry before activation. Encoded metadata UTF-8 size remains a semantic
 {provider: "google-drive", accountBinding, objectId, revisionId}
 ```
 
-`objectId` is canonical opaque Google ASCII `^[A-Za-z0-9_-]{1,1024}$`.
+`objectId` is canonical opaque Google ASCII `^[A-Za-z0-9_-]{1,1024}(?![\s\S])`.
 `revisionId` uses the same pattern or `null`. There is no filename, URL, token,
 or folder field.
 
@@ -122,7 +129,7 @@ explicit variants.
   entryKind: "snapshot",
   package: {sha256, byteLength, rootEpoch, scopeId, recordId, generationId},
   metadata,
-  label: text 0–256 or null,
+  label: labelText (0–256 or null),
   locators: unique locator array 1–16
 }
 ```
@@ -190,8 +197,10 @@ Each observation is:
 {observationId, packageSha256, locator, observedAt, outcome}
 ```
 
-The `observations` array has `uniqueItems: true`. Do not store raw provider
-error bodies.
+The `observations` array has `uniqueItems: true`. A successor catalog copies
+every known observation forward, bounded at 4000, with no implicit pruning.
+Identical observation IDs with identical bodies deduplicate. Identical IDs with
+different bodies are a conflict. Do not store raw provider error bodies.
 
 `outcome` is a `oneOf` union:
 
@@ -247,17 +256,21 @@ examples. They are not remote verification evidence.
 
 | Catalog | Role |
 | --- | --- |
-| `baseline` | Snapshot from the existing synthetic vector IDs and metadata, plus a tombstone and a rotation receipt |
-| `forkA` / `forkB` | Same logical `recordId` and known ancestor, different `generationId` and digest |
-| `tombstoned` | Tombstone whose `targetPackageSha256` is the baseline snapshot digest |
-| `rootUpdateOldEpoch` / `rootUpdateNewEpoch` | Identical receipt bodies. Names only illustrate intended outer epoch encryption |
+| `baseline` | Clean live snapshot from the existing synthetic vector IDs and metadata, plus one readback observation |
+| `forkA` / `forkB` | Baseline snapshot plus a successor snapshot. Same `scopeId` and `recordId`. Distinct `generationId` and digest. `metadata.parents` include the baseline snapshot digest. Catalog `parents` alone do not prove a snapshot fork |
+| `tombstoned` | Baseline snapshot plus the exact-target tombstone |
+| `rootUpdateOldEpoch` / `rootUpdateNewEpoch` | Baseline snapshot plus identical rotation receipt bodies. Names only illustrate intended outer epoch encryption. Observations need not be identical |
 
 Together the six catalogs include all three entry kinds and all six observation
-statuses. Binding schemes are `synthetic-fixture` only.
+statuses. Successor catalogs retain every baseline observation unchanged.
+Binding schemes are `synthetic-fixture` only.
 
 ## Grammar check command
 
-Install the test pins in `tests/requirements.txt` (`jsonschema==4.19.2` and `rfc3339-validator==0.1.4`). The validator package registers the `date-time` checker that FormatChecker uses for calendar days. Then:
+Install the test pins in `tests/requirements.txt` (`jsonschema==4.19.2` and
+`rfc3339-validator==0.1.4`). Use that installed environment. The validator
+package registers the `date-time` checker that FormatChecker uses for calendar
+days. The tests fail if that checker is absent. Then:
 
 ```sh
 python3 -m unittest discover -s tests -p 'test_catalog_schema.py'
