@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wpp:root-record-v1",
+  "title": "WPP root record v1",
+  "description": "Draft 2020-12 structural grammar for a parsed wpp-root-record object. This schema is not an authenticator, JCS checker, or semantic validator. Semantic checks require unique epoch identifiers and exactly one active epoch.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "revisionId",
+    "parents",
+    "vaultId",
+    "vaultSalt",
+    "catalogScopeId",
+    "catalogRecordId",
+    "epochs"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "wpp-root-record"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "revisionId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "parents": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "urn:wpp:catalog-v1#/$defs/digest"
+      }
+    },
+    "vaultId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+    },
+    "vaultSalt": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "catalogScopeId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "catalogRecordId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "epochs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "$ref": "#/$defs/epoch"
+      }
+    }
+  },
+  "$defs": {
+    "epoch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rootEpoch",
+        "secretRoot",
+        "createdAt",
+        "status"
+      ],
+      "properties": {
+        "rootEpoch": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+        },
+        "secretRoot": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+        },
+        "createdAt": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/timestamp"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "retired"
+          ]
+        }
+      }
+    }
+  }
+}

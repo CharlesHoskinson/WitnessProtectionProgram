@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wpp:package-header-v1",
+  "title": "WPP witness package header v1",
+  "description": "Draft 2020-12 structural grammar for a parsed wpp-witness-package header and related local-kernel wire objects. This schema is not an authenticator or JCS checker. Snapshot metadata reuses urn:wpp:catalog-v1#/$defs/metadata.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "suite",
+    "vaultId",
+    "vaultSalt",
+    "rootEpoch",
+    "scopeId",
+    "recordId",
+    "generationId",
+    "kind",
+    "nonce"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "wpp-witness-package"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "suite": {
+      "type": "string",
+      "const": "HKDF-SHA256+A256GCM"
+    },
+    "vaultId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+    },
+    "vaultSalt": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "rootEpoch": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+    },
+    "scopeId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "recordId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "generationId": {
+      "$ref": "urn:wpp:catalog-v1#/$defs/id32"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "snapshot",
+        "catalog"
+      ]
+    },
+    "nonce": {
+      "$ref": "#/$defs/nonce12"
+    }
+  },
+  "$defs": {
+    "nonce12": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 16,
+      "pattern": "^[A-Za-z0-9_-]{16}(?![\\s\\S])",
+      "description": "Unpadded canonical base64url encoding of 12 bytes. 12 bytes fill 16 characters with no pad bits."
+    },
+    "ciphertext16MiB": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 22369622,
+      "pattern": "^[A-Za-z0-9_-]*(?![\\s\\S])",
+      "description": "Unpadded base64url ciphertext. Decoded length must be at most 16 MiB. Alphabet, pad bits, decoded length, and round-trip checks run in the kernel before AES-GCM."
+    },
+    "ciphertext64KiB": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 87382,
+      "pattern": "^[A-Za-z0-9_-]*(?![\\s\\S])",
+      "description": "Unpadded base64url recovery ciphertext. Decoded length must be at most 64 KiB."
+    },
+    "wire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "ciphertext",
+        "tag"
+      ],
+      "properties": {
+        "header": {
+          "$ref": "urn:wpp:package-header-v1"
+        },
+        "ciphertext": {
+          "$ref": "#/$defs/ciphertext16MiB"
+        },
+        "tag": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+        }
+      }
+    },
+    "recoveryHeader": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "version",
+        "suite",
+        "nonce"
+      ],
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "wpp-recovery-pack"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "suite": {
+          "type": "string",
+          "const": "A256GCM"
+        },
+        "nonce": {
+          "$ref": "#/$defs/nonce12"
+        }
+      }
+    },
+    "recoveryWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "ciphertext",
+        "tag"
+      ],
+      "properties": {
+        "header": {
+          "$ref": "#/$defs/recoveryHeader"
+        },
+        "ciphertext": {
+          "$ref": "#/$defs/ciphertext64KiB"
+        },
+        "tag": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/id16"
+        }
+      }
+    },
+    "snapshotPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "payloadVersion",
+        "metadata",
+        "content"
+      ],
+      "properties": {
+        "payloadVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "metadata": {
+          "$ref": "urn:wpp:catalog-v1#/$defs/metadata"
+        },
+        "content": true
+      }
+    }
+  }
+}

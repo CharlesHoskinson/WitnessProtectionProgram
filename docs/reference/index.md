@@ -9,5 +9,6 @@ They do not imply that WPP or its provider integrations are implemented.
 google-drive
 format-vectors
 encrypted-catalog
+kernel
 ../witness-package-format
 ```

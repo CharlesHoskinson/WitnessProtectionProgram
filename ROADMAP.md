@@ -10,7 +10,16 @@ Exit evidence: two independent encoders agree on header bytes, HKDF Expand input
 
 ## M1 — Local encryption and restore core
 
-Implement a small TypeScript kernel, synthetic key provider, package parser, encrypted local journal, isolated staging restore and explicit lock semantics. Use established cryptographic implementations; do not implement AES manually. Establish a registry for private-state codecs and conservative input bounds.
+Use established cryptographic implementations. Do not implement AES manually. Establish a registry for private-state codecs and conservative input bounds.
+
+This tree authors the first working trusted local envelope kernel in `src/kernel/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. It is application-path code and remains pre-security-review. Host compilation, tests, and independent audits are pending. Do not treat a successful local seal as remote durability. Do not treat a successful open as activation or restore.
+
+Remaining M1 work is still required:
+
+- encrypted local journal and crash-safe ciphertext persistence
+- catalog semantic reconciliation and index
+- isolated native staging, capture, and provider locks
+- BigInt/bytes preservation through a real native adapter
 
 Exit evidence: round trips and adversarial tests; wrong account/network/contract rejection; BigInt/bytes preserved by native serialization; crash-safe ciphertext persistence; no plaintext in journal, logs or adapter inputs; partial import leaves the live provider unchanged.
 

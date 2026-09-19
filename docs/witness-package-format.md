@@ -1,12 +1,12 @@
 # WPP witness package — draft v0.1
 
-Status: proposed application interchange profile. No production encoder or decoder exists. This is not an adopted Midnight protocol or a replacement for the native Midnight.js export format.
+Status: proposed application interchange profile. This tree includes a local TypeScript envelope kernel for snapshot seal and open. That kernel is not a production encoder, not a security-approved decoder, and not a substitute for the fixture generator. This is not an adopted Midnight protocol or a replacement for the native Midnight.js export format.
 
 ## Encoding and bounds
 
 One UTF-8 JSON object contains exactly `header`, `ciphertext`, and `tag`. Use RFC 8785 JSON Canonicalization Scheme (JCS) for authenticated header bytes. Reject duplicate object keys, unknown fields in v0.1, invalid UTF-8, non-finite numbers, malformed encodings, and unknown versions. Strings used for random identifiers are unpadded base64url with canonical round-trip encoding. Do not normalize or lowercase identifiers silently.
 
-The v0.1 plaintext ceiling is 16 MiB per object; the wire-file ceiling is 24 MiB, header ceiling 4 KiB, nesting ceiling 32, and decoded metadata ceiling 64 KiB. Enforce input byte limits before JSON parsing and decoded length limits before allocations/native deserialization. Initial implementations reject oversized snapshots and report that protection is incomplete; chunking and compression require a later profile. A syntactically valid package is not evidence that its contents are authentic or compatible.
+The v0.1 plaintext ceiling is 16 MiB per object; the wire-file ceiling is 24 MiB, header ceiling 4 KiB, nesting ceiling 32, and decoded metadata ceiling 64 KiB. The 4 KiB header ceiling and the 64 KiB metadata ceiling apply to the UTF-8 bytes of the JCS encoding of those objects. They do not apply to the outer package file size. The outer package remains bound by the 24 MiB raw-byte ceiling. Enforce input byte limits before JSON parsing and decoded length limits before allocations/native deserialization. Initial implementations reject oversized snapshots and report that protection is incomplete; chunking and compression require a later profile. A syntactically valid package is not evidence that its contents are authentic or compatible.
 
 ## Public authenticated header
 
