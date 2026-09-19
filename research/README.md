@@ -1,5 +1,7 @@
 # Source evidence and graphs
 
+The [Google Drive beta documentation collection](google-drive/README.md), retrieved on 2026-09-19 with Scrapling, adds Drive API, Picker, OAuth, branding and publisher-setup sources for the first beta provider.
+
 The design is grounded in the Midnight and Bitwarden repositories and official provider documentation inspected on 2026-09-13. Graph extraction is performed by `gpt-5.6-terra`; the design distinguishes upstream observations from WPP proposals.
 
 ## Design observations

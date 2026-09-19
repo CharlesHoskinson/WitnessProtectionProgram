@@ -14,3 +14,6 @@ dist/
 graphify-out/
 research/graphs/
 research/checkouts/
+.venv-docs/
+docs/_build/
+__pycache__/

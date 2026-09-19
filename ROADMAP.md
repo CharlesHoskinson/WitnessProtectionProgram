@@ -22,7 +22,9 @@ Exit evidence: real test-vault creation/read-back/unlock/lock; account or item m
 
 ## M3 — One-click login and first cloud backup
 
-Register publisher-owned Google, Microsoft, Dropbox, and Apple applications and implement the official branded sign-in buttons. Use supported native/browser flows, platform callback handling and minimum storage permissions. End users must never need developer credentials, manual tokens, or app registration.
+Beta scope confirmed 2026-09-19: **Google Drive first**. Use the [Google Drive beta guide](docs/google-drive-beta.md) and [official documentation collection](research/google-drive/README.md). Microsoft, Dropbox, and Apple login/registration move to the corresponding M4 integrations.
+
+Register the publisher-owned Google application and implement appropriate official branding for sign-in or Drive authorization. Use supported native/browser flows, platform callback handling and minimum storage permissions. End users must never need developer credentials, manual tokens, or app registration. One click starts the provider flow; Google may still require account selection, consent, or MFA.
 
 Complete Google Drive backup first, with visible-folder discovery and immutable catalogs. Define user-facing connected, locked, uploading, verified, reconnect and incomplete states. Provider login never unlocks the WPP root by itself.
 
@@ -30,7 +32,7 @@ Exit evidence: new/existing-session sign-in, account selection, MFA, denied cons
 
 ## M4 — OneDrive, Dropbox, iCloud and portable export
 
-Implement each adapter against the same ciphertext contract and declare actual capabilities. For Apple, pair Sign in with Apple with native iCloud Drive folder authorization; supply encrypted export/import on unsupported platforms. Do not use private iCloud APIs or imply that Apple sign-in grants Drive permission.
+Register publisher-owned Microsoft, Dropbox, and Apple applications and implement their login flows as these providers are added after the Google Drive beta. Implement each adapter against the same ciphertext contract and declare actual capabilities. For Apple, pair Sign in with Apple with native iCloud Drive folder authorization; supply encrypted export/import on unsupported platforms. Do not use private iCloud APIs or imply that Apple sign-in grants Drive permission.
 
 Exit evidence: real provider-account tests for write/read/list/reconnect and fresh-device restore; destination move; cloud token reacquisition; revoked permission, partial upload and quota; iCloud placeholder/offline/upload-pending scenarios. Show local-only/degraded status where remote verification is unavailable. Test import by a second wallet/client ID using explicitly granted file access.
 

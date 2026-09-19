@@ -2,6 +2,8 @@
 
 Status: proposed integrations. No user account has been linked and no provider developer application has been registered by this work.
 
+Beta scope, 2026-09-19: Google Drive is first. The [Google Drive beta guide](google-drive-beta.md) documents current native OAuth/Picker constraints, publisher setup and acceptance checks. The native Picker request accepts `drive.file` alone; it must not combine the generic identity scopes discussed below. Other provider integrations follow after this beta.
+
 ## One-click provider login
 
 User requirement, 2026-09-13: use the easy login supplied by Apple, Microsoft, Google, and Dropbox so clicking login links the account to WPP.
@@ -73,4 +75,4 @@ Observed 2026-09-13; upstream APIs and requirements must be rechecked when imple
 - [Sign in with Apple authentication](https://developer.apple.com/documentation/signinwithapple/authenticating-users-with-sign-in-with-apple) and [Apple document browser](https://developer.apple.com/documentation/uikit/uidocumentbrowserviewcontroller)
 - [Bitwarden Password Manager CLI](https://bitwarden.com/help/cli/) and [Secrets Manager SDK](https://bitwarden.com/help/secrets-manager-sdk/)
 
-Repository-specific source pins and graph coverage are recorded in [research](../research/README.md).
+Repository-specific source pins and graph coverage are recorded in the repository's [research directory](https://github.com/CharlesHoskinson/WitnessProtectionProgram/tree/main/research).

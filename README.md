@@ -48,6 +48,7 @@ The publisher handles developer registration and OAuth configuration. End users 
 - [Portable witness package, draft v0.1](docs/witness-package-format.md)
 - [Threat model and recovery](docs/security-and-recovery.md)
 - [Storage providers and Passport integration](docs/integrations.md)
+- [Google Drive beta: one-click setup and implementation checklist](docs/google-drive-beta.md)
 - [Implementation roadmap and acceptance criteria](ROADMAP.md)
 - [Source evidence and repository graphs](research/README.md)
 
@@ -70,6 +71,8 @@ flowchart LR
 Apple login is paired with native iCloud Drive folder permission where supported. End users do not configure API keys or paste tokens. Cloud providers can observe object sizes and access patterns. A compromised unlocked endpoint can expose data. Recovering the encryption root does not recreate missing witness bytes or authorize spending from a wallet.
 
 ## Start here
+
+Feature documentation uses **Diátaxis and Sphinx**. See the [documentation index](docs/index.md) and [local build tutorial](docs/tutorials/build-the-docs.md). Google Drive is the first planned beta provider; its [official documentation corpus](research/google-drive/README.md) covers OAuth, Picker, Drive APIs and publisher setup.
 
 ```sh
 git clone https://github.com/CharlesHoskinson/WitnessProtectionProgram.git

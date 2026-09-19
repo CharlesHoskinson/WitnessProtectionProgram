@@ -12,3 +12,6 @@ This repository currently contains a design, source evidence, and an implementat
 - Before shipping cryptographic behavior, require reproducible vectors, negative interoperability tests, restore fault tests, and independent security review.
 - Do not copy Bitwarden internal SDK code without reviewing its applicable license and support boundary.
 - User instructions govern scope; do not resume unrelated repository campaigns.
+- Google Drive is the first beta provider. Other provider login/storage integrations follow later.
+- Feature documentation uses Diátaxis (tutorials, how-to guides, reference, explanation) and Sphinx with MyST Markdown under `docs/`. Build with `python -m sphinx -W --keep-going -b html docs docs/_build/html` in the documentation environment. Do not present planned application flows as runnable tutorials.
+- Use claude-obsidian for this project's working research summaries, decisions, sources and open questions. Resolve the dedicated vault through `.claude-obsidian.json` (this WSL checkout: `/home/charl/vaults/WitnessProtectionProgram`). Read `wiki/hot.md` and `wiki/index.md` on resumption, then use inspected transactions to save scoped updates. Never record secrets or full transcripts. Promote reviewed feature documentation into Sphinx; the vault remains separate from published docs.

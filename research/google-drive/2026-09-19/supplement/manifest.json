@@ -1,0 +1,127 @@
+{
+  "scrapling_version": "0.4.15",
+  "scope_prefixes": [],
+  "seeds": [
+    "https://developers.google.com/workspace/drive/api/guides/limits",
+    "https://developers.google.com/workspace/drive/release-notes",
+    "https://developers.google.com/identity/authorization/overview",
+    "https://developers.google.com/identity/gsi/web/guides/integrate",
+    "https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid",
+    "https://developers.google.com/identity/gsi/web/guides/revoke",
+    "https://developers.google.com/identity/sign-in/web/sign-in",
+    "https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration",
+    "https://developers.google.com/identity/protocols/oauth2/resources/oob-migration"
+  ],
+  "page_limit": 400,
+  "pending_urls": [],
+  "pages": [
+    {
+      "requested_url": "https://developers.google.com/workspace/drive/api/guides/limits",
+      "retrieved_at": "2026-09-19T16:30:23.827837+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/workspace/drive/api/guides/limits",
+      "response_sha256": "02a2247a7e7ec30085d144c18c8dac8aada1ae67a26c3705423b9fb52668c051",
+      "title": "Usage limits Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/workspace__drive__api__guides__limits.md",
+      "extracted_sha256": "2e8e9593981260b200ee9b0b6e5da123526d6a677a0e96f0c82ee5e1312e01db",
+      "extracted_bytes": 11028,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/workspace/drive/release-notes",
+      "retrieved_at": "2026-09-19T16:30:24.649661+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/workspace/drive/release-notes",
+      "response_sha256": "abcbe44b399bf2e4114cd0dd6f19086e1e69c781464af23086ce169f946672e9",
+      "title": "Google Drive API release notes Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/workspace__drive__release-notes.md",
+      "extracted_sha256": "a858d01649f2dcf5b34e75f73a10de9be4877276d7a08585c49b4e8a163cc354",
+      "extracted_bytes": 15579,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/authorization/overview",
+      "retrieved_at": "2026-09-19T16:30:25.402054+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/authorization/overview",
+      "response_sha256": "0849850f7bdd177dc5eed75f1bf985320fdb0ccae42a32f6a3deadbf9456abc8",
+      "title": "Authorization: Connect your app to Google services across platforms Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__authorization__overview.md",
+      "extracted_sha256": "2b9f0c36930b962777a62a0acf0a800df4459e3efb1945b24f4930dcde8fe56a",
+      "extracted_bytes": 6277,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/gsi/web/guides/integrate",
+      "retrieved_at": "2026-09-19T16:30:26.236278+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/gsi/web/guides/integrate",
+      "response_sha256": "6eb24622dbdcb8d5303e212913f3e07919a19a15e93571ffe1642081752a5f10",
+      "title": "Integration considerations Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__gsi__web__guides__integrate.md",
+      "extracted_sha256": "3298ecb8c5ab8ce9a06e6775f5e7f999f7854fe4b0a70397c85d97ec0fc9d48c",
+      "extracted_bytes": 31560,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid",
+      "retrieved_at": "2026-09-19T16:30:26.976117+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid",
+      "response_sha256": "5e091d7a871590eaeee3f6cf904dac050c49bd07a4ce8808e1101890ba0d1206",
+      "title": "Setup Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__gsi__web__guides__get-google-api-clientid.md",
+      "extracted_sha256": "1e77628f41fe44a962ecc2d75b2f1bf0d8234834193ff06d03c0539ab9aac8dc",
+      "extracted_bytes": 12430,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/gsi/web/guides/revoke",
+      "retrieved_at": "2026-09-19T16:30:27.853049+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/gsi/web/guides/revoke",
+      "response_sha256": "c082a9123560ec7a86d737b038aeaeccf5400e9a428a2ebc2217834ba5301248",
+      "title": "Revoke ID tokens Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__gsi__web__guides__revoke.md",
+      "extracted_sha256": "0d682ebc7248c4edc23c8bb8fbe54cd4ffa29d30e1e06ec86369a731ba4e8e5e",
+      "extracted_bytes": 3022,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/sign-in/web/sign-in",
+      "retrieved_at": "2026-09-19T16:30:28.643209+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/sign-in/web/sign-in",
+      "response_sha256": "2f9f9eb2b99c4b0b26b44ea12569c67a87ee9f1acd7b1b73679f6db8735d6858",
+      "title": "Integrating Google Sign-In into your web app Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__sign-in__web__sign-in.md",
+      "extracted_sha256": "73855fdd545ea27f882d47b0ca1a97c2fd2ab3e906100efb290dc41209ec7d08",
+      "extracted_bytes": 5876,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration",
+      "retrieved_at": "2026-09-19T16:30:29.413767+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration",
+      "response_sha256": "ddc96f41d276b796c7be0e72f05727d916915cbec6c6a52ce811169a5a51acc4",
+      "title": "Loopback IP Address flow Migration Guide Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__protocols__oauth2__resources__loopback-migration.md",
+      "extracted_sha256": "b151003f270af32ff7f92b22c3795fd749f56ee3ac9e42b379f00b6e6f2ea188",
+      "extracted_bytes": 16582,
+      "cc_by_notice": true
+    },
+    {
+      "requested_url": "https://developers.google.com/identity/protocols/oauth2/resources/oob-migration",
+      "retrieved_at": "2026-09-19T16:30:30.827063+00:00",
+      "status": 200,
+      "final_url": "https://developers.google.com/identity/protocols/oauth2/resources/oob-migration",
+      "response_sha256": "10e648274017dd6231e27fe07c5f5b2f297796fa89b4e2730b9d30dd4a15c908",
+      "title": "Out-Of-Band (OOB) flow Migration Guide Stay organized with collections Save and categorize content based on your preferences.",
+      "file": "pages/identity__protocols__oauth2__resources__oob-migration.md",
+      "extracted_sha256": "42d4552b339ccaa0106a70760c16a6b7ea5de393c4ec8271709248830718c3f0",
+      "extracted_bytes": 19081,
+      "cc_by_notice": true
+    }
+  ]
+}
