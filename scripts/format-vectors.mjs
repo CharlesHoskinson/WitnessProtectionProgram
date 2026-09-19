@@ -7,8 +7,9 @@
  * Narrow canonicalization domain (canonicalFixture):
  * - printable ASCII strings and object keys (U+0020..U+007E)
  * - booleans, null, and safe integers except negative zero
- * - dense arrays (original order retained; no custom enumerable non-index
- *   properties; no symbol keys)
+ * - dense arrays (original order retained; no enumerable keys other than
+ *   the canonical decimal spellings of indices 0 through length-1; no
+ *   symbol keys)
  * - plain objects whose prototype is Object.prototype (own enumerable
  *   string keys, recursively sorted lexicographically as ASCII strings)
  *
@@ -19,8 +20,8 @@
  * Unsupported values are rejected rather than silently dropped:
  * non-ASCII or control strings/keys, unsafe/fractional/nonfinite numbers,
  * negative zero, undefined, symbol values, symbol keys, function, bigint,
- * Buffer, Date, sparse arrays, custom enumerable non-index array
- * properties, Object.create(null), and other non-plain objects.
+ * Buffer, Date, sparse arrays, custom enumerable array keys, Object.create(null),
+ * and other non-plain objects.
  *
  * All fixed fixture values in this generator are inside this domain, where
  * the encoding agrees with JCS. This module makes no general RFC 8785
@@ -111,8 +112,16 @@ function encodeCanonical(value) {
         reject('canonicalFixture rejects sparse arrays');
       }
     }
-    if (Object.keys(value).length !== value.length) {
-      reject('canonicalFixture rejects custom enumerable array properties');
+    for (const key of Object.keys(value)) {
+      const index = Number(key);
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= value.length ||
+        String(index) !== key
+      ) {
+        reject('canonicalFixture rejects custom enumerable array properties');
+      }
     }
     const encodedEntries = [];
     for (let i = 0; i < value.length; i += 1) {

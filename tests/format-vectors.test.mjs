@@ -151,6 +151,20 @@ describe('canonicalFixture', () => {
     arrayWithCustom.extra = 1;
     throws(() => canonicalFixture(arrayWithCustom));
   });
+
+  test('rejects custom enumerable array keys independently of index enumerability', () => {
+    equal(canonicalFixture([1]), '[1]');
+    equal(canonicalFixture([1, 2, 3]), '[1,2,3]');
+
+    const hiddenIndexWithCustom = [1];
+    Object.defineProperty(hiddenIndexWithCustom, '0', { enumerable: false });
+    hiddenIndexWithCustom.extra = undefined;
+    throws(() => canonicalFixture(hiddenIndexWithCustom), TypeError);
+
+    const leadingZeroIndex = [1];
+    leadingZeroIndex['01'] = 1;
+    throws(() => canonicalFixture(leadingZeroIndex), TypeError);
+  });
 });
 
 describe('hkdfExpand32', () => {
