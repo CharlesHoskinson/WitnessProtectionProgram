@@ -1,0 +1,75 @@
+{
+  "profile": "wpp-draft-v1-synthetic-vector",
+  "inputs": {
+    "secretRootHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "header": {
+      "format": "wpp-witness-package",
+      "version": 1,
+      "suite": "HKDF-SHA256+A256GCM",
+      "vaultId": "QEFCQ0RFRkdISUpLTE1OTw",
+      "vaultSalt": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8",
+      "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+      "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+      "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+      "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8",
+      "kind": "snapshot",
+      "nonce": "wMHCw8TFxsfIycrL"
+    },
+    "payload": {
+      "payloadVersion": 1,
+      "metadata": {
+        "network": {
+          "id": "synthetic-local",
+          "genesisHash": null
+        },
+        "accountBinding": {
+          "scheme": "synthetic-fixture",
+          "value": "fixture-account"
+        },
+        "applicationId": "wpp-vector-fixture",
+        "contract": {
+          "address": "synthetic-contract",
+          "codeHash": null
+        },
+        "privateStateIds": [
+          "fixture-state"
+        ],
+        "codec": {
+          "id": "wpp.synthetic-vector",
+          "version": 1,
+          "producerPackage": "wpp-format-vectors",
+          "producerVersion": "0.1.0",
+          "sourceCommit": "0000000000000000000000000000000000000000"
+        },
+        "capturedAt": "2026-09-19T00:00:00Z",
+        "lifecycle": {
+          "status": "unassociated",
+          "transactionId": null,
+          "blockHash": null
+        },
+        "parents": [],
+        "retentionClass": "retained-application-witness"
+      },
+      "content": {
+        "counter": "12345678901234567890",
+        "bytes": "AAECAw",
+        "message": "PUBLIC SYNTHETIC TEST DATA"
+      }
+    }
+  },
+  "expected": {
+    "prkHex": "a27b86e7a70a029cba778d6f738d952696d6d8361b95103dd84ae9df6af063af",
+    "scopeKeyHex": "3ebfb5d7ad07fa4a2700f7a486c206cef57725be4a19428118d1275b5f1a5456",
+    "objectKeyHex": "d081e0775e3c5f21cb5cb0037de89441620823d6b6264c664d21feb1d97c9675",
+    "nativeKeyHex": "f1f7c7f60b820468be13b33196451f349fe365f03723781cb554f89417541285",
+    "nativeExportPassword": "8ffH9guCBGi-E7MxlkUfNJ_jZfA3I3gctVT4lBdUEoU",
+    "headerUtf8": "{\"format\":\"wpp-witness-package\",\"generationId\":\"oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8\",\"kind\":\"snapshot\",\"nonce\":\"wMHCw8TFxsfIycrL\",\"recordId\":\"gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8\",\"rootEpoch\":\"UFFSU1RVVldYWVpbXF1eXw\",\"scopeId\":\"YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8\",\"suite\":\"HKDF-SHA256+A256GCM\",\"vaultId\":\"QEFCQ0RFRkdISUpLTE1OTw\",\"vaultSalt\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8\",\"version\":1}",
+    "headerHex": "7b22666f726d6174223a227770702d7769746e6573732d7061636b616765222c2267656e65726174696f6e4964223a226f4b47696f36536c7071656f71617172724b32757237437873724f3074626133754c6d3675377939767238222c226b696e64223a22736e617073686f74222c226e6f6e6365223a22774d484377385446787366497963724c222c227265636f72644964223a226749474367345346686f65496959714c6a49324f6a3543526b704f556c5a61586d4a6d616d3579646e7038222c22726f6f7445706f6368223a225546465355315256566c645957567062584631655877222c2273636f70654964223a22594746695932526c5a6d646f615770726247317562334278636e4e3064585a3365486c3665337839666e38222c227375697465223a22484b44462d5348413235362b4132353647434d222c227661756c744964223a225145464351305246526b64495355704c5445314f5477222c227661756c7453616c74223a22494345694979516c4a69636f4b536f724c4330754c7a41784d6a4d304e5459334f446b364f7a7739506a38222c2276657273696f6e223a317d",
+    "payloadUtf8": "{\"content\":{\"bytes\":\"AAECAw\",\"counter\":\"12345678901234567890\",\"message\":\"PUBLIC SYNTHETIC TEST DATA\"},\"metadata\":{\"accountBinding\":{\"scheme\":\"synthetic-fixture\",\"value\":\"fixture-account\"},\"applicationId\":\"wpp-vector-fixture\",\"capturedAt\":\"2026-09-19T00:00:00Z\",\"codec\":{\"id\":\"wpp.synthetic-vector\",\"producerPackage\":\"wpp-format-vectors\",\"producerVersion\":\"0.1.0\",\"sourceCommit\":\"0000000000000000000000000000000000000000\",\"version\":1},\"contract\":{\"address\":\"synthetic-contract\",\"codeHash\":null},\"lifecycle\":{\"blockHash\":null,\"status\":\"unassociated\",\"transactionId\":null},\"network\":{\"genesisHash\":null,\"id\":\"synthetic-local\"},\"parents\":[],\"privateStateIds\":[\"fixture-state\"],\"retentionClass\":\"retained-application-witness\"},\"payloadVersion\":1}",
+    "payloadHex": "7b22636f6e74656e74223a7b226279746573223a22414145434177222c22636f756e746572223a223132333435363738393031323334353637383930222c226d657373616765223a225055424c49432053594e54484554494320544553542044415441227d2c226d65746164617461223a7b226163636f756e7442696e64696e67223a7b22736368656d65223a2273796e7468657469632d66697874757265222c2276616c7565223a22666978747572652d6163636f756e74227d2c226170706c69636174696f6e4964223a227770702d766563746f722d66697874757265222c2263617074757265644174223a22323032362d30392d31395430303a30303a30305a222c22636f646563223a7b226964223a227770702e73796e7468657469632d766563746f72222c2270726f64756365725061636b616765223a227770702d666f726d61742d766563746f7273222c2270726f647563657256657273696f6e223a22302e312e30222c22736f75726365436f6d6d6974223a2230303030303030303030303030303030303030303030303030303030303030303030303030303030222c2276657273696f6e223a317d2c22636f6e7472616374223a7b2261646472657373223a2273796e7468657469632d636f6e7472616374222c22636f646548617368223a6e756c6c7d2c226c6966656379636c65223a7b22626c6f636b48617368223a6e756c6c2c22737461747573223a22756e6173736f636961746564222c227472616e73616374696f6e4964223a6e756c6c7d2c226e6574776f726b223a7b2267656e6573697348617368223a6e756c6c2c226964223a2273796e7468657469632d6c6f63616c227d2c22706172656e7473223a5b5d2c22707269766174655374617465496473223a5b22666978747572652d7374617465225d2c22726574656e74696f6e436c617373223a2272657461696e65642d6170706c69636174696f6e2d7769746e657373227d2c227061796c6f616456657273696f6e223a317d",
+    "ciphertextHex": "f74ce62c8f509114479aabb171d86f1701a8f71333f3a3f73181908f662554f6df1358767663cdad1cfa1c6ceb701df14855d24d12beeeb30d4ed9666a610bb44fde20603bb746945a5b3c68cf70aad2f4e9e6246dc8c20bc32aa736609e9f4cca7bab77607b2aaa114f0f6b491ec98bf2736056616fb0b364ae38cdad89a0a8150ffc3f1d93650dc3193ba92c47fde46a9b7f6c1e08bc0a283b01dc7762c2d82f3a6c30b602df355f9251aef12d93c763242277092ce9d0b110a5f8c3d478ec40fd6f3688563bdd77fcc60e6cf67a1d30727389e436aed5e6dba7ab16b526029cd59b179dc667c06916f26af861b528a1498af536b356d165ddc7d6570faa7c6778e5f564c2c7c168f975c90130859d620b2c332a3da19e3403c6ffd371eb7d5e8a791d9d35912ce8e42203d0b8294596016fa8484aacd655307f07626f15b43355894f43230610c3fc5f50430029e3ea2bffee9606ed37e8a6d64bd54df9eb8aab13af6a7cb139bb227bfa25f04114950c2e305a6eb7f0e4ada4aa5ad6f19c595fcb522a3d719dcc3a23ed33d2bb54c9506a294d272dba425679e5b61e7aa49dc7e5c62b385b7cbf25c283e3c3dc2c3609be6f7377133a4b66dff6b04a8322b5873945512849ec47e609c8134e4eb627038bd9a8f54d1961f7df5e9cc089cfadf3434904bcef58bc48d56aa42474b64eaaee76a909358c38f4aca7159e1e70458d0b90311903ca08e53e649fd7118ff47e409bf3450ab813f5d91ef6b008433fbc5143ac117cafe7d95e37a7a35b3e9c0c71f0e85f3cc2c0d83d697ff92286c7b1bd754dc3849dfc603fb9f3bf457f5d7eaa2f3cb47d3574d2bfccff242dc4699e9282eaa5d86f634a70ca45dfb51c011550429f027ed39292d21723d8d2980adf5380b426e7168a999abc6e0cb630275ab3b33a0832d38e3e2b5132c29b6c663d8200220eb6e557b455a6d5da03e11bd67a1b50dc9d9ce21c690c380d2981b6c39d3f077a41509b23e089a8f90a6b5483dcc8d29068a03772e59fd843e8a276b0b8870a",
+    "tagHex": "4649c8cb357c55c07e67c53772c1111f",
+    "wireUtf8": "{\"ciphertext\":\"90zmLI9QkRRHmquxcdhvFwGo9xMz86P3MYGQj2YlVPbfE1h2dmPNrRz6HGzrcB3xSFXSTRK-7rMNTtlmamELtE_eIGA7t0aUWls8aM9wqtL06eYkbcjCC8MqpzZgnp9Mynurd2B7KqoRTw9rSR7Ji_JzYFZhb7CzZK44za2JoKgVD_w_HZNlDcMZO6ksR_3kapt_bB4IvAooOwHcd2LC2C86bDC2At81X5JRrvEtk8djJCJ3CSzp0LEQpfjD1HjsQP1vNohWO913_MYObPZ6HTByc4nkNq7V5tunqxa1JgKc1ZsXncZnwGkW8mr4YbUooUmK9TazVtFl3cfWVw-qfGd45fVkwsfBaPl1yQEwhZ1iCywzKj2hnjQDxv_Tcet9Xop5HZ01kSzo5CID0LgpRZYBb6hISqzWVTB_B2JvFbQzVYlPQyMGEMP8X1BDACnj6iv_7pYG7TfoptZL1U3564qrE69qfLE5uyJ7-iXwQRSVDC4wWm638OStpKpa1vGcWV_LUio9cZ3MOiPtM9K7VMlQailNJy26QlZ55bYeeqSdx-XGKzhbfL8lwoPjw9wsNgm-b3N3EzpLZt_2sEqDIrWHOUVRKEnsR-YJyBNOTrYnA4vZqPVNGWH3316cwInPrfNDSQS871i8SNVqpCR0tk6q7napCTWMOPSspxWeHnBFjQuQMRkDygjlPmSf1xGP9H5Am_NFCrgT9dke9rAIQz-8UUOsEXyv59leN6ejWz6cDHHw6F88wsDYPWl_-SKGx7G9dU3DhJ38YD-5879Ff11-qi88tH01dNK_zP8kLcRpnpKC6qXYb2NKcMpF37UcARVQQp8CftOSktIXI9jSmArfU4C0JucWipmavG4MtjAnWrOzOggy044-K1EywptsZj2CACIOtuVXtFWm1doD4RvWehtQ3J2c4hxpDDgNKYG2w50_B3pBUJsj4Imo-QprVIPcyNKQaKA3cuWf2EPoonawuIcK\",\"header\":{\"format\":\"wpp-witness-package\",\"generationId\":\"oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8\",\"kind\":\"snapshot\",\"nonce\":\"wMHCw8TFxsfIycrL\",\"recordId\":\"gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8\",\"rootEpoch\":\"UFFSU1RVVldYWVpbXF1eXw\",\"scopeId\":\"YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8\",\"suite\":\"HKDF-SHA256+A256GCM\",\"vaultId\":\"QEFCQ0RFRkdISUpLTE1OTw\",\"vaultSalt\":\"ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8\",\"version\":1},\"tag\":\"RknIyzV8VcB-Z8U3csERHw\"}",
+    "wireSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c"
+  }
+}

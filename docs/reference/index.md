@@ -7,5 +7,6 @@ They do not imply that WPP or its provider integrations are implemented.
 :maxdepth: 1
 
 google-drive
+format-vectors
 ../witness-package-format
 ```
