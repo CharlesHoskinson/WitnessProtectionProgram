@@ -1,0 +1,65 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Zswap
+sidebar_label: Zswap
+description: A reference on how Zswap works and how it is used in Midnight.
+keywords: [zswap, atomic swaps]
+---
+
+# Zswap
+
+Supporting multiple asset types and atomic swaps is important for use cases such as decentralized finance (DeFi). Midnight uses Zswap to provide these capabilities with data protection.
+
+## Atomic swaps
+
+An atomic swap is an all-or-nothing transaction. Suppose Alice wants fishing gear and Bob has it in his shop. They agree on this transaction:
+
+*Rod $600.00, reel $300.00, tackle $100.00.*
+
+Alice has only $700 in cash and uses $300 in available card credit. The swap is atomic because it is only complete when Alice receives all the gear and Bob receives both forms of payment.
+
+Even in legitimate transactions, parties may have privacy requirements. Bob may want to share details with his accountant and tax authority, but not with competitors. Alice may want to share details with trusted parties, but not publicly.
+
+On a decentralized, permissionless blockchain, the same concept applies with different mechanics. 
+Bob and Alice might exchange UTXOs, such as 600 of coin B1, 300 of B2, and 100 of B3 from Bob for 7,000,000 of coin A1 from Alice. 
+The swap must execute atomically. If this order can move market price, an observer could front-run it. Shielded asset swaps can mitigate these attacks by reducing pre-trade visibility.
+
+## How Zswap helps
+
+Midnight uses Zswap, a transaction scheme for data-protecting atomic asset swaps. Based on Zerocash concepts, Zswap enables transaction merging while preserving confidentiality. 
+It supports multiple asset types and atomic swaps in a way that scales for DeFi-style workloads.
+
+![swap](https://ucarecdn.com/9a01db50-4126-4844-9f51-7cfa4e3325fa/)
+
+The figure shows a simple example of Zswap in action. Alice intends to pay three dollars for five euros, while Bob intends to pay five euros for three dollars. Before broad disclosure, they use zero-knowledge proofs to preserve privacy.
+
+Zswap then merges these transactions into a single atomic swap between Alice and Bob, preserving confidentiality of sensitive details.
+
+## Key features and benefits of Zswap
+
+| Feature | Benefits |
+|---|---|                                                                                                                     
+| **Confidentiality**: Zswap uses zk-SNARKs to keep transaction data confidential. | Sender, receiver, and amount details do not need to be publicly exposed. |
+| **Multi-asset atomic exchange**: Zswap supports exchanging multiple assets in one atomic operation. | Either all parts of the exchange complete or none do, avoiding partial execution. |
+| **Efficient swaps**: Zswap uses sparse homomorphic commitments with aggregated opening randomness. | Swaps can execute efficiently across asset types. |
+| **Provable security**: Zswap is designed with formal security arguments. | Security properties can be reasoned about under explicit assumptions. |
+| **Built on established foundations**: Zswap draws from Zcash Sapling techniques and implementation experience. | This provides a strong and well-studied starting point. |
+
+In Zswap, transactions are designed to support safe merging while preserving confidentiality. Transaction data is separated from signature flow, a design inspired by the Zcash ecosystem. 
+This separation enables non-interactive zero-knowledge proofs (NIZKs) for validation without requiring slower multi-party computation (MPC) protocols.
+
+To support multi-asset atomic swaps, Zswap uses sparse multi-value Pedersen commitments and relaxed signature requirements. Sparse commitments enable non-interactive transaction merging, including between parties with no prior trust relationship. The protocol reveals only limited imbalance information per asset class and avoids exposing exact transfer relationships.
+
+Zswap also enables local exchange-market workflows. Users submit exchange offers, and selected participants can match and merge them off-chain before on-chain submission. The matching flow reveals minimal information, and partial merges can drop asset types with zero imbalance. Larger exchange pools can improve liquidity and support order-book style coordination.
+
+Zswap contributes the following to Midnight:
+
+- **Formal model**: Zswap introduces a formal model for a multi-asset Zcash system with swaps, built on top of the One-Time Account (OTA) system, which abstracts a nullifier-like private UTXO mechanism. The OTA model and the proof techniques used in Zswap have independent significance and can be applied to proving the security of systems like Zcash and Monero.
+- **Practical instantiation**: Zswap provides a practical implementation of private non-interactive atomic swaps. It simplifies the Zcash framework by removing authorization and blinding signatures while preserving security.
+- **Security**: The Zswap construction is proven secure under commonly used assumptions similar to those employed in Zerocash. The removal of Zcash signatures is validated, demonstrating that the perfect hiding and binding properties of spend and output commitments are sufficient for ensuring security.
+- **Implementation and evaluation**: Zswap has been implemented and evaluated, demonstrating that the merging mechanism is highly effective and that the performance overhead compared to the basic single-asset protocol without swaps is minimal.
+
+Overall, Zswap provides a foundation for privacy-oriented, multi-asset atomic swaps in Midnight.
+
+For more details, read the [Zswap: ZK Snark Based Non-Interactive Multi-Asset Swaps’ research paper](https://eprint.iacr.org/2022/1002.pdf).

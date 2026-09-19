@@ -1,0 +1,902 @@
+[
+  {
+    "url": "https://docs.midnight.network/api-reference/compact-runtime/functions/copyCircuitContext",
+    "retrieved_at": "2026-09-19T16:53:59.149489+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/compact-runtime/functions/copyCircuitContext",
+    "response_sha256": "8e61fa44fc5c2ebe8cb643279981cbc7d6762b9738a6a0639df5aaa15f675ef7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/compact-runtime/functions/createCircuitContext",
+    "retrieved_at": "2026-09-19T16:53:59.824720+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/compact-runtime/functions/createCircuitContext",
+    "response_sha256": "9c0de9edd0aac0fb960f1247af4a1e5a91eda03ba198007f31ba9e71bc55dc35",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/compact-runtime/functions/createWitnessContext",
+    "retrieved_at": "2026-09-19T16:54:00.397396+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/compact-runtime/functions/createWitnessContext",
+    "response_sha256": "23b8b8e2bd73ebb1ad43f89d057b86cebd3692db56b8f103d6b62b17502f5ea4",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/compact-runtime/interfaces/CircuitContext",
+    "retrieved_at": "2026-09-19T16:54:00.928181+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/compact-runtime/interfaces/CircuitContext",
+    "response_sha256": "2e5b864ed05e190280894c911fefb8745a1a59a856f140b9706e7bae938410d8",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/compact-runtime/interfaces/WitnessContext",
+    "retrieved_at": "2026-09-19T16:54:01.465316+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/compact-runtime/interfaces/WitnessContext",
+    "response_sha256": "b300ba201579e491ed56628a9ca1078e172669f4c9bfcbbf80bb8df2e61acb83",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-indexer/types/enums/transaction-result-status",
+    "retrieved_at": "2026-09-19T16:54:02.189506+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-indexer/types/enums/transaction-result-status",
+    "response_sha256": "685d0b80f7885133f1709972a850640bbcffcb1f4103359942fc51c84430a07c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-indexer/types/objects/transaction-result",
+    "retrieved_at": "2026-09-19T16:54:02.760241+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-indexer/types/objects/transaction-result",
+    "response_sha256": "454abf2dbb4b46fab554acf027f486054466ce2534c07bddb5c68a1fb97dffde",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider",
+    "retrieved_at": "2026-09-19T16:54:03.308064+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider",
+    "response_sha256": "d16cdb0fd40a38cbb788b4cc761cec53d307fa008dbbd4b94a0962d804232b72",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/classes/StorageEncryption",
+    "retrieved_at": "2026-09-19T16:54:03.991379+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/classes/StorageEncryption",
+    "response_sha256": "8ea97e7feb468dd35302389f8619b41829da722bcb12ae4d165f457be1597888",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/decryptValue",
+    "retrieved_at": "2026-09-19T16:54:04.663266+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/decryptValue",
+    "response_sha256": "b849b04aa37056f0fbd723de744ba393cf337a40ebe855d19c3506250cd50025",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/levelPrivateStateProvider",
+    "retrieved_at": "2026-09-19T16:54:05.358915+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/levelPrivateStateProvider",
+    "response_sha256": "2d8b922f9ede47c6665044d2d615a01a229f2fa19d9841e136717df7ada5cc87",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/migrateToAccountScoped",
+    "retrieved_at": "2026-09-19T16:54:06.021969+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/functions/migrateToAccountScoped",
+    "response_sha256": "272db2b63d7628bee4581de7dd93630519ea6292e08c88ce569c72acffbe6b1c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/CryptoBackend",
+    "retrieved_at": "2026-09-19T16:54:06.684660+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/CryptoBackend",
+    "response_sha256": "c22aeae52f06446a29639dfe547c3710f7c0204ffeff586388a235e3cc096fd8",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/LevelPrivateStateProviderConfig",
+    "retrieved_at": "2026-09-19T16:54:07.341606+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/LevelPrivateStateProviderConfig",
+    "response_sha256": "10edc7c81989144f106ea6e79950c242f2af3efc28a507cf9ccb46814baabbc2",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/MigrationResult",
+    "retrieved_at": "2026-09-19T16:54:07.996066+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/MigrationResult",
+    "response_sha256": "62d3f42731d3fdebeb1dc75841abeaa06b4cdad4a5863a16f0b8e85018444ada",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/PasswordRotationOptions",
+    "retrieved_at": "2026-09-19T16:54:08.676953+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/PasswordRotationOptions",
+    "response_sha256": "5d46b0dfd4a7789d3510ce47c7b3a4ee745873f1e57de2a5a50eaef19dbe913c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/PasswordRotationResult",
+    "retrieved_at": "2026-09-19T16:54:09.216121+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/PasswordRotationResult",
+    "response_sha256": "a0df20f5403c56ed13c48fe333436c72d139b5db159e99d23e1961de71616ace",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/StorageEncryptionOptions",
+    "retrieved_at": "2026-09-19T16:54:09.871528+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/interfaces/StorageEncryptionOptions",
+    "response_sha256": "9cb5934de968f912eebf40948cce9b919ba11ca1b53316232bae8cd13d227434",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/CryptoBackendType",
+    "retrieved_at": "2026-09-19T16:54:10.514277+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/CryptoBackendType",
+    "response_sha256": "7248bfa5ce9bf35f18a24f1f4b5568e5b364cac4a9e10108c485a0a428925f38",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/DatabaseLevel",
+    "retrieved_at": "2026-09-19T16:54:11.254110+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/DatabaseLevel",
+    "response_sha256": "1e07133d719d18d43cdfd88c500ac21e846546fdf4fc2d4c10164b38dcd4cf24",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/LevelFactory",
+    "retrieved_at": "2026-09-19T16:54:11.792190+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/LevelFactory",
+    "response_sha256": "9dd2e9a6b9d2d6e0ce5bf161fa28a9dee2f2f53b47e764ea46e95a6a2b5b27a3",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/PrivateStoragePasswordProvider",
+    "retrieved_at": "2026-09-19T16:54:12.453884+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/type-aliases/PrivateStoragePasswordProvider",
+    "response_sha256": "425f44ed3182d7a72a722d1c754d3278f6778e466463325958c36f73eebf32bf",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/variables/DEFAULT_CONFIG",
+    "retrieved_at": "2026-09-19T16:54:13.113173+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-level-private-state-provider/variables/DEFAULT_CONFIG",
+    "response_sha256": "e770eb6224fa3278519112e889b39fe1ea572932b18d47ed57c95c600ff01921",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ExportDecryptionError",
+    "retrieved_at": "2026-09-19T16:54:13.788176+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ExportDecryptionError",
+    "response_sha256": "fa7cfec3fc32fc0aa92bf9db684253ccbe365db0e5dae55befa4797e3b17b8cd",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ImportConflictError",
+    "retrieved_at": "2026-09-19T16:54:14.315411+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ImportConflictError",
+    "response_sha256": "9c51105d028db7efd4a35fec25522bf3837668d0ffcc42cc6a2fdeef27fd5841",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/InvalidExportFormatError",
+    "retrieved_at": "2026-09-19T16:54:14.984268+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/InvalidExportFormatError",
+    "response_sha256": "8f2b86253cf0fc0aa2066770d1c45a221b19cf5229c4e79b1eae3a4e760899ce",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/InvalidProtocolSchemeError",
+    "retrieved_at": "2026-09-19T16:54:15.645972+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/InvalidProtocolSchemeError",
+    "response_sha256": "28f34ba7a4dc83d00646eff58ed2eefc5c9e11d5444006e765be224d5c469894",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/PrivateStateExportError",
+    "retrieved_at": "2026-09-19T16:54:16.183416+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/PrivateStateExportError",
+    "response_sha256": "b09a3c7cdda28ae18514103af993196eb6442cee9fc44d898c2c7e6c03258bc1",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/PrivateStateImportError",
+    "retrieved_at": "2026-09-19T16:54:16.847374+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/PrivateStateImportError",
+    "response_sha256": "3fd2835a301578e61693334a0b766da8d36eb85e1c8db8092a316ba9a0e686ed",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/SigningKeyExportError",
+    "retrieved_at": "2026-09-19T16:54:17.508327+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/SigningKeyExportError",
+    "response_sha256": "80fc321ca7808db63f06e4167e8381a0771658a716e737fa983421544f4f51f7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ZKConfigProvider",
+    "retrieved_at": "2026-09-19T16:54:18.176184+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/classes/ZKConfigProvider",
+    "response_sha256": "5292a86fea72d3675f6d9562f238339dcbd15169c1857aec2bb398b64a50f6ef",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/enumerations/LogLevel",
+    "retrieved_at": "2026-09-19T16:54:18.884070+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/enumerations/LogLevel",
+    "response_sha256": "2ddbd20d96f37d12f70d8e46d5e5ad71186741aa110290b97581a8e37d8806c6",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/asContractAddress",
+    "retrieved_at": "2026-09-19T16:54:19.415004+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/asContractAddress",
+    "response_sha256": "ac894110e1cfb0b85557f159dcce1292d0fa08d002b54d5cdd28d5fe937484be",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/asEffectOption",
+    "retrieved_at": "2026-09-19T16:54:20.114889+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/asEffectOption",
+    "response_sha256": "c7700ec463a51f3000fc08e38d82b0e58c30ae70b39cdfdc9db6516de0337c4b",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createProofProvider",
+    "retrieved_at": "2026-09-19T16:54:20.667701+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createProofProvider",
+    "response_sha256": "6733d916cf7892fd34a0ba7ff71dc40ee54c33a37072efee50ecd6633147dcb9",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createProverKey",
+    "retrieved_at": "2026-09-19T16:54:21.339944+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createProverKey",
+    "response_sha256": "346e6234ac71d060cd7497d66671ee17bc5c9bde0425041681f5ef76f3866dd2",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createVerifierKey",
+    "retrieved_at": "2026-09-19T16:54:22.012297+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createVerifierKey",
+    "response_sha256": "da5080457b7abaf8f8bb9436ef8e2654e7e49bad53b99e92b2cb584924e8ff97",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createZKIR",
+    "retrieved_at": "2026-09-19T16:54:22.545005+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/createZKIR",
+    "response_sha256": "f0979b3c21530304e9a8e40a12d8483ea694feb61b05ed049a7b4956b4c2c617",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/zkConfigToProvingKeyMaterial",
+    "retrieved_at": "2026-09-19T16:54:23.192144+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/functions/zkConfigToProvingKeyMaterial",
+    "response_sha256": "ad6e2a7593ffbbf5681ecbfdecf81fc325e3bb8f23e619df9a049b25dc2c6afd",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ExportPrivateStatesOptions",
+    "retrieved_at": "2026-09-19T16:54:23.729076+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ExportPrivateStatesOptions",
+    "response_sha256": "4c649c3cc6e14b7ea3779a9c3ff7293da3229dff50ad2da8a4b9cd095e9055e0",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ExportSigningKeysOptions",
+    "retrieved_at": "2026-09-19T16:54:24.406377+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ExportSigningKeysOptions",
+    "response_sha256": "eefce4c080120b3b8fb8f50fcbd7b0604b7daf07aa01d1e51ce75b4a0eaca1ee",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/FinalizedTxData",
+    "retrieved_at": "2026-09-19T16:54:25.082739+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/FinalizedTxData",
+    "response_sha256": "fc086b7c62f3938873ca91d2cc2431f3d61df5fa6532ad8fccb5743ef01d9fea",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportPrivateStatesOptions",
+    "retrieved_at": "2026-09-19T16:54:25.609457+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportPrivateStatesOptions",
+    "response_sha256": "6fcee9a2e755917d91461700ebcbb29799718250d5439ab7c7f4a25f74768f5d",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportPrivateStatesResult",
+    "retrieved_at": "2026-09-19T16:54:26.309086+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportPrivateStatesResult",
+    "response_sha256": "fbdb42fab18476a2bc2e3669da7be7520034e944fc8109b811178d6487a696ba",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportSigningKeysOptions",
+    "retrieved_at": "2026-09-19T16:54:27.029597+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportSigningKeysOptions",
+    "response_sha256": "d1a7a4f1639be37c5ce345351d02420b143acf83dfcc6c32a1fbf7c75f244d90",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportSigningKeysResult",
+    "retrieved_at": "2026-09-19T16:54:27.707114+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ImportSigningKeysResult",
+    "response_sha256": "271d8dae6d6420b2c83d13d8f257e9bfdb590ce7fefc8d11da67ea24087a8dd9",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/LoggerProvider",
+    "retrieved_at": "2026-09-19T16:54:28.261544+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/LoggerProvider",
+    "response_sha256": "42f2164f3c1a9632bfe4860207ab879b0eded32e928c2d0dcab4d7d495335cf0",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/MidnightProvider",
+    "retrieved_at": "2026-09-19T16:54:28.948812+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/MidnightProvider",
+    "response_sha256": "4984789f8bb0728ad9b92bc97911a9e7f8e79bef13523cf0fa061a080ef4c69b",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/MidnightProviders",
+    "retrieved_at": "2026-09-19T16:54:29.619443+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/MidnightProviders",
+    "response_sha256": "bab9880af54c12c584044f3ab488a1d9fd4b6a47083061dde75a575d3adb0d90",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PrivateStateExport",
+    "retrieved_at": "2026-09-19T16:54:30.154518+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PrivateStateExport",
+    "response_sha256": "e55dfab8f409853f9fc0c5ea25f3dd6889bf4fe2e48d92e5f207bb178843e6a5",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PrivateStateProvider",
+    "retrieved_at": "2026-09-19T16:54:30.815105+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PrivateStateProvider",
+    "response_sha256": "47e069c2571319a81865f7fafb8a6e62734ea0a07d8c83b1438735a59b7f7dad",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ProofProvider",
+    "retrieved_at": "2026-09-19T16:54:31.460281+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ProofProvider",
+    "response_sha256": "920da24e7a21774efe2e9ae40815446bb91093be32dc3d6b24c3f78e37f0e739",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ProveTxConfig",
+    "retrieved_at": "2026-09-19T16:54:32.131677+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ProveTxConfig",
+    "response_sha256": "63f5021b541f17caaab97b48a400f8328251e5d4127604026ba1988e7197aae6",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PublicDataProvider",
+    "retrieved_at": "2026-09-19T16:54:32.843276+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/PublicDataProvider",
+    "response_sha256": "2a8d1f6b5421882085d4fea2671ffd68c2b7bcd993cf165a86cf102fadfbab8a",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/SigningKeyExport",
+    "retrieved_at": "2026-09-19T16:54:33.409156+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/SigningKeyExport",
+    "response_sha256": "fa1d54d9c75d71b18c667f7f7294c1a90bbb44b26f941780b26c51c5ac7daed7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/WalletProvider",
+    "retrieved_at": "2026-09-19T16:54:33.932266+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/WalletProvider",
+    "response_sha256": "05f2d7f04d0c8ea95cba949f70585cfc4df8e8f413ade6494d2f9c405411989c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ZKConfig",
+    "retrieved_at": "2026-09-19T16:54:34.598398+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/interfaces/ZKConfig",
+    "response_sha256": "7d3d55fe6a7fa24d34a88fe5818cf49b000fc7a91edc1c7dd2a1ca93b958eb4a",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/All",
+    "retrieved_at": "2026-09-19T16:54:35.235287+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/All",
+    "response_sha256": "3389cd443b3b1ea735e701451fd47c7f6f5f37facd5af139293fd7b82226b3b2",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/AnyPrivateState",
+    "retrieved_at": "2026-09-19T16:54:35.931473+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/AnyPrivateState",
+    "response_sha256": "a28798d8a65c26fd336feb6ebd7133794c68d3d428fd2d1ac9236b3f151b9821",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/AnyProvableCircuitId",
+    "retrieved_at": "2026-09-19T16:54:36.454690+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/AnyProvableCircuitId",
+    "response_sha256": "ce66aab5c6333d1b37f3bdf5cb32f754930748fcc78c92d7e227e333b6f0d574",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHash",
+    "retrieved_at": "2026-09-19T16:54:37.140118+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHash",
+    "response_sha256": "02b64990d385ae7e7b157e1277a1e0f6da6720ca0c27868345e7d97e786d6ce0",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHashConfig",
+    "retrieved_at": "2026-09-19T16:54:37.801662+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHashConfig",
+    "response_sha256": "ed09f60ad42b635efe56ce0b8a4970be6dc1aa41241f255a0ed577a6c55a10a8",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHeightConfig",
+    "retrieved_at": "2026-09-19T16:54:38.339069+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/BlockHeightConfig",
+    "response_sha256": "a1965fd178b9c3014db4dd56e1900be8beddcfb332e1fb4b8c9e5f6846f60228",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ContractExecutableRuntimeOptions",
+    "retrieved_at": "2026-09-19T16:54:39.020436+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ContractExecutableRuntimeOptions",
+    "response_sha256": "9922d570bb3705813899b9e6104db510cabf64e696916325d6aada7d414b5bd7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ContractStateObservableConfig",
+    "retrieved_at": "2026-09-19T16:54:39.676018+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ContractStateObservableConfig",
+    "response_sha256": "39758539a0ae5bee4748231c050a4cb5dc73bf7d3a84ac80c4849f84c6b6bb3a",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/Fees",
+    "retrieved_at": "2026-09-19T16:54:40.357556+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/Fees",
+    "response_sha256": "d714864db66b3da04c5ba53f3e7ca1f195deccdaa0d0881218b924498b81ec13",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/KeyMaterialProvider",
+    "retrieved_at": "2026-09-19T16:54:41.023007+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/KeyMaterialProvider",
+    "response_sha256": "61780fa56a7fded953c9d04a2bd5eb7095261b178f6b99c6b8db2fd723056762",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/Latest",
+    "retrieved_at": "2026-09-19T16:54:41.684518+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/Latest",
+    "response_sha256": "b1a62917c683fe689dbf5819cc7409a5df0e4ff009951d05dc2d7d25e783f1d0",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/PrivateStateId",
+    "retrieved_at": "2026-09-19T16:54:42.205474+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/PrivateStateId",
+    "response_sha256": "324f33648d9f573a706d19a4bf422ddbc6004b95800b4106920b1e8b1d8a5d76",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/PrivateStateImportErrorCause",
+    "retrieved_at": "2026-09-19T16:54:42.871478+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/PrivateStateImportErrorCause",
+    "response_sha256": "4ae5cd9a5b36d7e5ae7b19a7b96ee5b8b706f6ce6a8692ff7d0a4ba10c286cd7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ProverKey",
+    "retrieved_at": "2026-09-19T16:54:43.534570+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ProverKey",
+    "response_sha256": "c299cc12256bd2558ca4b00d454355d9e66f5b1e6a959ca2fb64f83e0444007c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/SegmentStatus",
+    "retrieved_at": "2026-09-19T16:54:44.189329+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/SegmentStatus",
+    "response_sha256": "0669a63434320586dba5b02ea8752e3bd7c58336a9d4780f2054926588236e78",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/TxIdConfig",
+    "retrieved_at": "2026-09-19T16:54:44.847951+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/TxIdConfig",
+    "response_sha256": "46e12cd91e59309effc5650b66fd32808ad08b6f6142ca3fe1982f63db14d1b3",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/TxStatus",
+    "retrieved_at": "2026-09-19T16:54:45.513923+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/TxStatus",
+    "response_sha256": "1305d010cb73586662a05cd9d69378b4ebb3ad9448a0d86a9da753de3c0f429a",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnboundTransaction",
+    "retrieved_at": "2026-09-19T16:54:46.160373+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnboundTransaction",
+    "response_sha256": "8f2360c24ca2624c4680be7539bb23c4fd9b8ba59e96fcf551f49e2590d0b55d",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedBalance",
+    "retrieved_at": "2026-09-19T16:54:46.861110+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedBalance",
+    "response_sha256": "25b3c4641f660788f8397571390d0d03edd38ff8049ff92509cad80739f2fcc2",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedBalances",
+    "retrieved_at": "2026-09-19T16:54:47.601043+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedBalances",
+    "response_sha256": "ae08be46cb960be875e5cd35dcb3d77cb3f2936007bab9f82d459acbfa0b4d10",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedUtxo",
+    "retrieved_at": "2026-09-19T16:54:48.228533+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedUtxo",
+    "response_sha256": "d61d5834b20225bacc45d8eb63a3e06442c489bdd6d0f001ea934dd32c4cd63f",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedUtxos",
+    "retrieved_at": "2026-09-19T16:54:48.746795+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/UnshieldedUtxos",
+    "response_sha256": "3f359060c067378edb4e07b303f47a80242ec9806df507a7459c3b618821c3d3",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/VerifierKey",
+    "retrieved_at": "2026-09-19T16:54:49.267093+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/VerifierKey",
+    "response_sha256": "0c93c7a6673ff5d2b5acbc2b2d0906caec36b119b42cdcd357a340157a45ee2b",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ZKIR",
+    "retrieved_at": "2026-09-19T16:54:49.800170+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/type-aliases/ZKIR",
+    "response_sha256": "76f701b2e515e93500c47c4bcd30ed02c1f9c4cd28a9e9808cee16ce038680ca",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/FailEntirely",
+    "retrieved_at": "2026-09-19T16:54:50.479049+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/FailEntirely",
+    "response_sha256": "eda3232cbba7a32706a23a869926fc2226335881cdd9e63992d771f964dfc1f0",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/FailFallible",
+    "retrieved_at": "2026-09-19T16:54:51.133011+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/FailFallible",
+    "response_sha256": "ec8c55dfb0a623d75cd575cd9f3f85d1867a2c419e2f75ff04b1b5c970786089",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/MAX_EXPORT_SIGNING_KEYS",
+    "retrieved_at": "2026-09-19T16:54:51.656801+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/MAX_EXPORT_SIGNING_KEYS",
+    "response_sha256": "8e011bfcc51afb80d59047defd778cd434e19647b25a82e0dd588157ff24922c",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/MAX_EXPORT_STATES",
+    "retrieved_at": "2026-09-19T16:54:52.323486+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/MAX_EXPORT_STATES",
+    "response_sha256": "977b6342cb20d7797e4e1288014d9172add1d91ab27df9608ca8f4bca890ce25",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SegmentFail",
+    "retrieved_at": "2026-09-19T16:54:53.040745+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SegmentFail",
+    "response_sha256": "76cbb1f5237678f5477bb3d12102e5485ed3db09f7885323eea737f11b5a4944",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SegmentSuccess",
+    "retrieved_at": "2026-09-19T16:54:53.912009+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SegmentSuccess",
+    "response_sha256": "d6ee62db0cb9cb9c86907ca8094f16b5e0b52852ba4bb692d6513aebba3a676b",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SucceedEntirely",
+    "retrieved_at": "2026-09-19T16:54:54.555571+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/SucceedEntirely",
+    "response_sha256": "3e21bb934a17e131b80db3899ef3f6010b68efe06615b20528a9a9a806930fd6",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/exitResultOrError",
+    "retrieved_at": "2026-09-19T16:54:55.220808+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/exitResultOrError",
+    "response_sha256": "257f62f44f754d4e28b290b0f8b0814867481a872773962ebdabc0cb2c1d0389",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/makeContractExecutableRuntime",
+    "retrieved_at": "2026-09-19T16:54:55.747258+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/api-reference/midnight-js/@midnight-ntwrk/midnight-js-types/variables/makeContractExecutableRuntime",
+    "response_sha256": "b19c5fefeaf02faf4a6e31c77226a460b46bf45a0a69971cb1c57df0dbb14943",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/compiler-usage",
+    "retrieved_at": "2026-09-19T16:54:56.539003+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/compiler-usage",
+    "response_sha256": "0709f8d6c50413a7f3a6e14bf5fad79fd093ddee1bf7286e046ad192fe36569b",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/dev-tool-usage",
+    "retrieved_at": "2026-09-19T16:54:57.056484+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/dev-tool-usage",
+    "response_sha256": "1a6f88dc3e4f891bf10454926187cc8e2275f043a3765306ca28147ddf21f8b1",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/fixup-usage",
+    "retrieved_at": "2026-09-19T16:54:57.602002+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/fixup-usage",
+    "response_sha256": "136bd963b1766570792f32ce91aaa7479adad3aacbecfd3f40fa389d5da9fe45",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/formatter-usage",
+    "retrieved_at": "2026-09-19T16:54:58.208325+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/formatter-usage",
+    "response_sha256": "b02e80a9a3ae914c851274b96a59c7e8d2d94a26460f0482cb8b4137edb8dd79",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/neovim-setup",
+    "retrieved_at": "2026-09-19T16:54:58.856553+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/neovim-setup",
+    "response_sha256": "8bf04a730cb003a79fbe47321507f6d8560832e79b8c7a4b01a00c17b6e74dbe",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/compilation-and-tooling/vscode-plugin",
+    "retrieved_at": "2026-09-19T16:54:59.482553+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/compilation-and-tooling/vscode-plugin",
+    "response_sha256": "5851ab86c0a4806b12bc623f6e60cd6b0cd47c70caf8ae82f317f97a8155e6ea",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/data-types/ledger-adt",
+    "retrieved_at": "2026-09-19T16:55:00.141541+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/data-types/ledger-adt",
+    "response_sha256": "c6a1528b4eb95d6ba8898d6870ef9a4d8a9920a4f715b1b67ffab89fec9d55a7",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/data-types/opaque_data",
+    "retrieved_at": "2026-09-19T16:55:00.678004+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/data-types/opaque_data",
+    "response_sha256": "3d792334a87dca6cb4a30c7c08eecca09a34c224efdfb218e8bdd3ceb713ac1f",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/reference/compact-grammar",
+    "retrieved_at": "2026-09-19T16:55:01.211678+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/reference/compact-grammar",
+    "response_sha256": "3b29438912249b7887eefc193ead4326cc4b8bdd1f6c0b769279ea1a9a824375",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  },
+  {
+    "url": "https://docs.midnight.network/compact/reference/compact-keywords",
+    "retrieved_at": "2026-09-19T16:55:01.899216+00:00",
+    "http_status": 200,
+    "final_url": "https://docs.midnight.network/compact/reference/compact-keywords",
+    "response_sha256": "a99b1e6c629d9572acb0b16686e68d72849451d850d2b16674d636bc24055302",
+    "status": "error",
+    "error": "'Selector' object has no attribute 'drop'"
+  }
+]

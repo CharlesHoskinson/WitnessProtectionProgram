@@ -1,0 +1,30 @@
+[
+  {
+    "name": "website-terms.pdf",
+    "sha256": "a198d6acf1d7952da2ef153810ec435e4bc4b3b4918a40aafd382e53a3519302",
+    "bytes": 724003,
+    "local_cache": "/home/charl/wpp-research-2026-09-19/midnight-restricted/website-terms.pdf",
+    "redistribution": "excluded; website content licensing not established"
+  },
+  {
+    "name": "website-terms.txt",
+    "sha256": "58809f29ee7b9692050923d1e420d6915a1c24dac94705769a08e4c4dcabdc46",
+    "bytes": 17874,
+    "local_cache": "/home/charl/wpp-research-2026-09-19/midnight-restricted/website-terms.txt",
+    "redistribution": "excluded; website content licensing not established"
+  },
+  {
+    "name": "sitemap.xml",
+    "sha256": "2bb731056a072254ff23704f198b5a10628e694be2b247169c91d01dbbab7a48",
+    "bytes": 276683,
+    "local_cache": "/home/charl/wpp-research-2026-09-19/midnight-restricted/sitemap.xml",
+    "redistribution": "excluded; website content licensing not established"
+  },
+  {
+    "name": "llms.txt",
+    "sha256": "e83313f34250f3dabc31886445934efff3e8f3389b136ba86fdc8c021406437c",
+    "bytes": 178953,
+    "local_cache": "/home/charl/wpp-research-2026-09-19/midnight-restricted/llms.txt",
+    "redistribution": "excluded; website content licensing not established"
+  }
+]

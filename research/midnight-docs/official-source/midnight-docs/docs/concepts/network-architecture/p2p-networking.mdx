@@ -1,0 +1,61 @@
+---
+title: P2P networking
+sidebar_label: P2P networking
+description: A reference on P2P networking in Midnight nodes.
+keywords: [node]
+---
+
+# P2P networking
+
+In decentralized networks, the peer-to-peer (P2P) layer is responsible for connecting nodes and enabling data exchange.
+
+The Midnight node uses the default Polkadot SDK Rust LibP2P implementation. Key components include:
+
+### Discovery mechanisms
+
+To participate in a decentralized network, a node must discover and connect to peers. Midnight supports several peer discovery strategies:
+
+#### Bootstrap nodes
+
+Nodes can be configured with a list of predefined peers, known as bootstrap nodes. These hard-coded identities and addresses are provided in the network configuration. On startup, the node attempts to connect to these trusted peers to join the network and learn about additional peers.
+
+#### mDNS (multicast DNS)
+
+For local network discovery, mDNS enables nodes to find peers on the same LAN using UDP broadcast. This is useful for development environments, testnets, or networks where peers are in close proximity. You can enable or disable mDNS through network settings.
+
+#### Kademlia DHT (random walk)
+
+Once connected to at least one peer, the node engages in a Kademlia-based random walk on each configured chain’s *Distributed Hash Table (DHT)*. This involves sending FIND_NODE queries to discover additional peers. Over time, the node builds a more complete view of the network, improving connectivity and resilience.
+
+### Connection establishment
+
+After discovery, peers establish direct connections and negotiate shared protocol capabilities. This stage sets the transport, security, and multiplexing foundation that higher-level sync and gossip protocols rely on.
+
+#### Transport layer
+
+When node A (Alice) wants to connect to node B (Bob) and knows Bob's address, it initiates a connection using one of the following transport protocols:
+
+* **TCP/IP**: Traditional IPv4 or IPv6 socket connections.
+* **WebSockets**: Built on top of TCP, allowing browser-friendly or proxy-compatible connections via WebSocket framing.
+* **DNS**: Domain names can be used as node addresses, resolved to IPs during the connection process.
+
+#### Encryption and multiplexing
+
+Once peers establish the underlying transport, they upgrade the connection through a series of negotiated protocols:
+
+* Peers use the [Noise Protocol Framework](https://noiseprotocol.org/) for encryption, which ensures end-to-end confidentiality and integrity.
+* Peers typically use Yamux for stream multiplexing, allowing multiple logical streams (substreams) to operate concurrently over a single physical connection.
+
+Peers negotiate these upgrades using Multistream-Select, which lets them choose compatible encryption and multiplexing options.
+
+#### Substream protocols
+
+Once the connection is multiplexed, peers open multiple substreams, each dedicated to a specific application-level protocol. These include:
+
+* **Ping**: For liveness checks and latency measurements.
+* **Request-Response**: For structured data exchange (e.g., block or transaction queries).
+* **Notifications**: For broadcasting events like new transactions, block announcements, finality updates, and light-client state syncs.
+
+#### Peer identification
+
+Each node identifies itself using a unique *ed25519 public key*, separate from the keypair used for consensus message signing. During the handshake, peers exchange this identity key and use it to authenticate each other throughout the session.

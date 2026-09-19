@@ -1,0 +1,130 @@
+[
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "LICENSE",
+    "file": "pinned-source/midnight-js/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/LICENSE"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/types/src/private-state-provider.ts",
+    "file": "pinned-source/midnight-js/packages/types/src/private-state-provider.ts",
+    "sha256": "d027a72b35339935f834d9ecfb39457b4c5be154f59e94ed0c1b0d6554286326",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/types/src/private-state-provider.ts"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/level-private-state-provider/src/level-private-state-provider.ts",
+    "file": "pinned-source/midnight-js/packages/level-private-state-provider/src/level-private-state-provider.ts",
+    "sha256": "e0788b8f48b58d69d80b034cbf9d3a3c6775f1a3637eb8b472e1c26af9f24eaf",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/level-private-state-provider/src/level-private-state-provider.ts"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/level-private-state-provider/src/storage-encryption.ts",
+    "file": "pinned-source/midnight-js/packages/level-private-state-provider/src/storage-encryption.ts",
+    "sha256": "32ec2da1e687527e2b96eb1f8ed3b664054f834613b7820a2967e449295d90ef",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/level-private-state-provider/src/storage-encryption.ts"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/level-private-state-provider/src/crypto-backend.ts",
+    "file": "pinned-source/midnight-js/packages/level-private-state-provider/src/crypto-backend.ts",
+    "sha256": "b42bdb5d7812372ffec98fb27e638355a252bb7bcbe50ac4622236cc60fd92d8",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/level-private-state-provider/src/crypto-backend.ts"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/level-private-state-provider/package.json",
+    "file": "pinned-source/midnight-js/packages/level-private-state-provider/package.json",
+    "sha256": "681685f0fd778e8e0a165458c57913f025eab4854a58e5b8a8df6e0b80602d3f",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/level-private-state-provider/package.json"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/contracts/src/internal/transaction.ts",
+    "file": "pinned-source/midnight-js/packages/contracts/src/internal/transaction.ts",
+    "sha256": "4a17761b3b856a7a7252f2aa4b5e0075efd3695a4e781e48a107f8145866b633",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/contracts/src/internal/transaction.ts"
+  },
+  {
+    "repository": "midnight-js",
+    "commit": "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f",
+    "path": "packages/contracts/src/internal/ledger8-entry.ts",
+    "file": "pinned-source/midnight-js/packages/contracts/src/internal/ledger8-entry.ts",
+    "sha256": "e76546d842a733aa8e29e0106a97dcca20caf72d6b7594df05c78259fc57d35c",
+    "url": "https://github.com/midnightntwrk/midnight-js/blob/98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f/packages/contracts/src/internal/ledger8-entry.ts"
+  },
+  {
+    "repository": "example-bboard",
+    "commit": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+    "path": "LICENSE",
+    "file": "pinned-source/example-bboard/LICENSE",
+    "sha256": "4458503dd48e88c4e0b945fb252a08b93c40ec757309b8ffa7c594dfa1e35104",
+    "url": "https://github.com/midnightntwrk/example-bboard/blob/38bfac8c574abb0c5a96c9e076779716c3e88231/LICENSE"
+  },
+  {
+    "repository": "example-bboard",
+    "commit": "38bfac8c574abb0c5a96c9e076779716c3e88231",
+    "path": "contract/src/witnesses.ts",
+    "file": "pinned-source/example-bboard/contract/src/witnesses.ts",
+    "sha256": "1f88388e298dd28cd9ca511b14393433655a1026b4ceb93ad112bbc749350e5e",
+    "url": "https://github.com/midnightntwrk/example-bboard/blob/38bfac8c574abb0c5a96c9e076779716c3e88231/contract/src/witnesses.ts"
+  },
+  {
+    "repository": "midnight-passport-sdk",
+    "commit": "5dff89f62151de5ed91f88ef036c48899186a0e7",
+    "path": "README.md",
+    "file": "pinned-source/midnight-passport-sdk/README.md",
+    "sha256": "c87e8cb17f00ced4d54686aa8878df6727592710853b0a68a07415614fefc619",
+    "url": "https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/README.md"
+  },
+  {
+    "repository": "midnight-passport-sdk",
+    "commit": "5dff89f62151de5ed91f88ef036c48899186a0e7",
+    "path": "docs/beta-scope.md",
+    "file": "pinned-source/midnight-passport-sdk/docs/beta-scope.md",
+    "sha256": "2259e51b26921f872dcb6e41e2bb25e26f5ea35a4174781576414e7ec5aa8c9e",
+    "url": "https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/docs/beta-scope.md"
+  },
+  {
+    "repository": "midnight-passport-sdk",
+    "commit": "5dff89f62151de5ed91f88ef036c48899186a0e7",
+    "path": "docs/architecture.md",
+    "file": "pinned-source/midnight-passport-sdk/docs/architecture.md",
+    "sha256": "53769502e704fcbc518d5031cfa001bda763b77fc409d84a62c402ee2bebdaba",
+    "url": "https://github.com/midnightntwrk/midnight-passport-sdk/blob/5dff89f62151de5ed91f88ef036c48899186a0e7/docs/architecture.md"
+  },
+  {
+    "repository": "midnight-docs",
+    "commit": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+    "path": "LICENSE",
+    "file": "pinned-source/midnight-docs/LICENSE",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "url": "https://github.com/midnightntwrk/midnight-docs/blob/7cd3bc1681699b41d5a856f7ab2efd9892c27166/LICENSE"
+  },
+  {
+    "repository": "midnight-docs",
+    "commit": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+    "path": "docs/compact/reference/compact-reference.mdx",
+    "file": "pinned-source/midnight-docs/docs/compact/reference/compact-reference.mdx",
+    "sha256": "c1042277418dd5174793c47e9b4702dbb6ee55247361eae2cd86b6ebe0f68905",
+    "url": "https://github.com/midnightntwrk/midnight-docs/blob/7cd3bc1681699b41d5a856f7ab2efd9892c27166/docs/compact/reference/compact-reference.mdx"
+  },
+  {
+    "repository": "midnight-docs",
+    "commit": "7cd3bc1681699b41d5a856f7ab2efd9892c27166",
+    "path": "docs/guides/security-best-practices.mdx",
+    "file": "pinned-source/midnight-docs/docs/guides/security-best-practices.mdx",
+    "sha256": "c805e138769e9d99c158c4f510b607c5667ebecc6fc0e23ff6fd6e7bd3b498eb",
+    "url": "https://github.com/midnightntwrk/midnight-docs/blob/7cd3bc1681699b41d5a856f7ab2efd9892c27166/docs/guides/security-best-practices.mdx"
+  }
+]

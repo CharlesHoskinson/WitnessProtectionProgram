@@ -1,0 +1,52 @@
+---
+SPDX-License-Identifier: Apache-2.0
+copyright: This file is part of midnight-docs. Copyright (C) Midnight Foundation. Licensed under the Apache License, Version 2.0 (the "License"); You may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
+title: Kachina
+sidebar_label: Kachina
+description: A reference on the Kachina model.
+keywords: [kachina, model]
+---
+
+# Kachina
+
+Kachina is a data-protecting smart contract model that enables confidential, general-purpose smart contract functionality without sacrificing decentralization. 
+It provides a practical protocol for building data-protecting smart contracts using non-interactive zero-knowledge proofs. 
+By design, contracts separate personal data that stays on a user's machine from data processed publicly on-chain.
+
+At the core of Kachina is a bridge between the blockchain and users' local machines. It represents the system through two distinct [states](../glossary#state):
+
+- **Public state**: Resides on the blockchain and is accessible to all participants
+- **Private state**: Exists locally on each user's machine
+
+Kachina connects private and public state updates using zero-knowledge proofs. A contract can update public and private state in tandem.
+
+By definition, a ZKP lets one party (the prover) convince another party (the verifier) that a statement is true without disclosing additional information. In Kachina, the statement is that a private state change justifies a corresponding public state change.
+
+To make a valid assertion, participating parties prove in zero-knowledge that their public state updates are valid. They provide evidence of a corresponding private state and the inputs that justify the update. Kachina supports this process with ZK Snarks and offers a low-level, versatile framework grounded in the Universally Composable (UC) security model.
+
+![kachina](https://ucarecdn.com/e298a234-a027-4cb6-9564-86f0d5488e43/)
+
+As shown in the figure, clients can maintain private state for contracts in which they participate. 
+For each user, public state operates as a deterministic state machine coupled with private state. Private data is never shared on-chain. 
+
+Authorization for contract actions is based on ZKPs that verify transaction compliance with contract rules. 
+Validation starts by checking the proof against the circuit, then runs the public portion of the contract to produce a new public state.
+
+Kachina also enables concurrency to improve smart contract efficiency. Concurrency means multiple actors can perform tasks simultaneously without blocking each other, which increases throughput. Kachina uses transcripts to record state operations and related queries. By optimizing conflicting transactions and allowing reorderings, Kachina minimizes information leakage while maximizing concurrency.
+
+## The model
+
+Kachina presents smart contracts as reactive state machines. Users interact with these contracts by submitting transactions to Midnight. When a user initiates a transaction, they intend to issue a high-level command to the smart contract, such as casting a vote or withdrawing funds. After the transaction is confirmed by the ledger, the user receives information about the outcome of their command and any computed results based on the contract's current state.
+
+## The core protocol idea
+
+To handle smart contract data securely, Kachina allows contracts to interact with specialized entities that facilitate data access and updates. 
+These entities let contracts issue queries and obtain relevant information. Instead of directly mutating contract data, this interaction preserves state integrity and consistency. 
+Users maintain a transcript of these interactions, including queries and expected responses. By proving knowledge of inputs that produce those responses, users validate the transcript and verify reliable data handling.
+
+Kachina provides a strong foundation for building privacy-preserving smart contract systems. 
+It lets users interact with contracts securely while protecting personal data and preserving intended contract functionality. 
+
+This model applies to many use cases, including TradFi and DeFi applications, supply chain systems, healthcare applications, and more.
+
+For more details, see [Kachina - Foundations of Private Smart Contracts](https://eprint.iacr.org/2020/543.pdf).
