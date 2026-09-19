@@ -8,6 +8,7 @@ between recovery, authentication and storage.
 
 google-drive
 catalog-database
+storage-layout
 ../security-and-recovery
 ../integrations
 ```

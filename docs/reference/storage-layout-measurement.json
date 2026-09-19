@@ -1,0 +1,390 @@
+{
+  "tested_commit": "a6f55165fa8c91a558ab8d9da21d48a11005c353",
+  "command": "node experiments/storage-layout/benchmark.mjs --quick",
+  "verification_receipt_sha256": "99b28aeffd08d0c7ceaba54ab9adc97587505ca74b52014b0aee92d694a1bcf9",
+  "benchmark": {
+    "experiment": "wpp-storage-layout",
+    "cloud_not_tested": true,
+    "parameters": {
+      "quick": true,
+      "record_counts": [
+        1000,
+        10000
+      ],
+      "payload_bytes": {
+        "min": 128,
+        "max": 256
+      },
+      "bucket_count": 64,
+      "updates": 20,
+      "trials": 3,
+      "pack_target_bytes": 4194304,
+      "seed_pattern": "bench-{recordCount}",
+      "identical_inputs_across_layouts": true
+    },
+    "trial_count": 3,
+    "correctness": {
+      "all_trials_logical_equal": true,
+      "failures": []
+    },
+    "measurements": [
+      {
+        "record_count": 1000,
+        "layout": "flat",
+        "initial": {
+          "ciphertext_bytes": 299791,
+          "objects": 1,
+          "envelopes_written": 1,
+          "manifest_bytes": 0,
+          "data_bytes": 299791
+        },
+        "updates": {
+          "count": 20,
+          "total_rewritten_bytes": 5999905,
+          "median_rewritten_bytes": 299993,
+          "envelopes_written": 20
+        },
+        "timing": {
+          "initial_ms": {
+            "median": 12.167270000000144,
+            "range": [
+              9.292312000000038,
+              27.28380200000001
+            ],
+            "values": [
+              27.28380200000001,
+              9.292312000000038,
+              12.167270000000144
+            ]
+          },
+          "update_sequence_ms": {
+            "median": 232.682015,
+            "range": [
+              207.06626400000005,
+              234.755894
+            ],
+            "values": [
+              232.682015,
+              234.755894,
+              207.06626400000005
+            ]
+          }
+        },
+        "cold_full_restore": {
+          "gets": 1,
+          "fetched_bytes": 300107,
+          "manifest_reads": 0,
+          "manifest_bytes": 0,
+          "data_reads": 1,
+          "data_bytes": 300107,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "selected_shard_lookup": {
+          "gets": 1,
+          "fetched_bytes": 300107,
+          "manifest_reads": 0,
+          "manifest_bytes": 0,
+          "data_reads": 1,
+          "data_bytes": 300107,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "correctness_all_equal": true
+      },
+      {
+        "record_count": 1000,
+        "layout": "sharded-64",
+        "initial": {
+          "ciphertext_bytes": 405584,
+          "objects": 65,
+          "envelopes_written": 65,
+          "manifest_bytes": 14819,
+          "data_bytes": 390765,
+          "nonempty_buckets": 64
+        },
+        "updates": {
+          "count": 20,
+          "total_rewritten_bytes": 423989,
+          "median_rewritten_bytes": 21102.5,
+          "envelopes_written": 40
+        },
+        "timing": {
+          "initial_ms": {
+            "median": 32.75687700000003,
+            "range": [
+              21.174761999999873,
+              47.675296
+            ],
+            "values": [
+              32.75687700000003,
+              47.675296,
+              21.174761999999873
+            ]
+          },
+          "update_sequence_ms": {
+            "median": 89.92902700000002,
+            "range": [
+              82.00403499999993,
+              94.33606000000003
+            ],
+            "values": [
+              94.33606000000003,
+              89.92902700000002,
+              82.00403499999993
+            ]
+          },
+          "pack_ms": {
+            "median": 2.370345999999927,
+            "range": [
+              1.7901609999998982,
+              2.824135999999953
+            ],
+            "values": [
+              2.370345999999927,
+              1.7901609999998982,
+              2.824135999999953
+            ]
+          }
+        },
+        "cold_full_restore": {
+          "gets": 65,
+          "fetched_bytes": 405898,
+          "manifest_reads": 1,
+          "manifest_bytes": 14907,
+          "data_reads": 64,
+          "data_bytes": 390991,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "selected_shard_lookup": {
+          "gets": 2,
+          "fetched_bytes": 22276,
+          "manifest_reads": 1,
+          "manifest_bytes": 14907,
+          "data_reads": 1,
+          "data_bytes": 7369,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "packed": {
+          "pack_count": 1,
+          "pack_bytes": 390991,
+          "extent_manifest_bytes": 25460,
+          "objects_written": 2,
+          "cold_full_restore": {
+            "gets": 2,
+            "fetched_bytes": 416451,
+            "manifest_reads": 1,
+            "manifest_bytes": 25460,
+            "data_reads": 1,
+            "data_bytes": 390991
+          },
+          "cold_shard_lookup": {
+            "gets": 2,
+            "fetched_bytes": 32829,
+            "manifest_reads": 1,
+            "manifest_bytes": 25460,
+            "data_reads": 1,
+            "data_bytes": 7369,
+            "range_reads": 1,
+            "range_read_bytes": 7369,
+            "note": "Includes the one-time cache-fill GET of the encrypted extent manifest. Warmed lookup excludes that cost."
+          },
+          "cached_index_shard_lookup": {
+            "gets": 1,
+            "fetched_bytes": 7369,
+            "range_reads": 1,
+            "range_read_bytes": 7369,
+            "note": "Encrypted extent-manifest wire already held. Re-authentication is local CPU. Range-read one envelope. Cache-fill cost is in cold_shard_lookup. Does not verify the whole-pack hash."
+          }
+        },
+        "correctness_all_equal": true
+      },
+      {
+        "record_count": 10000,
+        "layout": "flat",
+        "initial": {
+          "ciphertext_bytes": 2994837,
+          "objects": 1,
+          "envelopes_written": 1,
+          "manifest_bytes": 0,
+          "data_bytes": 2994837
+        },
+        "updates": {
+          "count": 20,
+          "total_rewritten_bytes": 59900831,
+          "median_rewritten_bytes": 2995039,
+          "envelopes_written": 20
+        },
+        "timing": {
+          "initial_ms": {
+            "median": 89.74322800000027,
+            "range": [
+              80.6094809999995,
+              117.39806799999997
+            ],
+            "values": [
+              117.39806799999997,
+              80.6094809999995,
+              89.74322800000027
+            ]
+          },
+          "update_sequence_ms": {
+            "median": 1799.7033249999995,
+            "range": [
+              1735.335024,
+              1801.3459409999998
+            ],
+            "values": [
+              1801.3459409999998,
+              1735.335024,
+              1799.7033249999995
+            ]
+          }
+        },
+        "cold_full_restore": {
+          "gets": 1,
+          "fetched_bytes": 2995153,
+          "manifest_reads": 0,
+          "manifest_bytes": 0,
+          "data_reads": 1,
+          "data_bytes": 2995153,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "selected_shard_lookup": {
+          "gets": 1,
+          "fetched_bytes": 2995153,
+          "manifest_reads": 0,
+          "manifest_bytes": 0,
+          "data_reads": 1,
+          "data_bytes": 2995153,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "correctness_all_equal": true
+      },
+      {
+        "record_count": 10000,
+        "layout": "sharded-64",
+        "initial": {
+          "ciphertext_bytes": 3100624,
+          "objects": 65,
+          "envelopes_written": 65,
+          "manifest_bytes": 14819,
+          "data_bytes": 3085805,
+          "nonempty_buckets": 64
+        },
+        "updates": {
+          "count": 20,
+          "total_rewritten_bytes": 1249962,
+          "median_rewritten_bytes": 63067,
+          "envelopes_written": 40
+        },
+        "timing": {
+          "initial_ms": {
+            "median": 108.56857499999933,
+            "range": [
+              102.51550800000041,
+              116.35438400000021
+            ],
+            "values": [
+              116.35438400000021,
+              102.51550800000041,
+              108.56857499999933
+            ]
+          },
+          "update_sequence_ms": {
+            "median": 699.244177999999,
+            "range": [
+              684.6744680000002,
+              716.2996449999991
+            ],
+            "values": [
+              684.6744680000002,
+              716.2996449999991,
+              699.244177999999
+            ]
+          },
+          "pack_ms": {
+            "median": 4.459055999999691,
+            "range": [
+              3.730643000000782,
+              4.647468999999546
+            ],
+            "values": [
+              4.459055999999691,
+              4.647468999999546,
+              3.730643000000782
+            ]
+          }
+        },
+        "cold_full_restore": {
+          "gets": 65,
+          "fetched_bytes": 3100940,
+          "manifest_reads": 1,
+          "manifest_bytes": 14907,
+          "data_reads": 64,
+          "data_bytes": 3086033,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "selected_shard_lookup": {
+          "gets": 2,
+          "fetched_bytes": 64323,
+          "manifest_reads": 1,
+          "manifest_bytes": 14907,
+          "data_reads": 1,
+          "data_bytes": 49416,
+          "range_reads": 0,
+          "range_read_bytes": 0
+        },
+        "packed": {
+          "pack_count": 1,
+          "pack_bytes": 3086033,
+          "extent_manifest_bytes": 25623,
+          "objects_written": 2,
+          "cold_full_restore": {
+            "gets": 2,
+            "fetched_bytes": 3111656,
+            "manifest_reads": 1,
+            "manifest_bytes": 25623,
+            "data_reads": 1,
+            "data_bytes": 3086033
+          },
+          "cold_shard_lookup": {
+            "gets": 2,
+            "fetched_bytes": 75039,
+            "manifest_reads": 1,
+            "manifest_bytes": 25623,
+            "data_reads": 1,
+            "data_bytes": 49416,
+            "range_reads": 1,
+            "range_read_bytes": 49416,
+            "note": "Includes the one-time cache-fill GET of the encrypted extent manifest. Warmed lookup excludes that cost."
+          },
+          "cached_index_shard_lookup": {
+            "gets": 1,
+            "fetched_bytes": 49416,
+            "range_reads": 1,
+            "range_read_bytes": 49416,
+            "note": "Encrypted extent-manifest wire already held. Re-authentication is local CPU. Range-read one envelope. Cache-fill cost is in cold_shard_lookup. Does not verify the whole-pack hash."
+          }
+        },
+        "correctness_all_equal": true
+      }
+    ],
+    "notes": [
+      "Modeled GET counts are local in-memory operations. They are not Google Drive requests.",
+      "Fewer modeled calls do not establish lower Drive latency.",
+      "App-codec snapshot envelopes are test carriers, not the production kind=catalog format.",
+      "The in-memory store is not persistent and is not a Drive simulator.",
+      "Fixed 64-bucket assignment is a bounded prototype. Production must split by byte size.",
+      "A range read does not verify the whole-pack hash. Trust the authenticated extent manifest, the per-envelope hash, and AEAD.",
+      "Cached packed-range lookup supplies the encrypted extent-manifest wire. Restore hash-checks that wire against extentManifestHash and authenticates it before the range GET.",
+      "cold_shard_lookup includes the one-time cache-fill GET of the encrypted extent manifest. cached_index_shard_lookup excludes that cost. Re-authentication is local CPU.",
+      "Timing values are local elapsed milliseconds on this host. They are not Drive RTT."
+    ]
+  }
+}
