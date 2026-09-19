@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import { syncBuiltinESMExports } from 'node:module';
 import { createHash } from 'node:crypto';
+import { dirname, resolve } from 'node:path';
 
 const JOURNAL_MODULE = new URL('../../dist/journal/index.js', import.meta.url).href;
 const KERNEL_MODULE = new URL('../../dist/kernel/index.js', import.meta.url).href;
@@ -25,11 +26,14 @@ function errorReceipt(err) {
   };
 }
 
-function eio(syscall) {
-  const err = new Error('EIO');
+function eio(syscall, path) {
+  const err = new Error(path ? `EIO: ${syscall} '${path}' failed` : 'EIO');
   err.code = 'EIO';
   err.errno = 5;
   err.syscall = syscall;
+  if (path !== undefined) {
+    err.path = path;
+  }
   return err;
 }
 
@@ -60,7 +64,7 @@ function parkAtBoundary() {
   return new Promise(() => {});
 }
 
-function wrapHandle(fh, fault, state) {
+function wrapHandle(fh, fault, state, openedPath, parentDir) {
   const origWrite = fh.write.bind(fh);
   const origWritev = fh.writev ? fh.writev.bind(fh) : null;
   const origSync = fh.sync.bind(fh);
@@ -98,10 +102,30 @@ function wrapHandle(fh, fault, state) {
     };
   }
 
+  fh.stat = async function stat(...args) {
+    const st = await origStat(...args);
+    if (fault === 'eio-get-stat' && st.isFile()) {
+      throw eio('fstat', openedPath);
+    }
+    if (fault === 'eio-dir-stat' && st.isDirectory()) {
+      throw eio('fstat', openedPath);
+    }
+    return st;
+  };
+
   fh.sync = async function sync() {
     const st = await origStat();
     if (fault === 'eio-temp-fsync' && !st.isDirectory() && !state.linked) {
       throw eio('fsync');
+    }
+    if (
+      fault === 'eio-parent-fsync' &&
+      st.isDirectory() &&
+      typeof openedPath === 'string' &&
+      typeof parentDir === 'string' &&
+      resolve(openedPath) === parentDir
+    ) {
+      throw eio('fsync', openedPath);
     }
     if (st.isDirectory() && state.linked) {
       if (fault === 'eio-dir-fsync') {
@@ -117,11 +141,12 @@ function wrapHandle(fh, fault, state) {
   return fh;
 }
 
-function installFaults(fault) {
+function installFaults(fault, cfg = {}) {
   if (!fault || fault === 'none') {
     return () => {};
   }
 
+  const parentDir = typeof cfg.journalDir === 'string' ? dirname(resolve(cfg.journalDir)) : undefined;
   const state = { linked: false, didShort: false };
   const orig = {
     link: fsp.link,
@@ -131,6 +156,8 @@ function installFaults(fault) {
     renameFs: fs.rename,
     renameSync: fs.renameSync,
     open: fsp.open,
+    opendir: fsp.opendir,
+    opendirFs: fs.promises.opendir,
     fsync: fs.fsync,
     fsyncSync: fs.fsyncSync,
   };
@@ -220,8 +247,19 @@ function installFaults(fault) {
 
   fsp.open = async function open(...args) {
     const fh = await orig.open(...args);
-    return wrapHandle(fh, fault, state);
+    return wrapHandle(fh, fault, state, args[0], parentDir);
   };
+
+  fsp.opendir = async function opendir(path, ...rest) {
+    const handle = await orig.opendir(path, ...rest);
+    if (fault === 'eio-list-iter') {
+      handle[Symbol.asyncIterator] = async function* asyncIterator() {
+        throw eio('readdir', path);
+      };
+    }
+    return handle;
+  };
+  fs.promises.opendir = fsp.opendir;
 
   fs.fsync = function fsync(fd, cb) {
     fs.fstat(fd, (statErr, st) => {
@@ -270,6 +308,8 @@ function installFaults(fault) {
     fs.rename = orig.renameFs;
     fs.renameSync = orig.renameSync;
     fsp.open = orig.open;
+    fsp.opendir = orig.opendir;
+    fs.promises.opendir = orig.opendirFs;
     fs.fsync = orig.fsync;
     fs.fsyncSync = orig.fsyncSync;
     syncBuiltinESMExports();
@@ -279,10 +319,14 @@ function installFaults(fault) {
 async function main() {
   const cfg = await readStdin();
   send('ready');
-  const restore = installFaults(cfg.fault);
+  const restore = installFaults(cfg.fault, cfg);
   try {
     const { CiphertextJournal } = await import(JOURNAL_MODULE);
     const journal = await CiphertextJournal.open(cfg.journalDir);
+    if (cfg.action === 'open') {
+      writeReceipt({ ok: true, action: 'open' });
+      return;
+    }
     if (cfg.action === 'get') {
       const bytes = await journal.get(cfg.sha256);
       writeReceipt({

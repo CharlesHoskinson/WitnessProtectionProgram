@@ -1156,4 +1156,67 @@ describe('UnlockedVault kernel', () => {
       Buffer.from = originalFrom;
     }
   });
+
+  test('openSnapshot hashes and parses the same owned caller-byte snapshot', () => {
+    const { vault, scopeId, recordId } = session();
+    const bodyA = payload({ slot: 'package-A' });
+    const bodyB = payload({ slot: 'package-B' });
+    equal(JSON.stringify(bodyA.content).length, JSON.stringify(bodyB.content).length);
+    const sealedA = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(bodyA)),
+    });
+    const sealedB = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(bodyB)),
+    });
+    equal(sealedA.wire.byteLength, sealedB.wire.byteLength);
+    notEqual(sealedA.sha256, sealedB.sha256);
+    notEqual(Buffer.from(sealedA.wire).equals(Buffer.from(sealedB.wire)), true);
+    const expected = expectedOf(bodyA.metadata, scopeId, recordId);
+    deepEqual(expected, expectedOf(bodyB.metadata, scopeId, recordId));
+    deepEqual(vault.openSnapshot(Uint8Array.from(sealedA.wire), expected).content, bodyA.content);
+    deepEqual(vault.openSnapshot(Uint8Array.from(sealedB.wire), expected).content, bodyB.content);
+
+    class SwapAtParse extends Uint8Array {
+      constructor(first, second) {
+        super(first);
+        this._second = Uint8Array.from(second);
+        this._byteLengthReads = 0;
+        this._swapped = false;
+      }
+
+      get byteLength() {
+        this._byteLengthReads += 1;
+        if (this._byteLengthReads >= 2 && !this._swapped) {
+          super.set(this._second);
+          this._swapped = true;
+        }
+        return super.byteLength;
+      }
+    }
+
+    const mutating = new SwapAtParse(sealedA.wire, sealedB.wire);
+    let opened;
+    try {
+      opened = vault.openSnapshot(mutating, expected);
+    } catch (err) {
+      assertPublicError(err);
+      return;
+    }
+    const hashIsA = opened.packageSha256 === sealedA.sha256;
+    const hashIsB = opened.packageSha256 === sealedB.sha256;
+    ok(hashIsA || hashIsB, 'accepted hash must be one of the two equal-length packages');
+    if (hashIsA) {
+      deepEqual(opened.content, bodyA.content);
+      equal(opened.packageSha256, sealedA.sha256);
+    } else {
+      deepEqual(opened.content, bodyB.content);
+      equal(opened.packageSha256, sealedB.sha256);
+    }
+    equal(opened.packageSha256, sealedA.sha256);
+    deepEqual(opened.content, bodyA.content);
+  });
 });

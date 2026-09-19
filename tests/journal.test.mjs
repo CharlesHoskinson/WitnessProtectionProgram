@@ -899,4 +899,178 @@ describe('CiphertextJournal', () => {
       vault.lock();
     }
   });
+
+  test('parent fsync failure on first open still requires parent barrier on retry', async () => {
+    await withTempDir(async (root) => {
+      const dir = join(root, 'journal');
+      const first = await runChild({
+        action: 'open',
+        fault: 'eio-parent-fsync',
+        journalDir: dir,
+      });
+      equal(first.code, 1);
+      const firstReceipt = parseReceipt(first.stdout);
+      equal(firstReceipt.ok, false);
+      equal(firstReceipt.name, 'JournalError');
+      equal(firstReceipt.code, 'IO');
+      equal(firstReceipt.message, 'IO');
+      assertNoLeak(firstReceipt, dir);
+      assertNoLeak(firstReceipt, root);
+
+      const retryFault = await runChild({
+        action: 'open',
+        fault: 'eio-parent-fsync',
+        journalDir: dir,
+      });
+      equal(retryFault.code, 1);
+      const retryReceipt = parseReceipt(retryFault.stdout);
+      equal(retryReceipt.ok, false);
+      equal(retryReceipt.code, 'IO');
+      equal(retryReceipt.message, 'IO');
+      assertNoLeak(retryReceipt, dir);
+
+      const recovered = await runChild({
+        action: 'open',
+        journalDir: dir,
+      });
+      equal(recovered.code, 0);
+      equal(parseReceipt(recovered.stdout).ok, true);
+    });
+  });
+
+  test('existing leaf still establishes parent directory durability barrier', async () => {
+    await withTempDir(async (root) => {
+      const dir = join(root, 'journal');
+      await mkdir(dir, { mode: 0o700 });
+      chmodSync(dir, 0o700);
+      const child = await runChild({
+        action: 'open',
+        fault: 'eio-parent-fsync',
+        journalDir: dir,
+      });
+      equal(child.code, 1);
+      const receipt = parseReceipt(child.stdout);
+      equal(receipt.ok, false);
+      equal(receipt.name, 'JournalError');
+      equal(receipt.code, 'IO');
+      equal(receipt.message, 'IO');
+      assertNoLeak(receipt, dir);
+      assertNoLeak(receipt, root);
+    });
+  });
+
+  test('get maps path-bearing file stat EIO to bounded IO', async () => {
+    const vault = unlock();
+    try {
+      await withJournal(async ({ dir, journal }) => {
+        const sealed = sealWith(vault);
+        const stored = await journal.put({ wire: sealed.wire, sha256: sealed.sha256 });
+        const child = await runChild({
+          action: 'get',
+          fault: 'eio-get-stat',
+          journalDir: dir,
+          sha256: stored.sha256,
+        });
+        equal(child.code, 1);
+        const receipt = parseReceipt(child.stdout);
+        equal(receipt.ok, false);
+        equal(receipt.name, 'JournalError');
+        equal(receipt.code, 'IO');
+        equal(receipt.message, 'IO');
+        assertNoLeak(receipt, dir);
+        const got = await journal.get(stored.sha256);
+        deepEqual(Buffer.from(got), Buffer.from(sealed.wire));
+        await rejects(() => journal.get('ab'.repeat(32)), codeIs('NOT_FOUND'));
+      });
+    } finally {
+      vault.lock();
+    }
+  });
+
+  test('open maps path-bearing directory fd stat EIO to bounded IO', async () => {
+    await withTempDir(async (root) => {
+      const dir = join(root, 'journal');
+      await mkdir(dir, { mode: 0o700 });
+      chmodSync(dir, 0o700);
+      const child = await runChild({
+        action: 'open',
+        fault: 'eio-dir-stat',
+        journalDir: dir,
+      });
+      equal(child.code, 1);
+      const receipt = parseReceipt(child.stdout);
+      equal(receipt.ok, false);
+      equal(receipt.name, 'JournalError');
+      equal(receipt.code, 'IO');
+      equal(receipt.message, 'IO');
+      assertNoLeak(receipt, dir);
+      assertNoLeak(receipt, root);
+    });
+  });
+
+  test('list maps path-bearing directory iteration EIO to bounded IO', async () => {
+    await withJournal(async ({ dir, journal }) => {
+      const child = await runChild({
+        action: 'list',
+        fault: 'eio-list-iter',
+        journalDir: dir,
+      });
+      equal(child.code, 1);
+      const receipt = parseReceipt(child.stdout);
+      equal(receipt.ok, false);
+      equal(receipt.name, 'JournalError');
+      equal(receipt.code, 'IO');
+      equal(receipt.message, 'IO');
+      assertNoLeak(receipt, dir);
+      deepEqual([...(await journal.list())], []);
+    });
+  });
+
+  test('put uses intrinsic wire length instead of subclass getters', async () => {
+    const vault = unlock();
+    try {
+      await withJournal(async ({ journal }) => {
+        const sealed = sealWith(vault);
+        const trueLength = sealed.wire.byteLength;
+        ok(trueLength > 16);
+        class FlipLength extends Uint8Array {
+          constructor(bytes) {
+            super(bytes);
+            this._reads = 0;
+          }
+
+          get byteLength() {
+            this._reads += 1;
+            if (this._reads <= 2) {
+              return 16;
+            }
+            return 24 * 1024 * 1024 + 1;
+          }
+        }
+
+        const hostile = new FlipLength(sealed.wire);
+        const stored = await journal.put({ wire: hostile, sha256: sealed.sha256 });
+        equal(stored.status, 'local-durable');
+        equal(stored.byteLength, trueLength);
+        equal(stored.sha256, sealed.sha256);
+        const got = await journal.get(stored.sha256);
+        deepEqual(Buffer.from(got), Buffer.from(sealed.wire));
+
+        const parent = new Uint8Array(trueLength + 4);
+        parent.set(sealed.wire, 2);
+        const slice = parent.subarray(2, 2 + trueLength);
+        const sliced = await journal.put({ wire: slice, sha256: sealed.sha256 });
+        equal(sliced.byteLength, trueLength);
+        equal(sliced.sha256, sealed.sha256);
+
+        const fromBuffer = await journal.put({
+          wire: Buffer.from(sealed.wire),
+          sha256: sealed.sha256,
+        });
+        equal(fromBuffer.byteLength, trueLength);
+      });
+    } finally {
+      vault.lock();
+    }
+  });
 });

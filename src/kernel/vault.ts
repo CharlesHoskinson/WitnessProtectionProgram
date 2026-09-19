@@ -17,7 +17,6 @@ import {
   LIMIT_PLAINTEXT_BYTES,
   LIMIT_RECOVERY_WIRE_BYTES,
   LIMIT_ROOT_BYTES,
-  assertByteCeiling,
   assertCanonicalPayloadBytes,
   canonicalizeJsonBytes,
   isolatedJsonView,
@@ -89,10 +88,53 @@ interface OwnedEpoch {
   status: RootEpoch["status"];
 }
 
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength",
+)?.get;
+
+function intrinsicByteLength(bytes: Uint8Array): number {
+  if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
+    throw new KernelError(ERR_INTERNAL);
+  }
+  try {
+    const length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    return length;
+  } catch (err) {
+    if (err instanceof KernelError) {
+      throw err;
+    }
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
 function copyBytes(bytes: Uint8Array): Uint8Array {
   const out = new Uint8Array(bytes.byteLength);
   out.set(bytes);
   return out;
+}
+
+function copyOwnedPackage(wire: Uint8Array, maxBytes: number): Uint8Array {
+  if (!(wire instanceof Uint8Array)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  const length = intrinsicByteLength(wire);
+  if (length > maxBytes) {
+    throw new KernelError(ERR_INPUT_TOO_LARGE);
+  }
+  const owned = new Uint8Array(length);
+  try {
+    Uint8Array.prototype.set.call(owned, wire);
+  } catch (err) {
+    if (err instanceof KernelError) {
+      throw err;
+    }
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return owned;
 }
 
 function freshRandom(size: number): Buffer {
@@ -346,9 +388,8 @@ export class UnlockedVault {
 
   openSnapshot(wire: Uint8Array, expected: ExpectedSnapshot): OpenResult {
     this.#requireUnlocked();
-    const packageBytes = wire;
+    const packageBytes = copyOwnedPackage(wire, LIMIT_PACKAGE_BYTES);
     const expectedBinding = validateExpectedSnapshot(expected);
-    assertByteCeiling(packageBytes, LIMIT_PACKAGE_BYTES);
     const packageSha256 = sha256Hex(packageBytes);
     const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);
     const pack = validatePackageWire(parsed);

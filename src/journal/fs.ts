@@ -253,6 +253,8 @@ export async function fsyncDirectory(path: string, context: FsContext): Promise<
       throw new JournalError(context === "path" ? "UNSAFE_PATH" : "IO");
     }
     await fsyncHandle(fh, context);
+  } catch (err) {
+    throw err instanceof JournalError ? err : mapFsError(err, context);
   } finally {
     await closeQuiet(fh);
   }
@@ -262,6 +264,8 @@ async function inspectDirFd(path: string, context: FsContext): Promise<Stats> {
   const fh = await openRaw(path, dirFlags(), undefined, context);
   try {
     return await fh.stat();
+  } catch (err) {
+    throw err instanceof JournalError ? err : mapFsError(err, context);
   } finally {
     await closeQuiet(fh);
   }
@@ -342,8 +346,8 @@ export async function openJournalDirectory(directory: string): Promise<string> {
         throw mapFsError(err, "path");
       }
     }
-    await fsyncDirectory(parent, "path");
   }
+  await fsyncDirectory(parent, "path");
   await assertJournalDirectory(dir);
   return dir;
 }
@@ -483,6 +487,8 @@ export async function listCommittedDigests(dir: string): Promise<readonly string
       }
       throw new JournalError("INTEGRITY");
     }
+  } catch (err) {
+    throw err instanceof JournalError ? err : mapFsError(err, "path");
   } finally {
     await closeDirQuiet(handle);
   }

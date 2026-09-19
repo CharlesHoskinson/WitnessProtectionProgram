@@ -1,6 +1,6 @@
 # Local envelope kernel
 
-Status: authored TypeScript kernel candidate. Candidate `61be5ab` passed host checks. Final independent acceptance is pending. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
+Status: authored TypeScript kernel candidate. Commit `61be5ab` is a historical kernel-build and binding-capture check. That commit is not current review acceptance. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
 
 The public API lives in `src/kernel/index.ts`. Tests import the compiled module from `dist/kernel/index.js`. Internal `deriveKeys` lives in `src/kernel/crypto.ts` and is not re-exported.
 
@@ -10,7 +10,9 @@ The public API lives in `src/kernel/index.ts`. Tests import the compiled module 
 
 `sealSnapshot({scopeId, recordId, payloadUtf8})` encrypts one snapshot payload. The method copies `scopeId`, `recordId`, and the payload byte reference at entry. Later mutation of the input object does not change the sealed identifiers. The kernel generates a fresh generation identifier and nonce on every call. Retry the exact returned bytes. Do not call `sealSnapshot` again as a retry.
 
-`openSnapshot(wire, expected)` authenticates the package and parses the payload. It copies `expected` into an owned binding snapshot. It compares that snapshot to authenticated metadata before it calls the codec. Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence.
+`openSnapshot(wire, expected)` authenticates the package and parses the payload. It copies caller package bytes into an owned buffer before hash and parse. It uses that same owned copy for both steps. It copies `expected` into an owned binding snapshot. It compares that snapshot to authenticated metadata before it calls the codec.
+
+Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence. A `SharedArrayBuffer` copy is not an atomic snapshot. Any accepted hash and content still come from the same owned buffer.
 
 `createRecoveryPack()` encrypts the canonical root record under a fresh 32-byte key. The caller owns the returned key and must export it through a later checked workflow.
 
@@ -28,7 +30,9 @@ Trusted callbacks cannot be sandboxed. Accidental async return still fails close
 
 ## Limits
 
-Raw input ceilings apply before JSON decode. A public byte input that is not a `Uint8Array` fails with `WPP_SCHEMA` before length or hash checks. Node `Buffer` is accepted. Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after the raw 24 MiB ceiling.
+Raw input ceilings apply before JSON decode. A public byte input that is not a `Uint8Array` fails with `WPP_SCHEMA` before length or hash checks. Node `Buffer` is accepted. Open reads the intrinsic typed-array length, checks the 24 MiB ceiling, then copies into a plain owned buffer. It does not trust subclass size or copy methods for that bound.
+
+Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after that owned copy.
 
 | Input | Ceiling |
 | --- | --- |
@@ -57,4 +61,4 @@ JavaScript strings are immutable. Parser copies, previously returned plaintext, 
 
 ## Remaining work
 
-Journal persistence, catalog reconciliation, native staging, Bitwarden export UX, and cloud adapters are later slices. This kernel does not claim those behaviors.
+Catalog reconciliation, native staging, Bitwarden export UX, and cloud adapters are later slices. This kernel does not claim those behaviors. A local journal candidate exists in this tree. It is not a completed M1.

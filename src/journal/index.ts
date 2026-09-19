@@ -11,6 +11,7 @@ import {
   fsyncHandle,
   linkNoReplace,
   listCommittedDigests,
+  mapFsError,
   openCommittedFile,
   openJournalDirectory,
   parseDigest,
@@ -34,15 +35,43 @@ export interface PutResult {
   status: "local-durable";
 }
 
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength",
+)?.get;
+
+function intrinsicByteLength(bytes: Uint8Array): number {
+  if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
+    throw new JournalError("INVALID_INPUT");
+  }
+  try {
+    const length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+      throw new JournalError("INVALID_INPUT");
+    }
+    return length;
+  } catch (err) {
+    if (err instanceof JournalError) {
+      throw err;
+    }
+    throw new JournalError("INVALID_INPUT");
+  }
+}
+
 function cloneBoundedWire(wire: Uint8Array): Uint8Array {
   if (!(wire instanceof Uint8Array)) {
     throw new JournalError("INVALID_INPUT");
   }
-  if (wire.byteLength === 0 || wire.byteLength > LIMIT_PACKAGE_BYTES) {
+  const length = intrinsicByteLength(wire);
+  if (length === 0 || length > LIMIT_PACKAGE_BYTES) {
     throw new JournalError("INVALID_INPUT");
   }
-  const owned = new Uint8Array(wire.byteLength);
-  owned.set(wire);
+  const owned = new Uint8Array(length);
+  try {
+    Uint8Array.prototype.set.call(owned, wire);
+  } catch {
+    throw new JournalError("INVALID_INPUT");
+  }
   return owned;
 }
 
@@ -149,6 +178,8 @@ export class CiphertextJournal {
         throw new JournalError("INTEGRITY");
       }
       return bytes;
+    } catch (err) {
+      throw err instanceof JournalError ? err : mapFsError(err, "record-get");
     } finally {
       await closeQuiet(handle);
     }
