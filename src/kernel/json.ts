@@ -61,6 +61,9 @@ const VISIT_OPTIONS = {
 } as const;
 
 export function assertByteCeiling(bytes: Uint8Array, maxBytes: number): void {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
   if (bytes.byteLength > maxBytes) {
     throw new KernelError(ERR_INPUT_TOO_LARGE);
   }
@@ -348,7 +351,8 @@ export function freezeJsonValue(value: JsonValue): JsonValue {
       freezeJsonValue(value[key]);
     }
   }
-  return Object.freeze(value);
+  Object.freeze(value);
+  return value;
 }
 
 export function isolatedJsonView(value: JsonValue): JsonValue {

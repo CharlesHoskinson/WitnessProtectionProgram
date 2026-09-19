@@ -8,7 +8,7 @@ The public API lives in `src/kernel/index.ts`. Tests import the compiled module 
 
 `UnlockedVault.fromRootRecord(rootUtf8, codecs)` parses a root record and returns an unlocked handle. `UnlockedVault.fromRecoveryPack(wire, recoveryKey, codecs)` authenticates an independent recovery pack first. Both methods require an explicit `CodecPolicy` list. Unknown codec identifiers fail closed. Duplicate policy identifiers fail closed. The native identifier `midnight-js-private-state-export` is unsupported in this slice.
 
-`sealSnapshot({scopeId, recordId, payloadUtf8})` encrypts one snapshot payload. The kernel generates a fresh generation identifier and nonce on every call. Retry the exact returned bytes. Do not call `sealSnapshot` again as a retry.
+`sealSnapshot({scopeId, recordId, payloadUtf8})` encrypts one snapshot payload. The method copies `scopeId`, `recordId`, and the payload byte reference at entry. Later mutation of the input object does not change the sealed identifiers. The kernel generates a fresh generation identifier and nonce on every call. Retry the exact returned bytes. Do not call `sealSnapshot` again as a retry.
 
 `openSnapshot(wire, expected)` authenticates the package and parses the payload. It copies `expected` into an owned binding snapshot. It compares that snapshot to authenticated metadata before it calls the codec. Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence.
 
@@ -28,7 +28,7 @@ Trusted callbacks cannot be sandboxed. Accidental async return still fails close
 
 ## Limits
 
-Raw input ceilings apply before JSON decode. Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after the raw 24 MiB ceiling.
+Raw input ceilings apply before JSON decode. A public byte input that is not a `Uint8Array` fails with `WPP_SCHEMA` before length or hash checks. Node `Buffer` is accepted. Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after the raw 24 MiB ceiling.
 
 | Input | Ceiling |
 | --- | --- |
@@ -43,7 +43,7 @@ The 4 KiB header ceiling and the 64 KiB metadata ceiling apply to the UTF-8 byte
 
 The kernel loads JSON Schema files from `docs/reference/schemas/` using a path relative to `import.meta.url`. Deployments must ship those files next to the compiled `dist/kernel` layout. Snapshot metadata uses `urn:wpp:catalog-v1#/$defs/metadata`. The kernel does not resolve remote schemas.
 
-Ajv runs with `strict: true` and `strictTypes: false`. `strictTypes: false` only disables a compiler diagnostic on referenced `maxLength`. Data type checks stay active.
+Ajv runs with `strict: true` and `strictTypes: false`. `strictTypes: false` only disables a compiler diagnostic on referenced `maxLength`. Data type checks stay active. Registered `date-time` formats reject impossible UTC timestamps such as `2026-13-45T00:00:00Z` with `WPP_SCHEMA`.
 
 ## Cryptography
 

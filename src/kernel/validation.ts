@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
-import * as addFormatsModule from "ajv-formats";
+import addFormatsModule from "ajv-formats";
 import type { FormatsPlugin } from "ajv-formats";
 import {
   ERR_BASE64URL,
@@ -395,7 +395,7 @@ export function validateExpectedSnapshot(value: unknown): ExpectedSnapshot {
   assertString(value.codec.producerPackage);
   assertString(value.codec.producerVersion);
   assertString(value.codec.sourceCommit);
-  return isolatedJsonView(value as unknown as JsonValue) as ExpectedSnapshot;
+  return isolatedJsonView(value as unknown as JsonValue) as unknown as ExpectedSnapshot;
 }
 
 export function validateCodecPolicies(codecs: readonly CodecPolicy[]): Map<string, CodecPolicy> {

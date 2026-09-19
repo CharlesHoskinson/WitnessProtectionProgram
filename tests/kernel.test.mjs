@@ -136,11 +136,11 @@ function expectedOf(meta, scopeId, recordId) {
   return {
     scopeId,
     recordId,
-    network: meta.network,
-    accountBinding: meta.accountBinding,
+    network: structuredClone(meta.network),
+    accountBinding: structuredClone(meta.accountBinding),
     applicationId: meta.applicationId,
-    contract: meta.contract,
-    codec: meta.codec,
+    contract: structuredClone(meta.contract),
+    codec: structuredClone(meta.codec),
   };
 }
 
@@ -339,25 +339,50 @@ describe('UnlockedVault kernel', () => {
     deepEqual(good.content, vector.inputs.payload.content);
     const parsed = JSON.parse(vector.expected.wireUtf8);
     const cases = [
-      ['tag', { ...parsed, tag: tamperB64url(parsed.tag) }],
-      ['ciphertext', { ...parsed, ciphertext: tamperB64url(parsed.ciphertext) }],
+      ['tag', { ...parsed, tag: tamperB64url(parsed.tag) }, 'WPP_AUTH'],
+      ['ciphertext', { ...parsed, ciphertext: tamperB64url(parsed.ciphertext) }, 'WPP_AUTH'],
       ['header suite', { ...parsed, header: { ...parsed.header, suite: 'A256GCM' } }],
       ['header kind catalog', { ...parsed, header: { ...parsed.header, kind: 'catalog' } }],
-      ['header epoch', { ...parsed, header: { ...parsed.header, rootEpoch: id16(0x11) } }],
+      ['header epoch', { ...parsed, header: { ...parsed.header, rootEpoch: id16(0x11) } }, 'WPP_EPOCH'],
       ['header version', { ...parsed, header: { ...parsed.header, version: 2 } }],
       ['unknown header field', { ...parsed, header: { ...parsed.header, extra: 1 } }],
       ['unknown wire field', { ...parsed, extra: 1 }],
       ['vaultId pad bits', { ...parsed, header: { ...parsed.header, vaultId: `${parsed.header.vaultId.slice(0, -1)}B` } }],
       ['padded id', { ...parsed, header: { ...parsed.header, nonce: `${parsed.header.nonce}==` } }],
     ];
-    for (const [title, mutant] of cases) {
-      throws(() => vault.openSnapshot(utf8(JSON.stringify(mutant)), vectorExpected()), title);
+    for (const [title, mutant, code] of cases) {
+      if (code === undefined) {
+        throws(() => vault.openSnapshot(utf8(JSON.stringify(mutant)), vectorExpected()), title);
+      } else {
+        throws(
+          () => vault.openSnapshot(utf8(JSON.stringify(mutant)), vectorExpected()),
+          assertCode(code),
+          title,
+        );
+      }
     }
     const other = UnlockedVault.fromRootRecord(
       utf8(JSON.stringify(vectorRoot([{ ...activeEpoch(), secretRoot: id32(0x99) }]))),
       [vectorCodec],
     );
-    throws(() => other.openSnapshot(utf8(vector.expected.wireUtf8), vectorExpected()));
+    throws(
+      () => other.openSnapshot(utf8(vector.expected.wireUtf8), vectorExpected()),
+      assertCode('WPP_AUTH'),
+    );
+    const otherRoot = UnlockedVault.fromRootRecord(
+      utf8(
+        JSON.stringify({
+          ...vectorRoot(),
+          vaultId: id16(0x33),
+          vaultSalt: id32(0x44),
+        }),
+      ),
+      [vectorCodec],
+    );
+    throws(
+      () => otherRoot.openSnapshot(utf8(vector.expected.wireUtf8), vectorExpected()),
+      assertCode('WPP_ROOT'),
+    );
   });
 
   test('parser mutations fail and valid counterparts seal', () => {
@@ -387,16 +412,32 @@ describe('UnlockedVault kernel', () => {
       ['trailing token', utf8(`${good} 0`)],
       ['surrogate', utf8(good.replace('"ok":true', '"ok":"\\uD800"'))],
       ['nonfinite', utf8(good.replace('"ok":true', '"ok":1e999'))],
-      ['escaped duplicate', utf8(JSON.stringify(payload({ unused: 0 })).replace('{"unused":0}', '{"x":1,"\\u0078":2}'))],
-      ['nested duplicate', utf8(good.replace('{"x":1,"y":2}', '{"x":1,"x":2}'))],
+      [
+        'escaped duplicate',
+        utf8(JSON.stringify(payload({ unused: 0 })).replace('{"unused":0}', '{"x":1,"\\u0078":2}')),
+        'WPP_JSON_DUPLICATE_KEY',
+      ],
+      ['nested duplicate', utf8(good.replace('{"x":1,"y":2}', '{"x":1,"x":2}')), 'WPP_JSON_DUPLICATE_KEY'],
       ['depth 33', utf8(JSON.stringify(payload(nest(32))))],
       ['empty', Buffer.alloc(0)],
-      ['BOM', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), utf8(good)])],
-      ['malformed UTF-8', Buffer.concat([utf8(good.slice(0, 2)), Buffer.from([0x80]), utf8(good.slice(2))])],
+      ['BOM', Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), utf8(good)]), 'WPP_BOM'],
+      [
+        'malformed UTF-8',
+        Buffer.concat([utf8(good.slice(0, 2)), Buffer.from([0x80]), utf8(good.slice(2))]),
+        'WPP_UTF8',
+      ],
       ['plaintext ceiling', withTrailingSpaces(goodBytes, 16 * MiB + 1)],
     ];
-    for (const [title, bytes] of parseFails) {
-      throws(() => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: bytes }), title);
+    for (const [title, bytes, code] of parseFails) {
+      if (code === undefined) {
+        throws(() => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: bytes }), title);
+      } else {
+        throws(
+          () => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: bytes }),
+          assertCode(code),
+          title,
+        );
+      }
     }
 
     const goodRoot = utf8(JSON.stringify(vectorRoot()));
@@ -642,13 +683,26 @@ describe('UnlockedVault kernel', () => {
           holder.expected.applicationId = 'mutated-expected';
           holder.expected.network.id = 'mutated-network';
         }
-        try {
-          content.injected = true;
-          content.ok = false;
-          meta.applicationId = 'mutated-meta';
-          meta.network.id = 'mutated-meta-net';
-        } catch {
-          return undefined;
+        const mutations = [
+          () => {
+            content.injected = true;
+          },
+          () => {
+            content.ok = false;
+          },
+          () => {
+            meta.applicationId = 'mutated-meta';
+          },
+          () => {
+            meta.network.id = 'mutated-meta-net';
+          },
+        ];
+        for (const mutate of mutations) {
+          try {
+            mutate();
+          } catch {
+            // Frozen views reject assignment. Continue the remaining mutations.
+          }
         }
         return undefined;
       },
@@ -665,6 +719,7 @@ describe('UnlockedVault kernel', () => {
     deepEqual(mutOpened.content, { ok: true, n: 1 });
     equal(mutOpened.metadata.applicationId, mutPayload.metadata.applicationId);
     equal(mutOpened.metadata.network.id, mutPayload.metadata.network.id);
+    equal(mutPayload.metadata.network.id, 'synthetic-local');
     equal('injected' in mutOpened.content, false);
 
     holder.mutateExpected = true;
@@ -674,8 +729,9 @@ describe('UnlockedVault kernel', () => {
     equal(holder.expected.applicationId, 'mutated-expected');
 
     holder.mutateExpected = false;
+    const protoBody = payload({ ok: true }, mutating.id);
     const protoBytes = utf8(
-      JSON.stringify(payload({ ok: true }, mutating.id)).replace(
+      JSON.stringify(protoBody).replace(
         '{"ok":true}',
         '{"ok":true,"__proto__":{"polluted":true}}',
       ),
@@ -687,7 +743,7 @@ describe('UnlockedVault kernel', () => {
     });
     const protoOpened = mut.vault.openSnapshot(
       protoSealed.wire,
-      expectedOf(mutPayload.metadata, mut.scopeId, mut.recordId),
+      expectedOf(protoBody.metadata, mut.scopeId, mut.recordId),
     );
     equal(Object.prototype.hasOwnProperty.call(protoOpened.content, '__proto__'), true);
   });
@@ -844,5 +900,118 @@ describe('UnlockedVault kernel', () => {
       () => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: bytes }),
       assertCode('WPP_INPUT_TOO_LARGE'),
     );
+  });
+
+  test('sealSnapshot uses captured identifiers after codec mutation of the input', () => {
+    const cases = [
+      ['scopeId', 'valid', () => b64(crypto.randomBytes(32))],
+      ['scopeId', 'malformed', () => '!'],
+      ['recordId', 'valid', () => b64(crypto.randomBytes(32))],
+      ['recordId', 'malformed', () => 'invalid'],
+    ];
+    for (const [field, kind, nextValue] of cases) {
+      const input = {
+        scopeId: b64(crypto.randomBytes(32)),
+        recordId: b64(crypto.randomBytes(32)),
+        payloadUtf8: null,
+      };
+      const originalScope = input.scopeId;
+      const originalRecord = input.recordId;
+      const codec = {
+        id: `wpp.test-id-capture-${field}-${kind}`,
+        validate() {
+          input[field] = nextValue();
+        },
+      };
+      const { vault } = session([codec]);
+      const body = payload({ ok: true }, codec.id);
+      input.payloadUtf8 = utf8(JSON.stringify(body));
+      const sealed = vault.sealSnapshot(input);
+      const parsed = JSON.parse(Buffer.from(sealed.wire).toString());
+      equal(parsed.header.scopeId, originalScope, `${field} ${kind} sealed scope`);
+      equal(parsed.header.recordId, originalRecord, `${field} ${kind} sealed record`);
+      const opened = vault.openSnapshot(
+        sealed.wire,
+        expectedOf(body.metadata, originalScope, originalRecord),
+      );
+      deepEqual(opened.content, body.content);
+      equal(opened.header.scopeId, originalScope, `${field} ${kind} opened scope`);
+      equal(opened.header.recordId, originalRecord, `${field} ${kind} opened record`);
+    }
+  });
+
+  test('impossible date-time values fail with WPP_SCHEMA', () => {
+    const invalid = '2026-13-45T00:00:00Z';
+    const codecs = [vectorCodec, appCodec];
+    ok(UnlockedVault.fromRootRecord(utf8(JSON.stringify(vectorRoot())), codecs));
+    const badEpoch = { ...activeEpoch(), createdAt: invalid };
+    throws(
+      () => UnlockedVault.fromRootRecord(utf8(JSON.stringify(vectorRoot([badEpoch]))), codecs),
+      assertCode('WPP_SCHEMA'),
+    );
+
+    const { vault, scopeId, recordId } = session();
+    const goodBody = payload({ ok: true });
+    const sealed = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(goodBody)),
+    });
+    deepEqual(
+      vault.openSnapshot(sealed.wire, expectedOf(goodBody.metadata, scopeId, recordId)).content,
+      goodBody.content,
+    );
+
+    const badBody = payload({ ok: true });
+    badBody.metadata.capturedAt = invalid;
+    throws(
+      () =>
+        vault.sealSnapshot({
+          scopeId,
+          recordId,
+          payloadUtf8: utf8(JSON.stringify(badBody)),
+        }),
+      assertCode('WPP_SCHEMA'),
+    );
+  });
+
+  test('public byte inputs that are not Uint8Array fail with WPP_SCHEMA', () => {
+    const { vault, scopeId, recordId } = session();
+    const body = payload({ ok: true });
+    const payloadUtf8 = utf8(JSON.stringify(body));
+    const expected = expectedOf(body.metadata, scopeId, recordId);
+    const sealed = vault.sealSnapshot({ scopeId, recordId, payloadUtf8 });
+    const pack = vault.createRecoveryPack();
+    const rootUtf8 = utf8(JSON.stringify(vectorRoot()));
+    const wrong = [null, 'bytes', {}];
+    for (const value of wrong) {
+      throws(() => UnlockedVault.fromRootRecord(value, [appCodec, vectorCodec]), assertCode('WPP_SCHEMA'));
+      throws(
+        () => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: value }),
+        assertCode('WPP_SCHEMA'),
+      );
+      throws(() => vault.openSnapshot(value, expected), assertCode('WPP_SCHEMA'));
+      throws(
+        () => UnlockedVault.fromRecoveryPack(value, pack.recoveryKey, [appCodec]),
+        assertCode('WPP_SCHEMA'),
+      );
+      throws(
+        () => UnlockedVault.fromRecoveryPack(pack.wire, value, [appCodec]),
+        assertCode('WPP_SCHEMA'),
+      );
+    }
+    ok(UnlockedVault.fromRootRecord(Buffer.from(rootUtf8), [vectorCodec, appCodec]));
+    const bufSealed = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: Buffer.from(payloadUtf8),
+    });
+    deepEqual(vault.openSnapshot(Buffer.from(bufSealed.wire), expected).content, body.content);
+    const recovered = UnlockedVault.fromRecoveryPack(
+      Buffer.from(pack.wire),
+      Buffer.from(pack.recoveryKey),
+      [appCodec],
+    );
+    deepEqual(recovered.openSnapshot(sealed.wire, expected).content, body.content);
   });
 });

@@ -9,6 +9,7 @@ import {
   ERR_RANDOM,
   ERR_RECOVERY,
   ERR_ROOT,
+  ERR_SCHEMA,
   ERR_UNSUPPORTED,
   KernelError,
   LIMIT_HEADER_CANONICAL_BYTES,
@@ -133,7 +134,7 @@ function absorbThenable(value: unknown): void {
 
 function runCodec(policy: CodecPolicy, content: JsonValue, metadata: SnapshotMetadata): void {
   const contentView = isolatedJsonView(content);
-  const metadataView = isolatedJsonView(metadata as unknown as JsonValue) as SnapshotMetadata;
+  const metadataView = isolatedJsonView(metadata as unknown as JsonValue) as unknown as SnapshotMetadata;
   let result: unknown;
   try {
     result = policy.validate(contentView, metadataView);
@@ -189,8 +190,9 @@ export class UnlockedVault {
   }
 
   static fromRootRecord(rootUtf8: Uint8Array, codecs: readonly CodecPolicy[]): UnlockedVault {
+    const rootBytes = rootUtf8;
     const registry = validateCodecPolicies(codecs);
-    const root = parseRoot(rootUtf8);
+    const root = parseRoot(rootBytes);
     return UnlockedVault.#open(root, registry);
   }
 
@@ -199,14 +201,19 @@ export class UnlockedVault {
     recoveryKey: Uint8Array,
     codecs: readonly CodecPolicy[],
   ): UnlockedVault {
+    const wireBytes = wire;
+    const keyBytes = recoveryKey;
     const registry = validateCodecPolicies(codecs);
-    if (recoveryKey.byteLength !== 32) {
+    if (!(keyBytes instanceof Uint8Array)) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    if (keyBytes.byteLength !== 32) {
       throw new KernelError(ERR_RECOVERY);
     }
-    const keyCopy = Buffer.from(recoveryKey);
+    const keyCopy = Buffer.from(keyBytes);
     let plaintext: Buffer | undefined;
     try {
-      const parsed = parseJsonBytes(wire, LIMIT_RECOVERY_WIRE_BYTES);
+      const parsed = parseJsonBytes(wireBytes, LIMIT_RECOVERY_WIRE_BYTES);
       const pack = validateRecoveryWire(parsed);
       const nonce = decodeNonce12(pack.header.nonce);
       const tag = decodeTag16(pack.tag);
@@ -269,9 +276,12 @@ export class UnlockedVault {
 
   sealSnapshot(input: SealInput): SealResult {
     this.#requireUnlocked();
-    decodeId32(input.scopeId);
-    decodeId32(input.recordId);
-    const payload = parsePayload(input.payloadUtf8);
+    const scopeId = input.scopeId;
+    const recordId = input.recordId;
+    const payloadUtf8 = input.payloadUtf8;
+    decodeId32(scopeId);
+    decodeId32(recordId);
+    const payload = parsePayload(payloadUtf8);
     this.#runCodec(payload.metadata.codec.id, payload.content, payload.metadata);
     const epoch = activeEpoch(this.#requireEpochs());
     const vaultId = this.#vaultId;
@@ -292,8 +302,8 @@ export class UnlockedVault {
         vaultId,
         vaultSalt,
         rootEpoch: epoch.rootEpoch,
-        scopeId: input.scopeId,
-        recordId: input.recordId,
+        scopeId,
+        recordId,
         generationId: encodeBase64Url(generation),
         kind: "snapshot",
         nonce: encodeBase64Url(nonce),
@@ -335,10 +345,11 @@ export class UnlockedVault {
 
   openSnapshot(wire: Uint8Array, expected: ExpectedSnapshot): OpenResult {
     this.#requireUnlocked();
+    const packageBytes = wire;
     const expectedBinding = validateExpectedSnapshot(expected);
-    assertByteCeiling(wire, LIMIT_PACKAGE_BYTES);
-    const packageSha256 = sha256Hex(wire);
-    const parsed = parseJsonBytes(wire, LIMIT_PACKAGE_BYTES);
+    assertByteCeiling(packageBytes, LIMIT_PACKAGE_BYTES);
+    const packageSha256 = sha256Hex(packageBytes);
+    const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);
     const pack = validatePackageWire(parsed);
     if (pack.header.kind !== "snapshot") {
       throw new KernelError(ERR_UNSUPPORTED);
