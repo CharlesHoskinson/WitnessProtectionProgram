@@ -12,12 +12,12 @@ Exit evidence: two independent encoders agree on header bytes, HKDF Expand input
 
 Use established cryptographic implementations. Do not implement AES manually. Establish a registry for private-state codecs and conservative input bounds.
 
-This tree authors a candidate trusted local envelope kernel in `src/kernel/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. It is application-path code and remains pre-security-review. Candidate `61be5ab` passed host checks. Final independent acceptance is pending. This tree does not claim a complete M1. It does not claim journal persistence, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal as remote durability. Do not treat a successful open as activation or restore.
+This tree authors a candidate trusted local envelope kernel in `src/kernel/` and a local ciphertext journal in `src/journal/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. The journal persists exact sealed wire bytes on an admitted Linux ext-family directory, reopens them after process exit, and returns `local-durable` only after file and directory fsync. It is application-path code and remains pre-security-review. This tree does not claim a complete M1. It does not claim catalog reconciliation, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal or journal fsync as remote durability. Do not treat a successful open as activation or restore.
 
 Remaining M1 work is still required:
 
-- encrypted local journal and crash-safe ciphertext persistence
 - catalog semantic reconciliation and index
+- encrypted upload-observation queue and remote verification
 - isolated native staging, capture, and provider locks
 - BigInt/bytes preservation through a real native adapter
 

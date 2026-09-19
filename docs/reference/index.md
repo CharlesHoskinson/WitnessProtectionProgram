@@ -10,5 +10,6 @@ google-drive
 format-vectors
 encrypted-catalog
 kernel
+local-journal
 ../witness-package-format
 ```

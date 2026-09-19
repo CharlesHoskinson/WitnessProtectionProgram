@@ -9,4 +9,5 @@ configuration is separate from the eventual consumer connection experience.
 configure-google-beta
 maintain-documentation
 validate-local-package
+reopen-local-journal
 ```
