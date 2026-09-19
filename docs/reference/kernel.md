@@ -1,6 +1,6 @@
 # Local envelope kernel
 
-Status: first working TypeScript slice. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
+Status: authored TypeScript kernel candidate. Host compilation and tests are pending. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
 
 The public API lives in `src/kernel/index.ts`. Tests import the compiled module from `dist/kernel/index.js`. Internal `deriveKeys` lives in `src/kernel/crypto.ts` and is not re-exported.
 
@@ -10,23 +10,25 @@ The public API lives in `src/kernel/index.ts`. Tests import the compiled module 
 
 `sealSnapshot({scopeId, recordId, payloadUtf8})` encrypts one snapshot payload. The kernel generates a fresh generation identifier and nonce on every call. Retry the exact returned bytes. Do not call `sealSnapshot` again as a retry.
 
-`openSnapshot(wire, expected)` authenticates the package, parses the payload, runs the registered codec, and compares every `ExpectedSnapshot` field. Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence.
+`openSnapshot(wire, expected)` authenticates the package and parses the payload. It copies `expected` into an owned binding snapshot. It compares that snapshot to authenticated metadata before it calls the codec. Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence.
 
 `createRecoveryPack()` encrypts the canonical root record under a fresh 32-byte key. The caller owns the returned key and must export it through a later checked workflow.
 
-`lock()` zeros owned secret buffers and drops policy references. Further seal, open, and recovery operations fail with `WPP_LOCKED`. The method is idempotent.
+`lock()` zeros owned secret buffers and drops policy references. Further seal, open, and recovery operations fail with `WPP_LOCKED`. The method is idempotent. If a codec validator calls `lock()` during `sealSnapshot` or `openSnapshot`, that current call fails with `WPP_LOCKED`. The call does not return ciphertext or plaintext. Finalizers still zero derived keys.
 
 Returned buffers are caller-owned copies. The kernel does not export root bytes, object keys, or an RNG override.
 
 ## Codecs
 
-A `CodecPolicy` is trusted application code with `{id, validate}`. The registry stores functions. The kernel never decodes functions from backup bytes. Full codec version, package, and source pins live on `ExpectedSnapshot` and snapshot metadata. They do not live only on the registry identifier.
+A `CodecPolicy` is trusted application code with `{id, validate}`. `validate` is synchronous and read-only. It must return `undefined`. It receives isolated frozen JSON copies. It must not mutate authenticated bytes or returned results. A Promise or thenable return fails with `WPP_CODEC`. Validator exceptions become the static code `WPP_CODEC`. Public errors do not echo payload bytes or validator messages.
 
-Codec validator exceptions become the static code `WPP_CODEC`. Public errors do not echo payload bytes or validator messages.
+The registry stores a snapshot of `{id, validate}` at registration. Later changes to the caller policy object do not replace the registered callback. The kernel never decodes functions from backup bytes. Full codec version, package, and source pins live on `ExpectedSnapshot` and snapshot metadata. They do not live only on the registry identifier.
+
+Trusted callbacks cannot be sandboxed. Accidental async return still fails closed.
 
 ## Limits
 
-Raw input ceilings apply before JSON decode:
+Raw input ceilings apply before JSON decode. Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after the raw 24 MiB ceiling.
 
 | Input | Ceiling |
 | --- | --- |
@@ -35,7 +37,7 @@ Raw input ceilings apply before JSON decode:
 | Root record | 64 KiB |
 | Recovery wire | 96 KiB |
 
-The 4 KiB header ceiling and the 64 KiB metadata ceiling apply to the UTF-8 bytes of the JCS encoding of those objects. Container depth is at most 32. Duplicate decoded object keys fail. BOM, invalid UTF-8, comments, trailing commas, trailing tokens, lone surrogates, and nonfinite numbers fail.
+The 4 KiB header ceiling and the 64 KiB metadata ceiling apply to the UTF-8 bytes of the JCS encoding of those objects. Container depth is at most 32. Duplicate decoded object keys fail. BOM, invalid UTF-8, comments, trailing commas, trailing tokens, lone surrogates, and nonfinite numbers fail. High, low, unpaired middle, and terminal surrogates fail with `WPP_JSON_SURROGATE` before codec invocation. Valid surrogate pairs are accepted.
 
 ## Schemas
 

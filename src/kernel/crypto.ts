@@ -68,14 +68,32 @@ export function aeadEncrypt(
   if (key.byteLength !== 32 || nonce.byteLength !== 12) {
     throw new KernelError(ERR_INTERNAL);
   }
-  const cipher = createCipheriv("aes-256-gcm", key, nonce, { authTagLength: 16 });
-  cipher.setAAD(aad);
-  const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  if (tag.byteLength !== 16) {
+  let ciphertext: Buffer | undefined;
+  let tag: Buffer | undefined;
+  try {
+    const cipher = createCipheriv("aes-256-gcm", key, nonce, { authTagLength: 16 });
+    cipher.setAAD(aad);
+    ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    tag = cipher.getAuthTag();
+    if (tag.byteLength !== 16) {
+      throw new KernelError(ERR_INTERNAL);
+    }
+    const sealed = { ciphertext, tag };
+    ciphertext = undefined;
+    tag = undefined;
+    return sealed;
+  } catch (err) {
+    if (ciphertext !== undefined) {
+      wipeBytes(ciphertext);
+    }
+    if (tag !== undefined) {
+      wipeBytes(tag);
+    }
+    if (err instanceof KernelError) {
+      throw err;
+    }
     throw new KernelError(ERR_INTERNAL);
   }
-  return { ciphertext, tag };
 }
 
 export function aeadDecrypt(

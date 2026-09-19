@@ -96,21 +96,7 @@ export function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 function hasLoneSurrogate(text: string): boolean {
-  for (let i = 0; i < text.length; i += 1) {
-    const code = text.charCodeAt(i);
-    if (code >= 0xd800 && code <= 0xdbff) {
-      const next = text.charCodeAt(i + 1);
-      if (next < 0xdc00 || next > 0xdfff) {
-        return true;
-      }
-      i += 1;
-      continue;
-    }
-    if (code >= 0xdc00 && code <= 0xdfff) {
-      return true;
-    }
-  }
-  return false;
+  return !text.isWellFormed();
 }
 
 function classifyParseError(error: ParseError): string {
@@ -239,6 +225,9 @@ function assertJsonTree(value: JsonValue): void {
   const stack: JsonValue[] = [value];
   while (stack.length > 0) {
     const current = stack.pop();
+    if (current === undefined) {
+      throw new KernelError(ERR_JSON_PARSE);
+    }
     if (typeof current === "string") {
       if (hasLoneSurrogate(current)) {
         throw new KernelError(ERR_JSON_SURROGATE);
@@ -259,6 +248,9 @@ function assertJsonTree(value: JsonValue): void {
         stack.push(item);
       }
       continue;
+    }
+    if (typeof current !== "object") {
+      throw new KernelError(ERR_JSON_PARSE);
     }
     for (const [key, child] of Object.entries(current)) {
       if (hasLoneSurrogate(key)) {
@@ -311,9 +303,56 @@ export function canonicalizeJsonBytes(value: JsonValue): Uint8Array {
 
 export function assertCanonicalPayloadBytes(plaintext: Uint8Array, parsed: JsonValue): void {
   const canonical = canonicalizeJsonBytes(parsed);
-  if (!bytesEqual(plaintext, canonical)) {
-    throw new KernelError(ERR_NONCANONICAL);
+  try {
+    if (!bytesEqual(plaintext, canonical)) {
+      throw new KernelError(ERR_NONCANONICAL);
+    }
+  } finally {
+    wipeBytes(canonical);
   }
+}
+
+export function cloneJsonValue(value: JsonValue): JsonValue {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const out: JsonValue[] = new Array(value.length);
+    for (let i = 0; i < value.length; i += 1) {
+      out[i] = cloneJsonValue(value[i]);
+    }
+    return out;
+  }
+  const out = Object.create(null) as { [key: string]: JsonValue };
+  for (const key of Object.keys(value)) {
+    Object.defineProperty(out, key, {
+      value: cloneJsonValue(value[key]),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return out;
+}
+
+export function freezeJsonValue(value: JsonValue): JsonValue {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      freezeJsonValue(item);
+    }
+  } else {
+    for (const key of Object.keys(value)) {
+      freezeJsonValue(value[key]);
+    }
+  }
+  return Object.freeze(value);
+}
+
+export function isolatedJsonView(value: JsonValue): JsonValue {
+  return freezeJsonValue(cloneJsonValue(value));
 }
 
 export function wipeBytes(buffer: Uint8Array): void {

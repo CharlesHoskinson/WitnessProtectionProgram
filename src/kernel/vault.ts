@@ -4,6 +4,7 @@ import {
   ERR_CODEC_UNKNOWN,
   ERR_EPOCH,
   ERR_INPUT_TOO_LARGE,
+  ERR_INTERNAL,
   ERR_LOCKED,
   ERR_RANDOM,
   ERR_RECOVERY,
@@ -18,11 +19,20 @@ import {
   assertByteCeiling,
   assertCanonicalPayloadBytes,
   canonicalizeJsonBytes,
+  isolatedJsonView,
   parseJsonBytes,
   wipeBytes,
   type JsonValue,
 } from "./json.js";
-import { aeadDecrypt, aeadEncrypt, canonicalAad, deriveKeys, sha256Hex, wipeDerivedKeys } from "./crypto.js";
+import {
+  aeadDecrypt,
+  aeadEncrypt,
+  canonicalAad,
+  deriveKeys,
+  sha256Hex,
+  wipeDerivedKeys,
+  type DerivedKeys,
+} from "./crypto.js";
 import {
   NATIVE_CODEC_ID,
   assertExpectedBinding,
@@ -110,13 +120,28 @@ function lookupCodec(registry: Map<string, CodecPolicy>, codecId: string): Codec
   return policy;
 }
 
-function runCodec(policy: CodecPolicy, content: JsonValue, metadata: SnapshotMetadata): void {
+function absorbThenable(value: unknown): void {
   try {
-    policy.validate(content, metadata);
-  } catch (err) {
-    if (err instanceof KernelError) {
-      throw new KernelError(ERR_CODEC);
-    }
+    void Promise.resolve(value).then(
+      () => undefined,
+      () => undefined,
+    );
+  } catch {
+    return;
+  }
+}
+
+function runCodec(policy: CodecPolicy, content: JsonValue, metadata: SnapshotMetadata): void {
+  const contentView = isolatedJsonView(content);
+  const metadataView = isolatedJsonView(metadata as unknown as JsonValue) as SnapshotMetadata;
+  let result: unknown;
+  try {
+    result = policy.validate(contentView, metadataView);
+  } catch {
+    throw new KernelError(ERR_CODEC);
+  }
+  if (result !== undefined) {
+    absorbThenable(result);
     throw new KernelError(ERR_CODEC);
   }
 }
@@ -201,16 +226,45 @@ export class UnlockedVault {
 
   static #open(root: RootRecord, codecs: Map<string, CodecPolicy>): UnlockedVault {
     const vault = new UnlockedVault();
-    vault.#codecs = codecs;
-    vault.#vaultId = root.vaultId;
-    vault.#vaultSalt = root.vaultSalt;
-    vault.#canonicalRoot = Buffer.from(canonicalizeJsonBytes(root as unknown as JsonValue));
-    vault.#epochs = root.epochs.map((epoch) => ({
-      rootEpoch: epoch.rootEpoch,
-      secretRoot: Buffer.from(decodeId32(epoch.secretRoot)),
-      status: epoch.status,
-    }));
-    return vault;
+    const epochs: OwnedEpoch[] = [];
+    let canonicalRoot: Buffer | undefined;
+    try {
+      vault.#codecs = codecs;
+      vault.#vaultId = root.vaultId;
+      vault.#vaultSalt = root.vaultSalt;
+      const canonicalTmp = canonicalizeJsonBytes(root as unknown as JsonValue);
+      try {
+        canonicalRoot = Buffer.from(canonicalTmp);
+      } finally {
+        wipeBytes(canonicalTmp);
+      }
+      for (const epoch of root.epochs) {
+        epochs.push({
+          rootEpoch: epoch.rootEpoch,
+          secretRoot: decodeId32(epoch.secretRoot),
+          status: epoch.status,
+        });
+      }
+      vault.#canonicalRoot = canonicalRoot;
+      vault.#epochs = epochs;
+      return vault;
+    } catch (err) {
+      if (canonicalRoot !== undefined) {
+        wipeBytes(canonicalRoot);
+      }
+      for (const epoch of epochs) {
+        wipeBytes(epoch.secretRoot);
+      }
+      vault.#codecs = undefined;
+      vault.#vaultId = undefined;
+      vault.#vaultSalt = undefined;
+      vault.#canonicalRoot = undefined;
+      vault.#epochs = undefined;
+      if (err instanceof KernelError) {
+        throw err;
+      }
+      throw new KernelError(ERR_INTERNAL);
+    }
   }
 
   sealSnapshot(input: SealInput): SealResult {
@@ -218,32 +272,41 @@ export class UnlockedVault {
     decodeId32(input.scopeId);
     decodeId32(input.recordId);
     const payload = parsePayload(input.payloadUtf8);
-    const codecs = this.#requireCodecs();
-    const policy = lookupCodec(codecs, payload.metadata.codec.id);
-    runCodec(policy, payload.content, payload.metadata);
+    this.#runCodec(payload.metadata.codec.id, payload.content, payload.metadata);
     const epoch = activeEpoch(this.#requireEpochs());
-    const generation = freshRandom(32);
-    const nonce = freshRandom(12);
-    const header: SnapshotHeader = {
-      format: "wpp-witness-package",
-      version: 1,
-      suite: "HKDF-SHA256+A256GCM",
-      vaultId: this.#vaultId as string,
-      vaultSalt: this.#vaultSalt as string,
-      rootEpoch: epoch.rootEpoch,
-      scopeId: input.scopeId,
-      recordId: input.recordId,
-      generationId: encodeBase64Url(generation),
-      kind: "snapshot",
-      nonce: encodeBase64Url(nonce),
-    };
-    const plaintext = canonicalizeJsonBytes(payload as unknown as JsonValue);
-    const aad = canonicalAad(header as unknown as JsonValue);
-    if (aad.byteLength > LIMIT_HEADER_CANONICAL_BYTES) {
-      throw new KernelError(ERR_INPUT_TOO_LARGE);
+    const vaultId = this.#vaultId;
+    const vaultSalt = this.#vaultSalt;
+    if (vaultId === undefined || vaultSalt === undefined) {
+      throw new KernelError(ERR_LOCKED);
     }
-    const keys = deriveKeys(epoch.secretRoot, header);
+    const generation = freshRandom(32);
+    let nonce: Buffer | undefined;
+    let plaintext: Uint8Array | undefined;
+    let keys: DerivedKeys | undefined;
     try {
+      nonce = freshRandom(12);
+      const header: SnapshotHeader = {
+        format: "wpp-witness-package",
+        version: 1,
+        suite: "HKDF-SHA256+A256GCM",
+        vaultId,
+        vaultSalt,
+        rootEpoch: epoch.rootEpoch,
+        scopeId: input.scopeId,
+        recordId: input.recordId,
+        generationId: encodeBase64Url(generation),
+        kind: "snapshot",
+        nonce: encodeBase64Url(nonce),
+      };
+      plaintext = canonicalizeJsonBytes(payload as unknown as JsonValue);
+      if (plaintext.byteLength > LIMIT_PLAINTEXT_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      const aad = canonicalAad(header as unknown as JsonValue);
+      if (aad.byteLength > LIMIT_HEADER_CANONICAL_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      keys = deriveKeys(epoch.secretRoot, header);
       const sealed = aeadEncrypt(keys.objectKey, nonce, aad, plaintext);
       const wireObject = {
         header,
@@ -251,12 +314,22 @@ export class UnlockedVault {
         tag: encodeBase64Url(sealed.tag),
       };
       const wire = canonicalizeJsonBytes(wireObject as unknown as JsonValue);
+      if (wire.byteLength > LIMIT_PACKAGE_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      this.#requireUnlocked();
       return { wire: copyBytes(wire), sha256: sha256Hex(wire) };
     } finally {
       wipeBytes(generation);
-      wipeBytes(nonce);
-      wipeBytes(plaintext);
-      wipeDerivedKeys(keys);
+      if (nonce !== undefined) {
+        wipeBytes(nonce);
+      }
+      if (plaintext !== undefined) {
+        wipeBytes(plaintext);
+      }
+      if (keys !== undefined) {
+        wipeDerivedKeys(keys);
+      }
     }
   }
 
@@ -282,10 +355,9 @@ export class UnlockedVault {
       plaintext = aeadDecrypt(keys.objectKey, nonce, aad, ciphertext, tag);
       const payload = parsePayload(plaintext);
       assertCanonicalPayloadBytes(plaintext, payload as unknown as JsonValue);
-      const codecs = this.#requireCodecs();
-      const policy = lookupCodec(codecs, payload.metadata.codec.id);
-      runCodec(policy, payload.content, payload.metadata);
       assertExpectedBinding(expectedBinding, pack.header, payload.metadata);
+      this.#runCodec(payload.metadata.codec.id, payload.content, payload.metadata);
+      this.#requireUnlocked();
       return {
         header: pack.header,
         metadata: payload.metadata,
@@ -307,26 +379,30 @@ export class UnlockedVault {
       throw new KernelError(ERR_LOCKED);
     }
     const recoveryKey = freshRandom(32);
-    const nonce = freshRandom(12);
     try {
-      const header = {
-        format: "wpp-recovery-pack",
-        version: 1,
-        suite: "A256GCM",
-        nonce: encodeBase64Url(nonce),
-      };
-      const aad = canonicalAad(header as unknown as JsonValue);
-      const sealed = aeadEncrypt(recoveryKey, nonce, aad, canonicalRoot);
-      const wireObject = {
-        header,
-        ciphertext: encodeBase64Url(sealed.ciphertext),
-        tag: encodeBase64Url(sealed.tag),
-      };
-      const wire = canonicalizeJsonBytes(wireObject as unknown as JsonValue);
-      return { wire: copyBytes(wire), recoveryKey: copyBytes(recoveryKey) };
+      const nonce = freshRandom(12);
+      try {
+        const header = {
+          format: "wpp-recovery-pack",
+          version: 1,
+          suite: "A256GCM",
+          nonce: encodeBase64Url(nonce),
+        };
+        const aad = canonicalAad(header as unknown as JsonValue);
+        const sealed = aeadEncrypt(recoveryKey, nonce, aad, canonicalRoot);
+        const wireObject = {
+          header,
+          ciphertext: encodeBase64Url(sealed.ciphertext),
+          tag: encodeBase64Url(sealed.tag),
+        };
+        const wire = canonicalizeJsonBytes(wireObject as unknown as JsonValue);
+        this.#requireUnlocked();
+        return { wire: copyBytes(wire), recoveryKey: copyBytes(recoveryKey) };
+      } finally {
+        wipeBytes(nonce);
+      }
     } finally {
       wipeBytes(recoveryKey);
-      wipeBytes(nonce);
     }
   }
 
@@ -348,6 +424,12 @@ export class UnlockedVault {
     this.#codecs = undefined;
     this.#vaultId = undefined;
     this.#vaultSalt = undefined;
+  }
+
+  #runCodec(codecId: string, content: JsonValue, metadata: SnapshotMetadata): void {
+    const policy = lookupCodec(this.#requireCodecs(), codecId);
+    runCodec(policy, content, metadata);
+    this.#requireUnlocked();
   }
 
   #requireUnlocked(): void {

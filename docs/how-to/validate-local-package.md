@@ -24,7 +24,7 @@ That command builds and then runs `node --test tests/*.test.mjs`. The kernel tes
 
 ## Seal and open one synthetic snapshot
 
-Create a small script that imports the compiled kernel. Register an explicit codec. Do not register a wildcard.
+Create a small script that imports the compiled kernel. Register an explicit codec. Do not register a wildcard. Codec `validate` functions are synchronous and read-only. They must return `undefined`. They must not return a Promise. If a validator calls `lock()`, the current seal or open call fails with `WPP_LOCKED` and does not return data.
 
 ```javascript
 import { UnlockedVault } from './dist/kernel/index.js';
@@ -41,19 +41,14 @@ const codec = {
 const vault = UnlockedVault.fromRootRecord(rootUtf8, [codec]);
 const sealed = vault.sealSnapshot({ scopeId, recordId, payloadUtf8 });
 const opened = vault.openSnapshot(sealed.wire, expected);
+const pack = vault.createRecoveryPack();
+const recovered = UnlockedVault.fromRecoveryPack(pack.wire, pack.recoveryKey, [codec]);
 vault.lock();
 ```
 
 `rootUtf8` and `payloadUtf8` are UTF-8 JSON bytes. `expected` must repeat the authenticated network, account, application, contract, codec, scope, and record fields. Compare `opened.content` to the intended synthetic object. Compare `opened.packageSha256` to `sealed.sha256` when the input bytes are the exact sealed wire.
 
-## Open a recovery pack
-
-```javascript
-const pack = vault.createRecoveryPack();
-const recovered = UnlockedVault.fromRecoveryPack(pack.wire, pack.recoveryKey, [codec]);
-```
-
-Keep the recovery key outside the package bytes. A later milestone owns checked export. Wrong key length or a tampered tag must fail. The failed call must not return a handle.
+Keep the recovery key outside the package bytes. Create the recovery pack before `lock()`, or open a new unlocked handle. A later milestone owns checked export. Wrong key length or a tampered tag must fail. The failed call must not return a handle.
 
 ## Read failures
 

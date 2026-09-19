@@ -196,6 +196,15 @@ function assertPublicError(err) {
   return true;
 }
 
+function assertCode(code) {
+  return (err) => {
+    assertPublicError(err);
+    equal(err.code, code);
+    equal(err.message, code);
+    return true;
+  };
+}
+
 describe('UnlockedVault kernel', () => {
   test('does not re-export deriveKeys from the public index', () => {
     equal('deriveKeys' in kernelApi, false);
@@ -541,5 +550,299 @@ describe('UnlockedVault kernel', () => {
     throws(() => vault.openSnapshot(sealed.wire, expected));
     throws(() => vault.createRecoveryPack());
     deepEqual(Buffer.from(rootUtf8), rootCopy);
+  });
+
+  test('lone surrogates fail with WPP_JSON_SURROGATE before codec invocation', () => {
+    let called = false;
+    const watching = {
+      id: appCodec.id,
+      validate() {
+        called = true;
+      },
+    };
+    const { vault, scopeId, recordId } = session([watching]);
+    const goodObj = payload({ ok: true, inner: { x: 1 } });
+    const good = JSON.stringify(goodObj);
+    const pairObj = payload({ ok: '\uD83D\uDE00', '\uD83D\uDE00': true });
+    const pairSealed = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(pairObj)),
+    });
+    equal(called, true);
+    equal(vault.openSnapshot(pairSealed.wire, expectedOf(pairObj.metadata, scopeId, recordId)).content.ok, '\uD83D\uDE00');
+    called = false;
+
+    const cases = [
+      ['value high', good.replace('"ok":true', '"ok":"\\uD800"')],
+      ['value terminal high', good.replace('"ok":true', '"ok":"end\\uD800"')],
+      ['value low', good.replace('"ok":true', '"ok":"\\uDC00"')],
+      ['value unpaired middle', good.replace('"ok":true', '"ok":"a\\uD800b"')],
+      ['key high', good.replace('"ok":true', '"\\uD800":true')],
+      ['key terminal high', good.replace('"ok":true', '"lead\\uD800":true')],
+      ['key low', good.replace('"ok":true', '"\\uDC00":true')],
+      ['key unpaired middle', good.replace('"ok":true', '"a\\uD800b":true')],
+    ];
+    for (const [title, text] of cases) {
+      called = false;
+      throws(
+        () => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: utf8(text) }),
+        (err) => {
+          assertCode('WPP_JSON_SURROGATE')(err);
+          equal(called, false, title);
+          return true;
+        },
+      );
+    }
+  });
+
+  test('binding mismatch and codec isolation do not change authenticated results', () => {
+    let called = false;
+    const watching = {
+      id: vectorCodec.id,
+      validate() {
+        called = true;
+      },
+    };
+    const vault = unlockVector([watching]);
+    throws(
+      () => vault.openSnapshot(utf8(vector.expected.wireUtf8), { ...vectorExpected(), applicationId: 'nope' }),
+      (err) => {
+        assertCode('WPP_BINDING')(err);
+        equal(called, false);
+        return true;
+      },
+    );
+
+    const policy = {
+      id: 'wpp.test-snap',
+      validate() {},
+    };
+    const snap = session([policy]);
+    policy.validate = () => {
+      throw new Error('replaced');
+    };
+    policy.id = 'wpp.other';
+    const snapBody = payload({ ok: true, n: 7 }, 'wpp.test-snap');
+    const snapSealed = snap.vault.sealSnapshot({
+      scopeId: snap.scopeId,
+      recordId: snap.recordId,
+      payloadUtf8: utf8(JSON.stringify(snapBody)),
+    });
+    deepEqual(
+      snap.vault.openSnapshot(snapSealed.wire, expectedOf(snapBody.metadata, snap.scopeId, snap.recordId)).content,
+      snapBody.content,
+    );
+
+    const holder = { expected: null, mutateExpected: false };
+    const mutating = {
+      id: 'wpp.test-mut',
+      validate(content, meta) {
+        if (holder.mutateExpected && holder.expected !== null) {
+          holder.expected.applicationId = 'mutated-expected';
+          holder.expected.network.id = 'mutated-network';
+        }
+        try {
+          content.injected = true;
+          content.ok = false;
+          meta.applicationId = 'mutated-meta';
+          meta.network.id = 'mutated-meta-net';
+        } catch {
+          return undefined;
+        }
+        return undefined;
+      },
+    };
+    const mut = session([mutating]);
+    const mutPayload = payload({ ok: true, n: 1 }, mutating.id);
+    holder.expected = expectedOf(mutPayload.metadata, mut.scopeId, mut.recordId);
+    const mutSealed = mut.vault.sealSnapshot({
+      scopeId: mut.scopeId,
+      recordId: mut.recordId,
+      payloadUtf8: utf8(JSON.stringify(mutPayload)),
+    });
+    const mutOpened = mut.vault.openSnapshot(mutSealed.wire, holder.expected);
+    deepEqual(mutOpened.content, { ok: true, n: 1 });
+    equal(mutOpened.metadata.applicationId, mutPayload.metadata.applicationId);
+    equal(mutOpened.metadata.network.id, mutPayload.metadata.network.id);
+    equal('injected' in mutOpened.content, false);
+
+    holder.mutateExpected = true;
+    const openedAfterMutation = mut.vault.openSnapshot(mutSealed.wire, holder.expected);
+    deepEqual(openedAfterMutation.content, { ok: true, n: 1 });
+    equal(openedAfterMutation.metadata.applicationId, mutPayload.metadata.applicationId);
+    equal(holder.expected.applicationId, 'mutated-expected');
+
+    holder.mutateExpected = false;
+    const protoBytes = utf8(
+      JSON.stringify(payload({ ok: true }, mutating.id)).replace(
+        '{"ok":true}',
+        '{"ok":true,"__proto__":{"polluted":true}}',
+      ),
+    );
+    const protoSealed = mut.vault.sealSnapshot({
+      scopeId: mut.scopeId,
+      recordId: mut.recordId,
+      payloadUtf8: protoBytes,
+    });
+    const protoOpened = mut.vault.openSnapshot(
+      protoSealed.wire,
+      expectedOf(mutPayload.metadata, mut.scopeId, mut.recordId),
+    );
+    equal(Object.prototype.hasOwnProperty.call(protoOpened.content, '__proto__'), true);
+  });
+
+  test('reentrant lock during seal and open cancels the current call', () => {
+    let sealVault;
+    const locking = {
+      id: 'wpp.test-lock',
+      validate() {
+        sealVault.lock();
+      },
+    };
+    const sealedSession = session([locking]);
+    sealVault = sealedSession.vault;
+    const sealBody = payload({ ok: true }, locking.id);
+    let sealed;
+    throws(
+      () => {
+        sealed = sealVault.sealSnapshot({
+          scopeId: sealedSession.scopeId,
+          recordId: sealedSession.recordId,
+          payloadUtf8: utf8(JSON.stringify(sealBody)),
+        });
+      },
+      assertCode('WPP_LOCKED'),
+    );
+    equal(sealed, undefined);
+    equal(sealVault.locked, true);
+    throws(() => sealVault.createRecoveryPack(), assertCode('WPP_LOCKED'));
+
+    let opening = false;
+    let openVault;
+    const delayed = {
+      id: 'wpp.test-lock-open',
+      validate() {
+        if (opening) {
+          openVault.lock();
+        }
+      },
+    };
+    const openSession = session([delayed]);
+    openVault = openSession.vault;
+    const openBody = payload({ ok: true }, delayed.id);
+    const packed = openVault.sealSnapshot({
+      scopeId: openSession.scopeId,
+      recordId: openSession.recordId,
+      payloadUtf8: utf8(JSON.stringify(openBody)),
+    });
+    opening = true;
+    let opened;
+    throws(
+      () => {
+        opened = openVault.openSnapshot(
+          packed.wire,
+          expectedOf(openBody.metadata, openSession.scopeId, openSession.recordId),
+        );
+      },
+      assertCode('WPP_LOCKED'),
+    );
+    equal(opened, undefined);
+    equal(openVault.locked, true);
+  });
+
+  test('async validators fail closed without leaking rejection reasons', async () => {
+    const unhandled = [];
+    const onUnhandled = (reason) => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      const resolving = {
+        id: 'wpp.test-async-resolve',
+        validate() {
+          return Promise.resolve(undefined);
+        },
+      };
+      const rejecting = {
+        id: 'wpp.test-async-reject',
+        validate() {
+          return Promise.reject(new Error(`reject ${SECRET_MARKER}`));
+        },
+      };
+      const asyncThrow = {
+        id: 'wpp.test-async-throw',
+        validate: async () => {
+          throw new Error(`throw ${SECRET_MARKER}`);
+        },
+      };
+      const thenable = {
+        id: 'wpp.test-async-thenable',
+        validate() {
+          return {
+            then(_resolve, reject) {
+              reject(new Error(`thenable ${SECRET_MARKER}`));
+            },
+          };
+        },
+      };
+      for (const codec of [resolving, rejecting, asyncThrow, thenable]) {
+        const { vault, scopeId, recordId } = session([codec]);
+        const body = payload({ ok: true }, codec.id);
+        throws(
+          () =>
+            vault.sealSnapshot({
+              scopeId,
+              recordId,
+              payloadUtf8: utf8(JSON.stringify(body)),
+            }),
+          assertCode('WPP_CODEC'),
+        );
+      }
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+      equal(unhandled.length, 0);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  test('recovery nonce RNG failure wipes the already allocated key', () => {
+    const { vault } = session();
+    const originalBytes = crypto.randomBytes;
+    let allocated;
+    let calls = 0;
+    crypto.randomBytes = (size) => {
+      calls += 1;
+      if (calls === 1) {
+        allocated = originalBytes.call(crypto, size);
+        return allocated;
+      }
+      throw new Error('RNG');
+    };
+    syncBuiltinESMExports();
+    try {
+      throws(() => vault.createRecoveryPack(), assertCode('WPP_RANDOM'));
+      ok(Buffer.isBuffer(allocated));
+      equal(allocated.every((byte) => byte === 0), true);
+    } finally {
+      crypto.randomBytes = originalBytes;
+      syncBuiltinESMExports();
+    }
+  });
+
+  test('compact numeric JSON that expands past 16 MiB canonical plaintext is rejected', () => {
+    const permissive = { id: appCodec.id, validate() {} };
+    const { vault, scopeId, recordId } = session([permissive]);
+    const n = 763000;
+    const meta = JSON.stringify(metadata(appCodec.id));
+    const text = `{"payloadVersion":1,"metadata":${meta},"content":[${'1e20,'.repeat(n).slice(0, -1)}]}`;
+    const bytes = utf8(text);
+    ok(bytes.byteLength < 16 * MiB);
+    throws(
+      () => vault.sealSnapshot({ scopeId, recordId, payloadUtf8: bytes }),
+      assertCode('WPP_INPUT_TOO_LARGE'),
+    );
   });
 });

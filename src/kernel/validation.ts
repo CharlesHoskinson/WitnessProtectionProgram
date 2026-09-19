@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Ajv2020, type ValidateFunction } from "ajv/dist/2020.js";
-import addFormats from "ajv-formats";
+import * as addFormatsModule from "ajv-formats";
+import type { FormatsPlugin } from "ajv-formats";
 import {
   ERR_BASE64URL,
   ERR_BINDING,
@@ -14,6 +15,7 @@ import {
   LIMIT_METADATA_CANONICAL_BYTES,
   canonicalizeJson,
   canonicalizeJsonBytes,
+  isolatedJsonView,
   type JsonValue,
 } from "./json.js";
 
@@ -131,7 +133,7 @@ export interface ExpectedSnapshot {
 
 export interface CodecPolicy {
   id: string;
-  validate(content: JsonValue, metadata: SnapshotMetadata): void;
+  validate(content: JsonValue, metadata: SnapshotMetadata): undefined;
 }
 
 const SCHEMA_DIR = new URL("../../docs/reference/schemas/", import.meta.url);
@@ -151,6 +153,7 @@ const ajv = new Ajv2020({
   allErrors: false,
 });
 
+const addFormats: FormatsPlugin = addFormatsModule.default;
 addFormats(ajv);
 
 ajv.addSchema(loadSchema("catalog-v1.schema.json"));
@@ -392,7 +395,7 @@ export function validateExpectedSnapshot(value: unknown): ExpectedSnapshot {
   assertString(value.codec.producerPackage);
   assertString(value.codec.producerVersion);
   assertString(value.codec.sourceCommit);
-  return value as unknown as ExpectedSnapshot;
+  return isolatedJsonView(value as unknown as JsonValue) as ExpectedSnapshot;
 }
 
 export function validateCodecPolicies(codecs: readonly CodecPolicy[]): Map<string, CodecPolicy> {
@@ -413,7 +416,10 @@ export function validateCodecPolicies(codecs: readonly CodecPolicy[]): Map<strin
     if (registry.has(policy.id)) {
       throw new KernelError(ERR_CODEC);
     }
-    registry.set(policy.id, policy);
+    registry.set(policy.id, {
+      id: policy.id,
+      validate: policy.validate,
+    });
   }
   return registry;
 }
