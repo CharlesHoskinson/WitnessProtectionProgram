@@ -1,4 +1,4 @@
-import { visit, ParseErrorCode, type ParseError, type JSONVisitor } from "jsonc-parser";
+import { visit, ParseErrorCode, type JSONVisitor } from "jsonc-parser";
 import canonicalize from "canonicalize";
 
 export type JsonPrimitive = null | boolean | number | string;
@@ -102,8 +102,8 @@ function hasLoneSurrogate(text: string): boolean {
   return !text.isWellFormed();
 }
 
-function classifyParseError(error: ParseError): string {
-  switch (error.error) {
+function classifyParseError(error: ParseErrorCode): string {
+  switch (error) {
     case ParseErrorCode.InvalidCommentToken:
     case ParseErrorCode.UnexpectedEndOfComment:
       return ERR_JSON_COMMENT;
@@ -146,7 +146,6 @@ function inspectJsonText(text: string): void {
     throw new KernelError(ERR_JSON_EMPTY);
   }
 
-  const errors: ParseError[] = [];
   const keyStacks: Array<Set<string>> = [];
   let depth = 0;
   let sawValue = false;
@@ -198,29 +197,25 @@ function inspectJsonText(text: string): void {
         throw new KernelError(ERR_JSON_NONFINITE);
       }
     },
-    onError: (error: ParseErrorCode, offset: number, length: number) => {
-      errors.push({ error, offset, length });
+    onError: (error: ParseErrorCode, offset: number) => {
+      if (
+        (error === ParseErrorCode.PropertyNameExpected ||
+          error === ParseErrorCode.CloseBraceExpected ||
+          error === ParseErrorCode.CloseBracketExpected ||
+          error === ParseErrorCode.ValueExpected ||
+          error === ParseErrorCode.InvalidSymbol) &&
+        isLikelyTrailingComma(text, offset)
+      ) {
+        throw new KernelError(ERR_JSON_TRAILING_COMMA);
+      }
+      throw new KernelError(classifyParseError(error));
     },
   };
 
   visit(text, visitor, VISIT_OPTIONS);
 
-  if (!sawValue && errors.length === 0) {
+  if (!sawValue) {
     throw new KernelError(ERR_JSON_EMPTY);
-  }
-
-  for (const error of errors) {
-    if (
-      (error.error === ParseErrorCode.PropertyNameExpected ||
-        error.error === ParseErrorCode.CloseBraceExpected ||
-        error.error === ParseErrorCode.CloseBracketExpected ||
-        error.error === ParseErrorCode.ValueExpected ||
-        error.error === ParseErrorCode.InvalidSymbol) &&
-      isLikelyTrailingComma(text, error.offset)
-    ) {
-      throw new KernelError(ERR_JSON_TRAILING_COMMA);
-    }
-    throw new KernelError(classifyParseError(error));
   }
 }
 
