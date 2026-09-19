@@ -7,6 +7,7 @@ between recovery, authentication and storage.
 :maxdepth: 1
 
 google-drive
+catalog-database
 ../security-and-recovery
 ../integrations
 ```

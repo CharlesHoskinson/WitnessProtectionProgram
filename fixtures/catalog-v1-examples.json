@@ -1,0 +1,750 @@
+{
+  "notice": "PUBLIC SYNTHETIC TEST DATA",
+  "catalogs": {
+    "baseline": {
+      "payloadVersion": 1,
+      "parents": [],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T00:05:00Z",
+          "outcome": {
+            "status": "readback-authenticated",
+            "observedSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024
+          }
+        }
+      ]
+    },
+    "forkA": {
+      "payloadVersion": 1,
+      "parents": [
+        "0101010101010101010101010101010101010101010101010101010101010101"
+      ],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "byteLength": 2048,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T01:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [
+              "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c"
+            ],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-fork-a",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectForkA",
+              "revisionId": "synFixtureRevForkA"
+            }
+          ]
+        },
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG0",
+          "packageSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectForkA",
+            "revisionId": "synFixtureRevForkA"
+          },
+          "observedAt": "2026-09-19T01:05:00Z",
+          "outcome": {
+            "status": "digest-mismatch",
+            "observedSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        }
+      ]
+    },
+    "forkB": {
+      "payloadVersion": 1,
+      "parents": [
+        "0101010101010101010101010101010101010101010101010101010101010101"
+      ],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "byteLength": 3072,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T01:00:01Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [
+              "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c"
+            ],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-fork-b",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectForkB",
+              "revisionId": null
+            }
+          ]
+        },
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH4",
+          "packageSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectForkB",
+            "revisionId": null
+          },
+          "observedAt": "2026-09-19T01:05:01Z",
+          "outcome": {
+            "status": "authentication-failed",
+            "reason": "aead-rejected"
+          }
+        }
+      ]
+    },
+    "tombstoned": {
+      "payloadVersion": 1,
+      "parents": [
+        "0101010101010101010101010101010101010101010101010101010101010101"
+      ],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII8",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T12:01:00Z",
+          "outcome": {
+            "status": "not-found",
+            "reason": "object-not-found"
+          }
+        }
+      ]
+    },
+    "rootUpdateOldEpoch": {
+      "payloadVersion": 1,
+      "parents": [
+        "0101010101010101010101010101010101010101010101010101010101010101"
+      ],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "JJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJJA",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T12:31:00Z",
+          "outcome": {
+            "status": "access-denied",
+            "reason": "permission-denied"
+          }
+        }
+      ]
+    },
+    "rootUpdateNewEpoch": {
+      "payloadVersion": 1,
+      "parents": [
+        "0101010101010101010101010101010101010101010101010101010101010101"
+      ],
+      "entries": [
+        {
+          "entryKind": "snapshot",
+          "package": {
+            "sha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+            "byteLength": 1024,
+            "rootEpoch": "UFFSU1RVVldYWVpbXF1eXw",
+            "scopeId": "YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8",
+            "recordId": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+            "generationId": "oKGio6SlpqeoqaqrrK2ur7CxsrO0tba3uLm6u7y9vr8"
+          },
+          "metadata": {
+            "network": {
+              "id": "synthetic-local",
+              "genesisHash": null
+            },
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "applicationId": "wpp-vector-fixture",
+            "contract": {
+              "address": "synthetic-contract",
+              "codeHash": null
+            },
+            "privateStateIds": [
+              "fixture-state"
+            ],
+            "codec": {
+              "id": "wpp.synthetic-vector",
+              "version": 1,
+              "producerPackage": "wpp-format-vectors",
+              "producerVersion": "0.1.0",
+              "sourceCommit": "0000000000000000000000000000000000000000"
+            },
+            "capturedAt": "2026-09-19T00:00:00Z",
+            "lifecycle": {
+              "status": "unassociated",
+              "transactionId": null,
+              "blockHash": null
+            },
+            "parents": [],
+            "retentionClass": "retained-application-witness"
+          },
+          "label": "synthetic-baseline",
+          "locators": [
+            {
+              "provider": "google-drive",
+              "accountBinding": {
+                "scheme": "synthetic-fixture",
+                "value": "fixture-account"
+              },
+              "objectId": "synFixtureObjectBaseline",
+              "revisionId": "synFixtureRev1"
+            }
+          ]
+        },
+        {
+          "entryKind": "tombstone",
+          "eventId": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCM",
+          "targetPackageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "reason": "user-request",
+          "recordedAt": "2026-09-19T12:00:00Z"
+        },
+        {
+          "entryKind": "root-update-receipt",
+          "receiptId": "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDQ",
+          "parentRootRecordSha256": [
+            "0202020202020202020202020202020202020202020202020202020202020202"
+          ],
+          "currentRootRecordSha256": "0303030303030303030303030303030303030303030303030303030303030303",
+          "rootRevisionId": "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEU",
+          "retainedOldEpochs": [
+            "UFFSU1RVVldYWVpbXF1eXw"
+          ],
+          "newActiveEpoch": "AAAAAAAAAAAAAAAAAAAAAA",
+          "recordedAt": "2026-09-19T12:30:00.123Z"
+        }
+      ],
+      "observations": [
+        {
+          "observationId": "KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKE",
+          "packageSha256": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+          "locator": {
+            "provider": "google-drive",
+            "accountBinding": {
+              "scheme": "synthetic-fixture",
+              "value": "fixture-account"
+            },
+            "objectId": "synFixtureObjectBaseline",
+            "revisionId": "synFixtureRev1"
+          },
+          "observedAt": "2026-09-19T12:31:00.5Z",
+          "outcome": {
+            "status": "unavailable",
+            "reason": "provider"
+          }
+        }
+      ]
+    }
+  }
+}

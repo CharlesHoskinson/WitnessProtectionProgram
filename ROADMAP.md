@@ -1,10 +1,10 @@
 # Implementation roadmap
 
-Every milestone below is **planned, not implemented**. The launch delivers a reviewable design and source evidence. Production handling of private witnesses requires all applicable release criteria.
+M0 remains open. This tree has a draft interchange profile, synthetic package vectors, a draft catalog JSON Schema, synthetic catalog examples, and grammar tests. It does not have a production encoder, decoder, native interop, Drive adapter, one-click application, or cryptographic approval. Later milestones remain planned. Production handling of private witnesses requires all applicable release criteria.
 
 ## M0 — Freeze an interoperable format
 
-Review the package grammar, secret hierarchy, native Midnight export adapter, root record, independent recovery pack and maximum sizes. Resolve SDK version compatibility against the pinned repositories. Publish synthetic examples and independently generated vectors before freezing a wire version. A review of this draft is not cryptographic approval.
+Review the package grammar, secret hierarchy, native Midnight export adapter, root record, independent recovery pack and maximum sizes. Resolve SDK version compatibility against the pinned repositories. Publish synthetic examples and independently generated vectors before freezing a wire version. A draft catalog schema and synthetic catalog fixtures exist as grammar tools. They are not a freeze, a parser, or cryptographic approval. A review of this draft is not cryptographic approval.
 
 Exit evidence: two independent encoders agree on header bytes, HKDF Expand inputs, native export passwords, ciphertext/tag layout, and successful/failed decode cases. Confirm the package format can move between storage locations unchanged.
 

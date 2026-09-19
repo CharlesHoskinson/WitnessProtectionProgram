@@ -1,0 +1,679 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wpp:catalog-v1",
+  "title": "Encrypted catalog payload v1",
+  "description": "Draft 2020-12 structural grammar for an already-parsed encrypted-catalog plaintext payload. This schema is not a parser, authenticator, JCS checker, or semantic validator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "payloadVersion",
+    "parents",
+    "entries",
+    "observations"
+  ],
+  "properties": {
+    "payloadVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "parents": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 1000,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/snapshotEntry"
+          },
+          {
+            "$ref": "#/$defs/tombstoneEntry"
+          },
+          {
+            "$ref": "#/$defs/rootUpdateReceiptEntry"
+          }
+        ]
+      }
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 4000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/observation"
+      }
+    }
+  },
+  "$defs": {
+    "id16": {
+      "type": "string",
+      "minLength": 22,
+      "maxLength": 22,
+      "pattern": "^[A-Za-z0-9_-]{21}[AQgw]$",
+      "description": "Unpadded canonical base64url encoding of 16 bytes. The final character is constrained to valid pad-bit values."
+    },
+    "id32": {
+      "type": "string",
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$",
+      "description": "Unpadded canonical base64url encoding of 32 bytes. The final character is constrained to valid pad-bit values."
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64,
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 20,
+      "maxLength": 24,
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,3})?Z$",
+      "format": "date-time",
+      "description": "UTC RFC3339 timestamp with a Z suffix only. Seconds are required. Optional fractional seconds use 1 to 3 digits."
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$",
+      "description": "Non-empty Unicode text. C0 controls and DEL are rejected. maxLength at each use site is a Unicode character count."
+    },
+    "labelText": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]*$",
+      "description": "Optional presentation label. Empty string is allowed. C0 controls and DEL are rejected."
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scheme",
+        "value"
+      ],
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9.-]{0,63}$"
+        },
+        "value": {
+          "$ref": "#/$defs/text",
+          "maxLength": 1024
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "genesisHash"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text",
+          "maxLength": 128
+        },
+        "genesisHash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/text",
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "address",
+        "codeHash"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/$defs/text",
+          "maxLength": 1024
+        },
+        "codeHash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/text",
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "codec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "producerPackage",
+        "producerVersion",
+        "sourceCommit"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647
+        },
+        "producerPackage": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256
+        },
+        "producerVersion": {
+          "$ref": "#/$defs/text",
+          "maxLength": 128
+        },
+        "sourceCommit": {
+          "type": "string",
+          "minLength": 40,
+          "maxLength": 64,
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$"
+        }
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "transactionId",
+        "blockHash"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "confirmed",
+            "failed",
+            "orphaned",
+            "unassociated"
+          ]
+        },
+        "transactionId": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/text",
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blockHash": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/text",
+              "maxLength": 256
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "network",
+        "accountBinding",
+        "applicationId",
+        "contract",
+        "privateStateIds",
+        "codec",
+        "capturedAt",
+        "lifecycle",
+        "parents",
+        "retentionClass"
+      ],
+      "properties": {
+        "network": {
+          "$ref": "#/$defs/network"
+        },
+        "accountBinding": {
+          "$ref": "#/$defs/binding"
+        },
+        "applicationId": {
+          "$ref": "#/$defs/text",
+          "maxLength": 256
+        },
+        "contract": {
+          "$ref": "#/$defs/contract"
+        },
+        "privateStateIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text",
+            "maxLength": 256
+          }
+        },
+        "codec": {
+          "$ref": "#/$defs/codec"
+        },
+        "capturedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/lifecycle"
+        },
+        "parents": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "retentionClass": {
+          "type": "string",
+          "enum": [
+            "irreplaceable-private-state",
+            "retained-application-witness"
+          ]
+        }
+      }
+    },
+    "locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "accountBinding",
+        "objectId",
+        "revisionId"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "const": "google-drive"
+        },
+        "accountBinding": {
+          "$ref": "#/$defs/binding"
+        },
+        "objectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "pattern": "^[A-Za-z0-9_-]{1,1024}$"
+        },
+        "revisionId": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024,
+              "pattern": "^[A-Za-z0-9_-]{1,1024}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "byteLength",
+        "rootEpoch",
+        "scopeId",
+        "recordId",
+        "generationId"
+      ],
+      "properties": {
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25165824
+        },
+        "rootEpoch": {
+          "$ref": "#/$defs/id16"
+        },
+        "scopeId": {
+          "$ref": "#/$defs/id32"
+        },
+        "recordId": {
+          "$ref": "#/$defs/id32"
+        },
+        "generationId": {
+          "$ref": "#/$defs/id32"
+        }
+      }
+    },
+    "snapshotEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryKind",
+        "package",
+        "metadata",
+        "label",
+        "locators"
+      ],
+      "properties": {
+        "entryKind": {
+          "type": "string",
+          "const": "snapshot"
+        },
+        "package": {
+          "$ref": "#/$defs/package"
+        },
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "label": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/labelText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locators": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/locator"
+          }
+        }
+      }
+    },
+    "tombstoneEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryKind",
+        "eventId",
+        "targetPackageSha256",
+        "reason",
+        "recordedAt"
+      ],
+      "properties": {
+        "entryKind": {
+          "type": "string",
+          "const": "tombstone"
+        },
+        "eventId": {
+          "$ref": "#/$defs/id32"
+        },
+        "targetPackageSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "user-request",
+            "superseded",
+            "invalid-capture"
+          ]
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "rootUpdateReceiptEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryKind",
+        "receiptId",
+        "parentRootRecordSha256",
+        "currentRootRecordSha256",
+        "rootRevisionId",
+        "retainedOldEpochs",
+        "newActiveEpoch",
+        "recordedAt"
+      ],
+      "properties": {
+        "entryKind": {
+          "type": "string",
+          "const": "root-update-receipt"
+        },
+        "receiptId": {
+          "$ref": "#/$defs/id32"
+        },
+        "parentRootRecordSha256": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        },
+        "currentRootRecordSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "rootRevisionId": {
+          "$ref": "#/$defs/id32"
+        },
+        "retainedOldEpochs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 255,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/id16"
+          }
+        },
+        "newActiveEpoch": {
+          "$ref": "#/$defs/id16"
+        },
+        "recordedAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observationId",
+        "packageSha256",
+        "locator",
+        "observedAt",
+        "outcome"
+      ],
+      "properties": {
+        "observationId": {
+          "$ref": "#/$defs/id32"
+        },
+        "packageSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "outcome": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/outcomeReadbackAuthenticated"
+            },
+            {
+              "$ref": "#/$defs/outcomeDigestMismatch"
+            },
+            {
+              "$ref": "#/$defs/outcomeAuthenticationFailed"
+            },
+            {
+              "$ref": "#/$defs/outcomeNotFound"
+            },
+            {
+              "$ref": "#/$defs/outcomeAccessDenied"
+            },
+            {
+              "$ref": "#/$defs/outcomeUnavailable"
+            }
+          ]
+        }
+      }
+    },
+    "outcomeReadbackAuthenticated": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "observedSha256",
+        "byteLength"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "readback-authenticated"
+        },
+        "observedSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 25165824
+        }
+      }
+    },
+    "outcomeDigestMismatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "observedSha256"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "digest-mismatch"
+        },
+        "observedSha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "outcomeAuthenticationFailed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "authentication-failed"
+        },
+        "reason": {
+          "type": "string",
+          "const": "aead-rejected"
+        }
+      }
+    },
+    "outcomeNotFound": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "not-found"
+        },
+        "reason": {
+          "type": "string",
+          "const": "object-not-found"
+        }
+      }
+    },
+    "outcomeAccessDenied": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "access-denied"
+        },
+        "reason": {
+          "type": "string",
+          "const": "permission-denied"
+        }
+      }
+    },
+    "outcomeUnavailable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "unavailable"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "network",
+            "provider",
+            "rate-limit"
+          ]
+        }
+      }
+    }
+  }
+}
