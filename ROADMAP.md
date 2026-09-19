@@ -8,6 +8,10 @@ The [storage-layout experiment](experiments/storage-layout/README.md) compares a
 
 Adopt bounded encrypted catalog shards and exact reuse of unchanged ciphertext as the next M1 storage design. Pilot packs in M3 only after actual Drive upload, range-read and recovery measurements. Fixed 64 buckets is experimental; production needs byte-based splitting. The [design explanation](docs/explanation/storage-layout.md) records the tradeoffs, authenticated cache rule and reproducibility commands. This augmentation does not complete any milestone or change the encryption suite.
 
+### Production augmentation acceptance
+
+The user confirmed that the researched data structures must be implemented in WPP, not left as a standalone experiment. Completion requires the normal WPP backup and restore path to use the reviewed encrypted catalog/shard format, enforce byte-based shard bounds, reuse unchanged ciphertext, preserve concurrent revisions, and rebuild after loss of the local index. Integration tests must reject missing, swapped, truncated and corrupted objects and recover from the retained root plus remote ciphertext. A real Google Drive test must measure upload/read-back and recovery behavior for this path. Packing remains conditional on that provider evidence; a benchmark alone does not close these requirements.
+
 ## M0 — Freeze an interoperable format
 
 Review the package grammar, secret hierarchy, native Midnight export adapter, root record, independent recovery pack and maximum sizes. Resolve SDK version compatibility against the pinned repositories. Publish synthetic examples and independently generated vectors before freezing a wire version. A draft catalog schema and synthetic catalog fixtures exist as grammar tools. They are not a freeze, a parser, or cryptographic approval. A review of this draft is not cryptographic approval.
@@ -20,13 +24,12 @@ Exit evidence: two independent encoders agree on header bytes, HKDF Expand input
 
 Use established cryptographic implementations. Do not implement AES manually. Establish a registry for private-state codecs and conservative input bounds.
 
-This tree authors a candidate trusted local envelope kernel in `src/kernel/` and a local ciphertext journal in `src/journal/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. The journal persists exact sealed wire bytes on an admitted Linux ext-family directory, reopens them after process exit, and returns `local-durable` only after file and directory fsync. This candidate has an unresolved journal input-validation review finding and is not accepted for production.
+This tree authors a candidate trusted local envelope kernel in `src/kernel/` and a local ciphertext journal in `src/journal/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. The journal persists exact sealed wire bytes on an admitted Linux ext-family directory, reopens them after process exit, and returns `local-durable` only after file and directory fsync. Canonical ciphertext validation was corrected in `c24afed`; independent Astra medium and Fable low reviews approved the bounded local kernel/journal scope. This is not production security approval.
 
 Build and test results are candidate-specific evidence, not production security acceptance. This tree does not claim a complete M1. It does not claim catalog reconciliation, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal or journal fsync as remote durability. Do not treat a successful open as activation or restore.
 
 Remaining M1 work is still required:
 
-- reject noncanonical ciphertext encoding before journal publication (open review finding; local durability alone is not package validity)
 - catalog semantic reconciliation, immutable revision heads, preserved concurrent heads and a rebuildable local index
 - bounded encrypted catalog shards with byte-based splitting and exact reuse of unchanged encrypted nodes
 - authenticated root-to-shard references, missing/corrupt child rejection, cold reconstruction and malformed-manifest tests
