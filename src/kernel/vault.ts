@@ -9,7 +9,6 @@ import {
   ERR_RANDOM,
   ERR_RECOVERY,
   ERR_ROOT,
-  ERR_SCHEMA,
   ERR_UNSUPPORTED,
   KernelError,
   LIMIT_HEADER_CANONICAL_BYTES,
@@ -19,6 +18,8 @@ import {
   LIMIT_ROOT_BYTES,
   assertCanonicalPayloadBytes,
   canonicalizeJsonBytes,
+  copyExactOwnedBytes,
+  copyOwnedBytes,
   isolatedJsonView,
   parseJsonBytes,
   wipeBytes,
@@ -88,53 +89,10 @@ interface OwnedEpoch {
   status: RootEpoch["status"];
 }
 
-const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
-  Object.getPrototypeOf(Uint8Array.prototype),
-  "byteLength",
-)?.get;
-
-function intrinsicByteLength(bytes: Uint8Array): number {
-  if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
-    throw new KernelError(ERR_INTERNAL);
-  }
-  try {
-    const length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
-    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
-      throw new KernelError(ERR_SCHEMA);
-    }
-    return length;
-  } catch (err) {
-    if (err instanceof KernelError) {
-      throw err;
-    }
-    throw new KernelError(ERR_SCHEMA);
-  }
-}
-
 function copyBytes(bytes: Uint8Array): Uint8Array {
   const out = new Uint8Array(bytes.byteLength);
   out.set(bytes);
   return out;
-}
-
-function copyOwnedPackage(wire: Uint8Array, maxBytes: number): Uint8Array {
-  if (!(wire instanceof Uint8Array)) {
-    throw new KernelError(ERR_SCHEMA);
-  }
-  const length = intrinsicByteLength(wire);
-  if (length > maxBytes) {
-    throw new KernelError(ERR_INPUT_TOO_LARGE);
-  }
-  const owned = new Uint8Array(length);
-  try {
-    Uint8Array.prototype.set.call(owned, wire);
-  } catch (err) {
-    if (err instanceof KernelError) {
-      throw err;
-    }
-    throw new KernelError(ERR_SCHEMA);
-  }
-  return owned;
 }
 
 function freshRandom(size: number): Buffer {
@@ -244,19 +202,11 @@ export class UnlockedVault {
     recoveryKey: Uint8Array,
     codecs: readonly CodecPolicy[],
   ): UnlockedVault {
-    const wireBytes = wire;
-    const keyBytes = recoveryKey;
     const registry = validateCodecPolicies(codecs);
-    if (!(keyBytes instanceof Uint8Array)) {
-      throw new KernelError(ERR_SCHEMA);
-    }
-    if (keyBytes.byteLength !== 32) {
-      throw new KernelError(ERR_RECOVERY);
-    }
-    const keyCopy = Buffer.from(keyBytes);
+    const keyCopy = copyExactOwnedBytes(recoveryKey, 32, ERR_RECOVERY);
     let plaintext: Buffer | undefined;
     try {
-      const parsed = parseJsonBytes(wireBytes, LIMIT_RECOVERY_WIRE_BYTES);
+      const parsed = parseJsonBytes(wire, LIMIT_RECOVERY_WIRE_BYTES);
       const pack = validateRecoveryWire(parsed);
       const nonce = decodeNonce12(pack.header.nonce);
       const tag = decodeTag16(pack.tag);
@@ -388,7 +338,7 @@ export class UnlockedVault {
 
   openSnapshot(wire: Uint8Array, expected: ExpectedSnapshot): OpenResult {
     this.#requireUnlocked();
-    const packageBytes = copyOwnedPackage(wire, LIMIT_PACKAGE_BYTES);
+    const packageBytes = copyOwnedBytes(wire, LIMIT_PACKAGE_BYTES);
     const expectedBinding = validateExpectedSnapshot(expected);
     const packageSha256 = sha256Hex(packageBytes);
     const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);

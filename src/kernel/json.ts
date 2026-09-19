@@ -60,17 +60,79 @@ const VISIT_OPTIONS = {
   allowEmptyContent: false,
 } as const;
 
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength",
+)?.get;
+
+function intrinsicByteLength(bytes: Uint8Array): number {
+  if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
+    throw new KernelError(ERR_INTERNAL);
+  }
+  try {
+    const length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    return length;
+  } catch (err) {
+    if (err instanceof KernelError) {
+      throw err;
+    }
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function copyFromIntrinsic(bytes: Uint8Array, length: number): Uint8Array {
+  const owned = new Uint8Array(length);
+  try {
+    Uint8Array.prototype.set.call(owned, bytes);
+  } catch (err) {
+    if (err instanceof KernelError) {
+      throw err;
+    }
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return owned;
+}
+
+export function copyOwnedBytes(bytes: Uint8Array, maxBytes: number): Uint8Array {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  const length = intrinsicByteLength(bytes);
+  if (length > maxBytes) {
+    throw new KernelError(ERR_INPUT_TOO_LARGE);
+  }
+  return copyFromIntrinsic(bytes, length);
+}
+
+export function copyExactOwnedBytes(
+  bytes: Uint8Array,
+  exactBytes: number,
+  mismatchCode: string,
+): Uint8Array {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  const length = intrinsicByteLength(bytes);
+  if (length !== exactBytes) {
+    throw new KernelError(mismatchCode);
+  }
+  return copyFromIntrinsic(bytes, length);
+}
+
 export function assertByteCeiling(bytes: Uint8Array, maxBytes: number): void {
   if (!(bytes instanceof Uint8Array)) {
     throw new KernelError(ERR_SCHEMA);
   }
-  if (bytes.byteLength > maxBytes) {
+  if (intrinsicByteLength(bytes) > maxBytes) {
     throw new KernelError(ERR_INPUT_TOO_LARGE);
   }
 }
 
 export function rejectBom(bytes: Uint8Array): void {
-  if (bytes.byteLength >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+  if (intrinsicByteLength(bytes) >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     throw new KernelError(ERR_BOM);
   }
 }
@@ -272,10 +334,14 @@ export function parseJsonText(text: string): JsonValue {
 }
 
 export function parseJsonBytes(bytes: Uint8Array, maxBytes: number): JsonValue {
-  assertByteCeiling(bytes, maxBytes);
-  rejectBom(bytes);
-  const text = decodeUtf8Fatal(bytes);
-  return parseJsonText(text);
+  const owned = copyOwnedBytes(bytes, maxBytes);
+  try {
+    rejectBom(owned);
+    const text = decodeUtf8Fatal(owned);
+    return parseJsonText(text);
+  } finally {
+    wipeBytes(owned);
+  }
 }
 
 export function canonicalizeJson(value: JsonValue): string {
