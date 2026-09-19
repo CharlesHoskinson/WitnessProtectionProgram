@@ -9,6 +9,11 @@ import canonicalize from 'canonicalize';
 import { UnlockedVault } from '../dist/kernel/index.js';
 import * as kernelApi from '../dist/kernel/index.js';
 import { deriveKeys } from '../dist/kernel/crypto.js';
+import {
+  assertCanonicalObjectSize,
+  decodeBase64Url,
+  encodeBase64Url,
+} from '../dist/kernel/validation.js';
 
 const vector = JSON.parse(
   readFileSync(fileURLToPath(new URL('../fixtures/wpp-v1-vectors.json', import.meta.url)), 'utf8'),
@@ -1013,5 +1018,142 @@ describe('UnlockedVault kernel', () => {
       [appCodec],
     );
     deepEqual(recovered.openSnapshot(sealed.wire, expected).content, body.content);
+  });
+
+  test('repeated invalid codec callbacks never succeed after receiver mutation', () => {
+    let sealCalls = 0;
+    function sealValidate() {
+      sealCalls += 1;
+      try {
+        this.validate = () => undefined;
+      } catch {
+        // Strict module this may be undefined. Count the call before the attempt.
+      }
+      throw new Error('reject');
+    }
+    const rejectingSeal = { id: 'wpp.test-receiver-seal', validate: sealValidate };
+    const { vault, scopeId, recordId } = session([rejectingSeal]);
+    const sealBody = payload({ ok: true }, rejectingSeal.id);
+    const sealBytes = utf8(JSON.stringify(sealBody));
+    for (let i = 0; i < 3; i += 1) {
+      let sealed;
+      throws(
+        () => {
+          sealed = vault.sealSnapshot({
+            scopeId,
+            recordId,
+            payloadUtf8: sealBytes,
+          });
+        },
+        assertCode('WPP_CODEC'),
+      );
+      equal(sealed, undefined);
+    }
+    equal(sealCalls, 3);
+
+    let openCalls = 0;
+    function openValidate() {
+      openCalls += 1;
+      try {
+        this.validate = () => undefined;
+      } catch {
+        // Strict module this may be undefined. Count the call before the attempt.
+      }
+      throw new Error('reject');
+    }
+    const codecId = 'wpp.test-receiver-open';
+    const permissive = { id: codecId, validate() {} };
+    const rejectingOpen = { id: codecId, validate: openValidate };
+    const root = randomRoot();
+    const rootUtf8 = utf8(JSON.stringify(root));
+    const openScope = b64(crypto.randomBytes(32));
+    const openRecord = b64(crypto.randomBytes(32));
+    const creator = UnlockedVault.fromRootRecord(rootUtf8, [permissive]);
+    const openBody = payload({ ok: true }, codecId);
+    const packed = creator.sealSnapshot({
+      scopeId: openScope,
+      recordId: openRecord,
+      payloadUtf8: utf8(JSON.stringify(openBody)),
+    });
+    ok(packed.wire.byteLength > 0);
+    const opener = UnlockedVault.fromRootRecord(rootUtf8, [rejectingOpen]);
+    const expected = expectedOf(openBody.metadata, openScope, openRecord);
+    for (let i = 0; i < 3; i += 1) {
+      let opened;
+      throws(
+        () => {
+          opened = opener.openSnapshot(packed.wire, expected);
+        },
+        assertCode('WPP_CODEC'),
+      );
+      equal(opened, undefined);
+    }
+    equal(openCalls, 3);
+  });
+
+  test('assertCanonicalObjectSize wipes temporary canonical buffers on success and oversize', () => {
+    const originalEncode = TextEncoder.prototype.encode;
+    const captured = [];
+    TextEncoder.prototype.encode = function encodeSpy(input) {
+      const bytes = originalEncode.call(this, input);
+      captured.push(bytes);
+      return bytes;
+    };
+    try {
+      captured.length = 0;
+      assertCanonicalObjectSize({ ok: true }, 1024);
+      ok(captured.length > 0);
+      for (const bytes of captured) {
+        equal(bytes.every((byte) => byte === 0), true);
+      }
+
+      captured.length = 0;
+      throws(
+        () => assertCanonicalObjectSize({ pad: 'a'.repeat(64) }, 8),
+        assertCode('WPP_INPUT_TOO_LARGE'),
+      );
+      ok(captured.length > 0);
+      for (const bytes of captured) {
+        equal(bytes.every((byte) => byte === 0), true);
+      }
+    } finally {
+      TextEncoder.prototype.encode = originalEncode;
+    }
+  });
+
+  test('encodeBase64Url and decodeBase64Url keep caller bytes and slice offsets', () => {
+    const originalFrom = Buffer.from;
+    let copiedTypedArray = false;
+    Buffer.from = function fromSpy(...args) {
+      if (args.length === 1 && args[0] instanceof Uint8Array) {
+        copiedTypedArray = true;
+      }
+      return originalFrom.apply(this, args);
+    };
+    try {
+      const buffer = originalFrom.call(Buffer, [0x10, 0x20, 0x30, 0x40]);
+      const bufferBefore = originalFrom.call(Buffer, buffer);
+      copiedTypedArray = false;
+      const bufferEncoded = encodeBase64Url(buffer);
+      equal(copiedTypedArray, false);
+      deepEqual(buffer, bufferBefore);
+      equal(bufferEncoded, bufferBefore.toString('base64url'));
+      const bufferDecoded = decodeBase64Url(bufferEncoded, 4, 4);
+      deepEqual(Array.from(bufferDecoded), [0x10, 0x20, 0x30, 0x40]);
+
+      const parent = new Uint8Array([0x99, 0x99, 0x01, 0x02, 0x03, 0x99, 0x99]);
+      const slice = parent.subarray(2, 5);
+      const parentBefore = Uint8Array.from(parent);
+      copiedTypedArray = false;
+      const sliceEncoded = encodeBase64Url(slice);
+      equal(copiedTypedArray, false);
+      deepEqual(Array.from(parent), Array.from(parentBefore));
+      equal(sliceEncoded, originalFrom.call(Buffer, [0x01, 0x02, 0x03]).toString('base64url'));
+      const sliceDecoded = decodeBase64Url(sliceEncoded, 3, 3);
+      deepEqual(Array.from(sliceDecoded), [0x01, 0x02, 0x03]);
+      equal(sliceDecoded.byteLength, 3);
+    } finally {
+      Buffer.from = originalFrom;
+    }
   });
 });

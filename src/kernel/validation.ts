@@ -16,6 +16,7 @@ import {
   canonicalizeJson,
   canonicalizeJsonBytes,
   isolatedJsonView,
+  wipeBytes,
   type JsonValue,
 } from "./json.js";
 
@@ -221,7 +222,10 @@ function assertCanonicalPadBits(encoded: string): void {
 }
 
 export function encodeBase64Url(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64url");
+  if (Buffer.isBuffer(bytes)) {
+    return bytes.toString("base64url");
+  }
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64url");
 }
 
 export function decodeBase64Url(encoded: string, maxDecodedBytes: number, exactDecodedBytes?: number): Buffer {
@@ -239,22 +243,30 @@ export function decodeBase64Url(encoded: string, maxDecodedBytes: number, exactD
     }
   }
   assertCanonicalPadBits(encoded);
-  let decoded: Buffer;
+  let decoded: Buffer | undefined;
   try {
-    decoded = Buffer.from(encoded, "base64url");
-  } catch {
-    throw new KernelError(ERR_BASE64URL);
+    try {
+      decoded = Buffer.from(encoded, "base64url");
+    } catch {
+      throw new KernelError(ERR_BASE64URL);
+    }
+    if (decoded.byteLength > maxDecodedBytes) {
+      throw new KernelError(ERR_BASE64URL);
+    }
+    if (exactDecodedBytes !== undefined && decoded.byteLength !== exactDecodedBytes) {
+      throw new KernelError(ERR_BASE64URL);
+    }
+    if (encodeBase64Url(decoded) !== encoded) {
+      throw new KernelError(ERR_BASE64URL);
+    }
+    const owned = decoded;
+    decoded = undefined;
+    return owned;
+  } finally {
+    if (decoded !== undefined) {
+      wipeBytes(decoded);
+    }
   }
-  if (decoded.byteLength > maxDecodedBytes) {
-    throw new KernelError(ERR_BASE64URL);
-  }
-  if (exactDecodedBytes !== undefined && decoded.byteLength !== exactDecodedBytes) {
-    throw new KernelError(ERR_BASE64URL);
-  }
-  if (encodeBase64Url(decoded) !== encoded) {
-    throw new KernelError(ERR_BASE64URL);
-  }
-  return decoded;
 }
 
 export function decodeId16(encoded: string): Buffer {
@@ -273,12 +285,18 @@ export function decodeTag16(encoded: string): Buffer {
   return decodeBase64Url(encoded, 16, 16);
 }
 
-export function assertCanonicalObjectSize(value: JsonValue, maxBytes: number): Uint8Array {
-  const bytes = canonicalizeJsonBytes(value);
-  if (bytes.byteLength > maxBytes) {
-    throw new KernelError(ERR_INPUT_TOO_LARGE);
+export function assertCanonicalObjectSize(value: JsonValue, maxBytes: number): void {
+  let bytes: Uint8Array | undefined;
+  try {
+    bytes = canonicalizeJsonBytes(value);
+    if (bytes.byteLength > maxBytes) {
+      throw new KernelError(ERR_INPUT_TOO_LARGE);
+    }
+  } finally {
+    if (bytes !== undefined) {
+      wipeBytes(bytes);
+    }
   }
-  return bytes;
 }
 
 export function validateRootRecord(value: unknown): RootRecord {
@@ -416,10 +434,13 @@ export function validateCodecPolicies(codecs: readonly CodecPolicy[]): Map<strin
     if (registry.has(policy.id)) {
       throw new KernelError(ERR_CODEC);
     }
-    registry.set(policy.id, {
-      id: policy.id,
-      validate: policy.validate,
-    });
+    registry.set(
+      policy.id,
+      Object.freeze({
+        id: policy.id,
+        validate: policy.validate,
+      }) as CodecPolicy,
+    );
   }
   return registry;
 }

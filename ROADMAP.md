@@ -12,7 +12,7 @@ Exit evidence: two independent encoders agree on header bytes, HKDF Expand input
 
 Use established cryptographic implementations. Do not implement AES manually. Establish a registry for private-state codecs and conservative input bounds.
 
-This tree authors a candidate trusted local envelope kernel in `src/kernel/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. It is application-path code and remains pre-security-review. Host compilation, tests, and independent audits are pending. This tree does not claim a complete M1. It does not claim journal persistence, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal as remote durability. Do not treat a successful open as activation or restore.
+This tree authors a candidate trusted local envelope kernel in `src/kernel/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. It is application-path code and remains pre-security-review. Candidate `61be5ab` passed host checks. Final independent acceptance is pending. This tree does not claim a complete M1. It does not claim journal persistence, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal as remote durability. Do not treat a successful open as activation or restore.
 
 Remaining M1 work is still required:
 

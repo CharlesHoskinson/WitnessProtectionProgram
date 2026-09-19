@@ -135,9 +135,10 @@ function absorbThenable(value: unknown): void {
 function runCodec(policy: CodecPolicy, content: JsonValue, metadata: SnapshotMetadata): void {
   const contentView = isolatedJsonView(content);
   const metadataView = isolatedJsonView(metadata as unknown as JsonValue) as unknown as SnapshotMetadata;
+  const validate = policy.validate;
   let result: unknown;
   try {
-    result = policy.validate(contentView, metadataView);
+    result = validate(contentView, metadataView);
   } catch {
     throw new KernelError(ERR_CODEC);
   }

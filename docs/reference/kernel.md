@@ -1,6 +1,6 @@
 # Local envelope kernel
 
-Status: authored TypeScript kernel candidate. Host compilation and tests are pending. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
+Status: authored TypeScript kernel candidate. Candidate `61be5ab` passed host checks. Final independent acceptance is pending. This kernel is not security-approved. A successful `sealSnapshot` is not remote durability. A successful `openSnapshot` is authenticated local data. It is not activation, restore, or backup.
 
 The public API lives in `src/kernel/index.ts`. Tests import the compiled module from `dist/kernel/index.js`. Internal `deriveKeys` lives in `src/kernel/crypto.ts` and is not re-exported.
 
