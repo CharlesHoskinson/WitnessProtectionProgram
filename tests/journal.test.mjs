@@ -19,6 +19,7 @@ import canonicalize from 'canonicalize';
 
 import { CiphertextJournal, JournalError } from '../dist/journal/index.js';
 import { UnlockedVault } from '../dist/kernel/index.js';
+import { LIMIT_PLAINTEXT_BYTES } from '../dist/kernel/json.js';
 
 const CHILD = fileURLToPath(new URL('./helpers/journal-child.mjs', import.meta.url));
 const VECTOR = JSON.parse(
@@ -130,6 +131,25 @@ function sealWith(vault) {
     recordId: VECTOR.inputs.header.recordId,
     payloadUtf8: payloadUtf8(),
   });
+}
+
+function withMutatedCiphertext(sealed, ciphertext) {
+  const parsed = JSON.parse(Buffer.from(sealed.wire).toString('utf8'));
+  equal(typeof parsed.header, 'object');
+  equal(typeof parsed.tag, 'string');
+  notEqual(parsed.ciphertext, ciphertext);
+  parsed.ciphertext = ciphertext;
+  const canonical = canonicalize(parsed);
+  if (typeof canonical !== 'string') {
+    throw new Error('canonicalize failed');
+  }
+  const wire = utf8(canonical);
+  return { wire, sha256: sha256Hex(wire) };
+}
+
+async function listJournalNames(dir) {
+  const entries = await journalEntries(dir);
+  return entries.map((entry) => entry.name).sort();
 }
 
 function leakHaystack(value) {
@@ -431,6 +451,57 @@ describe('CiphertextJournal', () => {
           );
         }
         await rejects(() => journal.get('a'.repeat(64)), codeIs('NOT_FOUND'));
+      });
+    } finally {
+      vault.lock();
+    }
+  });
+
+  test('rejects noncanonical and oversized ciphertext encodings before creating objects', async () => {
+    const vault = unlock();
+    try {
+      await withJournal(async ({ dir, journal }) => {
+        const sealed = sealWith(vault);
+        const stored = await journal.put({
+          wire: Uint8Array.from(sealed.wire),
+          sha256: sealed.sha256,
+        });
+        const empty = withMutatedCiphertext(sealed, '');
+        const emptyStored = await journal.put({ wire: empty.wire, sha256: empty.sha256 });
+        equal(emptyStored.status, 'local-durable');
+        equal(emptyStored.sha256, empty.sha256);
+        equal(existsSync(join(dir, committedName(empty.sha256))), true);
+
+        const before = await listJournalNames(dir);
+        deepEqual(before, [committedName(empty.sha256), committedName(stored.sha256)].sort());
+        const maxEncoded = Math.ceil((LIMIT_PLAINTEXT_BYTES * 8) / 6);
+        const rows = [
+          ['A', 'A'],
+          ['AB', 'AB'],
+          ['AAB', 'AAB'],
+          ['oversized', 'A'.repeat(maxEncoded + 1)],
+        ];
+        for (const [title, ciphertext] of rows) {
+          const mutant = withMutatedCiphertext(sealed, ciphertext);
+          notEqual(mutant.sha256, sealed.sha256);
+          notEqual(mutant.sha256, empty.sha256);
+          equal(existsSync(join(dir, committedName(mutant.sha256))), false);
+          await rejects(
+            () => journal.put({ wire: mutant.wire, sha256: mutant.sha256 }),
+            (err) => {
+              assertJournalError(err, 'INVALID_INPUT');
+              assertNoLeak(title, dir);
+              return true;
+            },
+          );
+          const after = await listJournalNames(dir);
+          deepEqual(after, before);
+          equal(existsSync(join(dir, committedName(mutant.sha256))), false);
+          equal(
+            after.some((name) => TEMP.test(name)),
+            false,
+          );
+        }
       });
     } finally {
       vault.lock();

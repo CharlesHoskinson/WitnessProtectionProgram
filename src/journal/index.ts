@@ -1,5 +1,5 @@
-import { LIMIT_PACKAGE_BYTES, parseJsonBytes } from "../kernel/json.js";
-import { validatePackageWire } from "../kernel/validation.js";
+import { LIMIT_PACKAGE_BYTES, LIMIT_PLAINTEXT_BYTES, parseJsonBytes, wipeBytes } from "../kernel/json.js";
+import { decodeBase64Url, decodeNonce12, decodeTag16, validatePackageWire } from "../kernel/validation.js";
 import {
   JournalError,
   assertRegularOwnedFile,
@@ -79,14 +79,31 @@ function assertSealedGrammar(wire: Uint8Array, digest: string): void {
   if (sha256Hex(wire) !== digest) {
     throw new JournalError("INVALID_INPUT");
   }
+  // Grammar only. The journal has no AEAD key and does not prove authenticity.
+  let nonce: Buffer | undefined;
+  let tag: Buffer | undefined;
+  let ciphertext: Buffer | undefined;
   try {
     const parsed = parseJsonBytes(wire, LIMIT_PACKAGE_BYTES);
-    validatePackageWire(parsed);
+    const pack = validatePackageWire(parsed);
+    nonce = decodeNonce12(pack.header.nonce);
+    tag = decodeTag16(pack.tag);
+    ciphertext = decodeBase64Url(pack.ciphertext, LIMIT_PLAINTEXT_BYTES);
   } catch (err) {
     if (err instanceof JournalError) {
       throw err;
     }
     throw new JournalError("INVALID_INPUT");
+  } finally {
+    if (nonce !== undefined) {
+      wipeBytes(nonce);
+    }
+    if (tag !== undefined) {
+      wipeBytes(tag);
+    }
+    if (ciphertext !== undefined) {
+      wipeBytes(ciphertext);
+    }
   }
 }
 
