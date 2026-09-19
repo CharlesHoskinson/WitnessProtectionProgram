@@ -46,7 +46,20 @@ Exit evidence: real test-vault creation/read-back/unlock/lock; account or item m
 
 Beta scope confirmed 2026-09-19: **Google Drive first**. Use the [Google Drive beta guide](docs/google-drive-beta.md) and [official documentation collection](research/google-drive/README.md). Microsoft, Dropbox, and Apple login/registration move to the corresponding M4 integrations.
 
-Register the publisher-owned Google application and implement appropriate official branding for sign-in or Drive authorization. Use supported native/browser flows, platform callback handling and minimum storage permissions. End users must never need developer credentials, manual tokens, or app registration. One click opens the system browser for Google authorization; Google may still require account selection, consent, or MFA. The app handles the callback, PKCE authorization-code exchange and token lifecycle automatically. The test-blob workflow must use this same browser flow; do not require users to copy access tokens. Publisher OAuth registration is a release/setup prerequisite, not an end-user step.
+Register the publisher-owned Google application and implement appropriate official branding for sign-in or Drive authorization. Use supported native/browser flows, platform callback handling and minimum storage permissions. End users must never need developer credentials, manual tokens, or app registration. One click opens the system browser for Google authorization; Google may still require account selection, consent, or MFA. The app handles the callback, PKCE authorization-code exchange and token lifecycle automatically. The test-blob workflow must use this same browser flow; do not require users to copy access tokens. Publisher OAuth registration is a release/setup prerequisite, not an end-user step. Configure an External audience for ordinary consumer Google accounts; a publisher-managed test-user list is only a temporary development restriction. Retail release requires the production publishing/verification steps and a successful fresh-account test without Cloud Console signup, developer credentials, CLI commands or token copying.
+
+Current Google beta progress (2026-09-19):
+
+- [x] Publisher project created and Drive API enabled; Desktop OAuth client registered.
+- [x] Candidate browser OAuth and synthetic encrypted upload/read-back probe implemented in the Google beta worktree.
+- [x] Candidate `ccdcd0e` passes independent local checks: 113 Node tests, 140 catalog schema tests and the Sphinx build.
+- [x] Astra medium and Fable 5.1 low accepted the corrected developer probe at `ccdcd0e`.
+- [x] Integrate the approved Google candidate into this campaign.
+- [x] Browser consent and a live Google Drive upload, download and authenticated decrypt succeeded: 1,469 synthetic encrypted bytes, SHA-256 `326488920835d8ec8160296121a67e821b5f3de2ffed929a4c1b7c5d0c917c7c`, candidate `ccdcd0e` (2026-09-19).
+- [ ] Visible-folder discovery, immutable catalog publication, reconnect and fresh-device restore are implemented and tested.
+- [ ] Retail publishing requirements and a fresh consumer-account test are complete.
+
+These checks describe the developer probe. They do not complete M3 or establish production security approval.
 
 Complete Google Drive backup first, with visible-folder discovery and immutable catalogs. Start with immutable encrypted objects. Verify referenced remote objects before publishing a catalog revision; keep exact-byte journal retries and encrypt remote observations. Treat Drive changes cursors and custom properties as discovery hints, not authenticated authority. Pilot packs only after real upload, range-read, read-back, missing-object and fresh-device recovery tests establish their value and costs. Define user-facing connected, locked, uploading, verified, reconnect and incomplete states. Provider login never unlocks the WPP root by itself.
 
