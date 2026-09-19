@@ -97,6 +97,28 @@ def first_entry(catalog, kind):
     raise AssertionError("catalog has no %s entry" % kind)
 
 
+def compact_canonical_utf8(value):
+    """Return UTF-8 bytes of compact, key-sorted JSON.
+
+    For the ASCII strings and integers this test generates, the byte
+    length matches JCS (RFC 8785). Compact separators omit whitespace.
+    sort_keys orders object members by Unicode code point. Integers
+    serialize as base-10 without an exponent or a leading zero. The
+    generated ASCII strings contain no characters that JCS would escape
+    differently from json.dumps.
+
+    This helper is not a general JCS implementation. Do not treat
+    json.dumps as JCS for floats, non-ASCII strings, or other JSON
+    values.
+    """
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
 def walk_bindings(node):
     if isinstance(node, dict):
         if "scheme" in node and "value" in node:
@@ -1319,11 +1341,9 @@ class TestSchemaOnlyLimits(CatalogSchemaTestCase):
         sample["package"]["generationId"] = make_id32(0)
         sample["label"] = "n0"
         sample["metadata"]["privateStateIds"] = list(state_ids)
-        metadata_size = len(
-            json.dumps(sample["metadata"], ensure_ascii=False).encode("utf-8")
-        )
+        metadata_size = len(compact_canonical_utf8(sample["metadata"]))
         self.assertLessEqual(metadata_size, METADATA_BYTE_CEILING)
-        sample_size = len(json.dumps(sample, ensure_ascii=False).encode("utf-8"))
+        sample_size = len(compact_canonical_utf8(sample))
         self.assertGreater(sample_size, 0)
         count = min(MAX_ENTRIES, (PLAINTEXT_CEILING_BYTES // sample_size) + 2)
         entries = []
@@ -1336,9 +1356,13 @@ class TestSchemaOnlyLimits(CatalogSchemaTestCase):
             entries.append(entry)
         catalog["entries"] = entries
         catalog["observations"] = []
-        encoded = json.dumps(catalog, ensure_ascii=False).encode("utf-8")
+        encoded = compact_canonical_utf8(catalog)
         self.assertGreater(len(encoded), PLAINTEXT_CEILING_BYTES)
         self.assertLessEqual(len(entries), MAX_ENTRIES)
+        max_metadata = max(
+            len(compact_canonical_utf8(entry["metadata"])) for entry in entries
+        )
+        self.assertLessEqual(max_metadata, METADATA_BYTE_CEILING)
         self.assert_valid(catalog)
 
 
