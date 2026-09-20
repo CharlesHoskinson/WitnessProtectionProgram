@@ -1,0 +1,26 @@
+export {
+  CatalogError,
+  ERR_CATALOG_BINDING,
+  ERR_CATALOG_CONFLICT,
+  ERR_CATALOG_INPUT,
+  ERR_CATALOG_LIMIT,
+  ERR_CATALOG_REFERENCE,
+  type AccountBinding,
+  type AuthenticatedSnapshot,
+  type Catalog,
+  type CatalogConflict,
+  type CatalogConflictKind,
+  type CatalogEntry,
+  type CatalogRevisionInput,
+  type Locator,
+  type Observation,
+  type ObservationOutcome,
+  type ReconciliationResult,
+  type RootUpdateReceiptEntry,
+  type SnapshotEntry,
+  type SnapshotPackage,
+  type SourceRevision,
+  type TombstoneEntry,
+} from "./types.js";
+export { parseCatalog, verifySnapshotClaim } from "./validation.js";
+export { reconcileCatalogs } from "./reconcile.js";

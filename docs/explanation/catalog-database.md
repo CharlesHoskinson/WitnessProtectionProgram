@@ -1,10 +1,14 @@
 # Why the encrypted catalog is a snapshot, not a public index
 
-Status: design explanation for a draft grammar. No catalog parser, in-memory
-index, Drive publisher, or conflict resolver is implemented.
+Status: design explanation for the draft grammar and the candidate logical
+catalog module. A parser and reconciler exist in `src/catalog/`. Encryption,
+sharding, cloud publish, and a memory-only index remain pending. This page
+does not claim complete M1.
 
 The [encrypted catalog reference](../reference/encrypted-catalog.md) lists the
-exact fields. This page explains the trust boundaries those fields serve.
+exact fields. The [catalog runtime reference](../reference/catalog-runtime.md)
+describes parse, reconcile, and snapshot-claim comparison. This page explains
+the trust boundaries those fields serve.
 
 ## No public plaintext metadata index
 
@@ -45,7 +49,8 @@ name predecessor catalog bytes. They do not prove a snapshot fork.
 
 A usable index is memory-only after unlock. On lock it must become erased or
 inaccessible. Rebuild it from authenticated accessible catalog heads, then
-verify referenced packages. That index does not exist in this tree.
+verify referenced packages. That index does not exist in this tree. The
+logical parser and reconciler do not replace that index.
 
 Exact filters, when implemented, are network, account, application, contract,
 state ID, lifecycle, and codec. History walks vault, scope, record, and parent
@@ -73,7 +78,10 @@ or observation ID with different bodies is a conflict. Concurrent live and
 tombstone heads remain a conflict.
 
 Never last-write-wins. Timestamps are not winners. The draft schema cannot
-detect these conflicts. An application validator must.
+detect these conflicts. The candidate catalog runtime reports them. It
+counts union records and conflict claims against the 16 MiB result budget
+before it clones those records. See
+[catalog runtime](../reference/catalog-runtime.md).
 
 ## Observations are reports, not durability
 
@@ -121,16 +129,20 @@ reference was a package.
 
 ## What remains unimplemented
 
-This slice supplies Draft 2020-12 schema, synthetic catalogs, grammar tests, and
-these pages. It does not implement:
+This tree now has a candidate logical catalog parser and reconciler. See
+[catalog runtime](../reference/catalog-runtime.md). That module validates
+owned plaintext against catalog v1. It does not encrypt catalogs. It does not
+authenticate packages. It does not shard ciphertext. It does not publish to
+Drive.
 
-- strict UTF-8 and duplicate-key rejection before deserialization
+The following work remains open:
+
 - JCS authentication of catalog packages
-- the application validator
 - Drive upload, read-back, or catalog publish
+- bounded encrypted catalog shards
 - the memory-only index
 - listing filters, tombstone hiding, or conflict presentation
 - native Midnight interoperability
 - a one-click application
 
-M0 remains open.
+M0 remains open. This work does not complete M1.

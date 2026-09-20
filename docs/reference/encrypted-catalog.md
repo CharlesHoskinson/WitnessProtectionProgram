@@ -64,8 +64,8 @@ Reusable `$defs`:
 The base64url alphabet is `A-Z`, `a-z`, `0-9`, `_`, `-`. Schema `maxLength` is a
 Unicode character count, not a UTF-8 byte ceiling.
 
-Every `pattern` ends with `(?![\s\S])` rather than `$`. `$` matches before a
-final newline in Python and ECMAScript.
+Every `pattern` ends with `(?![\s\S])` rather than `$`. Python `$` can match
+before a final newline. ECMAScript `$` without multiline does not.
 
 `scheme` matches `^[a-z][a-z0-9.-]{0,63}(?![\s\S])`. `value` is text of length 1–1024.
 Fixtures use scheme `synthetic-fixture` only. Production Google account mapping
@@ -152,8 +152,14 @@ verified. Those checks are semantic. The catalog `label` is presentation only.
 
 A tombstone names one exact digest. It does not name future generations or a
 wildcard record. History stays in the catalog. Automatic ciphertext deletion is
-disabled. A live snapshot and a tombstone for the same digest remain a conflict.
-Timestamps do not pick a winner.
+disabled. A catalog may retain a snapshot and a tombstone for that digest.
+That pair is ordinary history. It is not a parse conflict.
+A live ancestor plus a tombstoned descendant is not a conflict.
+Two incomparable revision heads remain a tombstone-live conflict.
+One head keeps the snapshot live. The other head carries its tombstone.
+Report that conflict only when ancestry evidence is complete.
+If missing parents block ancestry, retain the data and report missing parents.
+Do not call that pair concurrent. Timestamps do not pick a winner.
 
 ### root-update-receipt
 

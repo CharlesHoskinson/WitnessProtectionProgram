@@ -11,5 +11,6 @@ create-google-project
 test-google-drive
 maintain-documentation
 validate-local-package
+validate-catalog
 reopen-local-journal
 ```
