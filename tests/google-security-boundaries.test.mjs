@@ -397,6 +397,86 @@ describe('finite network deadlines and response ceilings', () => {
     }
   });
 
+  test('default gaxios node-fetch aborts an oversized About stream before the server finishes', async () => {
+    const planned = 1024 * 1024;
+    const ceiling = 65536;
+    let sent = 0;
+    let aborted = false;
+    const local = await listen((req, res) => {
+      const stop = () => {
+        aborted = true;
+        try {
+          res.destroy();
+        } catch {
+          // already closed
+        }
+      };
+      req.on('aborted', stop);
+      req.on('close', () => {
+        if (!res.writableEnded) {
+          stop();
+        }
+      });
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'transfer-encoding': 'chunked',
+      });
+      const chunk = Buffer.alloc(8192, 0x61);
+      const writeMore = () => {
+        if (aborted || req.destroyed || !res.writable) {
+          stop();
+          return;
+        }
+        if (sent >= planned) {
+          res.end();
+          return;
+        }
+        const ok = res.write(chunk);
+        sent += chunk.byteLength;
+        if (ok) {
+          setImmediate(writeMore);
+        } else {
+          res.once('drain', writeMore);
+        }
+      };
+      setImmediate(writeMore);
+    });
+    try {
+      const client = createOwnedOAuth2Client({
+        clientId: CLIENT_ID,
+        clientSecret: CLIENT_SECRET,
+        redirectUri: 'http://127.0.0.1/oauth2/callback',
+        timeoutMs: 2000,
+        jsonMaxBytes: ceiling,
+        endpoints: { oauth2TokenUrl: `${local.origin}/token` },
+      });
+      client.setCredentials({
+        access_token: TOKEN_SENTINEL,
+        expiry_date: futureExpiry(),
+        token_type: 'Bearer',
+        scope: DRIVE_FILE_SCOPE_VALUE,
+      });
+      const originalRequest = client.transporter.request.bind(client.transporter);
+      client.transporter.request = (opts) => {
+        const next = { ...opts };
+        next.url = `${local.origin}/drive/v3/about?fields=user(permissionId)`;
+        next.maxContentLength = ceiling;
+        return originalRequest(next);
+      };
+      await rejects(
+        createGoogleDriveAdapterFromAuthClient({
+          permissionId: PERMISSION_ID,
+          authClient: client,
+        }),
+        assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+      );
+      ok(sent < planned, `server wrote ${sent} of ${planned}`);
+      ok(aborted || sent < planned / 2, `expected early abort, sent=${sent} aborted=${aborted}`);
+    } finally {
+      await closeServer(local.server);
+    }
+  });
+
   test('token 307 is not followed and does not send a second request', async () => {
     const hits = [];
     const local = await listen((req, res) => {

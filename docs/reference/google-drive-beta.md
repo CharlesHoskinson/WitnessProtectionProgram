@@ -24,10 +24,16 @@ The transport copies and validates every field before it waits on the network.
 Validation rules:
 
 - The session must be a real bound `GoogleDriveSession`.
-- `permissionId` must equal the bound session identity.
+- Account comparison uses the verified identity stored in private session
+  internals. The public `permissionId` field is a nonwritable getter. Callers
+  cannot rebind the account by assignment.
+- `permissionId` must equal that private bound identity.
 - `sha256` must be a canonical lowercase 64-hex digest.
 - `fileId` must match the existing Drive file-id grammar.
 - `byteCount` must be a safe positive integer at most `LIMIT_PACKAGE_BYTES`.
+- Locator getters and other caller exceptions become `GOOGLE_DRIVE_INPUT`.
+  Public errors are fresh static codes. Original exception identity is not
+  preserved.
 
 The only request is `GET` to the existing Google origin
 `/drive/v3/files/{encodedId}?alt=media`. The transport does not create a file
@@ -44,8 +50,8 @@ The receipt is hash and read-back integrity only. It is not AEAD
 authentication. It is not a durability or freshness proof. The caller must
 open the owned bytes in the WPP kernel against a trusted catalog reference.
 
-Mutation of `expected` or session fields after the call starts does not change
-the copied bindings used for the GET.
+Mutation of `expected` or of the options object after construction does not
+change the copied GET bindings or the captured request client.
 
 ## listCiphertextCandidates
 
@@ -64,9 +70,11 @@ fields, and page size are fixed:
 Bounds:
 
 - maximum 100 pages
+- maximum 100 files per page. A longer `files` array is a page failure.
 - maximum 10,000 unique items
 - maximum 1 MiB JSON per page, stream-bounded
 - page tokens longer than 4096 characters are rejected
+- `incompleteSearch` must be absent or a boolean. Any other value is incomplete.
 
 Name grammar for a retained candidate is `lowercase64hex.wpp`. Unrelated
 filenames are ignored. A matching `.wpp` name with a malformed id, name, or
@@ -75,9 +83,10 @@ name and size agree. Conflicting metadata makes the listing incomplete.
 
 The transport never follows an arbitrary URL from the response. It detects
 repeated `nextPageToken` values as cycles. `incompleteSearch: true`, a page or
-request failure, a missing next page, and a count, byte, or page ceiling all
-return `{ complete: false, reason, candidates }`. Already collected candidates
-are preserved. A partial listing is never `complete: true`.
+request failure, a later-page 3xx, a missing next page, and a count, byte, or
+page ceiling all return `{ complete: false, reason, candidates }`. Already
+collected candidates are preserved. A first-page 3xx still fails as
+`GOOGLE_DRIVE_REDIRECT`. A partial listing is never `complete: true`.
 
 `complete: true` means only that provider pagination finished and every
 accepted response was valid. It does not prove global freshness. It does not
@@ -94,3 +103,7 @@ A successful GET hash match is not kernel authentication.
 A complete candidate list is not a restore.
 
 These functions do not measure live Google Drive behavior.
+
+The default Node transport bound is Gaxios 7.3.1 with node-fetch 3.3.2.
+`maxContentLength` maps to node-fetch `size`. An oversized stream is aborted
+during consumption. This restore work does not replace that default fetch path.
