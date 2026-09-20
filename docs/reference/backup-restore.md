@@ -64,6 +64,15 @@ Publication requires a journal.
 Cold restore does not.
 `GoogleBackupCoordinator.restoreSnapshot({vault, session, checkpoint, packageSha256, expected})`
 opens no journal.
+The synthetic CLI reads checkpoints through `readBackupCheckpointFile`.
+It bounds recovery-pack and last-package reads to the existing format ceilings.
+`--cold-restore` forks before `authorizeInstalledApp`.
+The parent does not load the vault, the journal, or a memory index.
+`new-vault` refuses existing recovery, key, checkpoint, last-package, or journal
+artifacts and uses exclusive create for recovery files.
+Publication stores a private expected-content digest next to the package binding.
+Restore compares that digest with the authenticated returned content and reports
+boolean equality only.
 
 The instance serializes publication and restore.
 Concurrent reentry returns `incomplete` with reason `concurrent-operation`.
@@ -153,7 +162,13 @@ Before each adapter call the coordinator reserves upper bounds:
 - listing: 100 adapter calls and 100 MiB JSON
 
 These reservations are not HTTP measurements.
-The live CLI counts AuthClient `request` calls separately.
+The live CLI counts actual Drive HTTP calls separately from those reservations.
+It counts multipart HTTP request-body bytes with that label.
+It counts ciphertext part bytes sent to Drive as a separate figure.
+It counts ciphertext media bytes received as a separate figure.
+OAuth token-exchange bytes are excluded from ciphertext figures.
+JSON About and listing response bytes are excluded from ciphertext figures.
+Adapter call reservations are not treated as HTTP evidence.
 Operation ceilings are 2 GiB uploaded plus downloaded, 50 000 reserved adapter
 calls, and 30 minutes.
 Exhaustion returns `incomplete`.

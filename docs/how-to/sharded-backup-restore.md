@@ -59,8 +59,14 @@ node scripts/google-sharded-roundtrip.mjs --help
 
 The command requires `--client-file` and `--state-dir`.
 Both paths must stay outside this repository.
+The command validates the mode and the path set before Google authorization.
+`--cold-restore` is valid only with `--mode restore`.
 The state directory holds recovery material, a local journal, and a checkpoint
 with mode `0600`.
+`new-vault` refuses existing recovery, key, checkpoint, last-package, or journal
+artifacts.
+It creates recovery and key files with exclusive create.
+It does not overwrite those files.
 
 ## Live Google round trip
 
@@ -80,10 +86,19 @@ Grant `drive.file` only.
 Do not paste an access token.
 
 On success the command prints `connected`, then `verified`.
-The verified line includes the root digest, reserved adapter-call budget, and
-captured AuthClient request counts.
-Reserved adapter calls are not HTTP measurements.
+The verified line includes the root digest and reserved adapter-call budget.
+It also prints measured Drive HTTP figures.
+Reserved adapter calls are coordinator ceilings.
+They are not HTTP measurements.
+`driveHttpRequests` counts completed Drive HTTP calls.
+`multipartBodyBytes` counts multipart request-body bytes.
+`ciphertextPartBytes` counts the ciphertext part of that multipart body.
+`ciphertextMediaBytes` counts media bytes returned for ciphertext GET calls.
+OAuth token exchange bytes are not Drive ciphertext measurements.
+JSON About and listing response bytes are not ciphertext measurements.
+Attempted figures stay distinct when a call does not return.
 `putOwnedCiphertext` includes POST and readback.
+Local fixture tests do not prove ordinary retail UI or live provider acceptance.
 
 Reopen the same state directory:
 
@@ -104,9 +119,14 @@ node scripts/google-sharded-roundtrip.mjs \
   --cold-restore
 ```
 
-`--cold-restore` forks a child.
-The child opens recovery material and the checkpoint.
-It does not open the parent journal.
+`--cold-restore` forks a child before Google authorization.
+The parent does not authorize.
+The parent does not open the vault, the journal, or a memory index.
+The child performs one installed-app browser consent and the restore.
+`--package-sha256` must match the stored last-package binding and content digest.
+The command does not reuse a different last-package expectation.
+Restore reports `contentDigestMatch` as `true` or `false`.
+It does not print witness plaintext.
 
 ## Failures
 
