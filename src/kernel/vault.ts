@@ -1,17 +1,33 @@
 import { randomBytes } from "node:crypto";
 import {
+  ERR_AUTH,
+  ERR_BASE64URL,
   ERR_BINDING,
+  ERR_BOM,
   ERR_CODEC,
   ERR_CODEC_UNKNOWN,
   ERR_EPOCH,
   ERR_INPUT_TOO_LARGE,
   ERR_INTERNAL,
+  ERR_JSON_CANONICAL,
+  ERR_JSON_COMMENT,
+  ERR_JSON_DEPTH,
+  ERR_JSON_DUPLICATE_KEY,
+  ERR_JSON_EMPTY,
+  ERR_JSON_NONFINITE,
+  ERR_JSON_PARSE,
+  ERR_JSON_SURROGATE,
+  ERR_JSON_TRAILING_COMMA,
+  ERR_JSON_TRAILING_TOKEN,
   ERR_LOCKED,
+  ERR_NONCANONICAL,
   ERR_RANDOM,
   ERR_RECOVERY,
   ERR_ROOT,
   ERR_SCHEMA,
+  ERR_UNKNOWN_FIELD,
   ERR_UNSUPPORTED,
+  ERR_UTF8,
   KernelError,
   LIMIT_HEADER_CANONICAL_BYTES,
   LIMIT_PACKAGE_BYTES,
@@ -42,6 +58,20 @@ import {
   parseCatalog,
   type Catalog,
 } from "../catalog/index.js";
+import {
+  CATALOG_V2_LIMITS,
+  ERR_CATALOG_CAPACITY,
+  ERR_CATALOG_COVER,
+  ERR_CATALOG_DUPLICATE,
+  ERR_CATALOG_REFERENCE,
+  ERR_CATALOG_ROLE,
+  parseCatalogNode,
+  preflightCatalogRoot,
+  type CatalogNonemptyReference,
+  type CatalogTaggedRecord,
+  type CatalogV2Locator,
+  type ParsedCatalogNode,
+} from "../storage/index.js";
 import {
   NATIVE_CODEC_ID,
   assertExpectedBinding,
@@ -89,6 +119,16 @@ export interface OpenResult {
 export interface OpenCatalogResult {
   header: SnapshotHeader;
   catalog: Catalog;
+  packageSha256: string;
+}
+
+export type ExpectedCatalogNode =
+  | { nodeType: "root"; wireSha256: string; wireByteLength: number }
+  | { nodeType: "shard"; reference: CatalogNonemptyReference };
+
+export interface OpenCatalogNodeResult {
+  header: SnapshotHeader;
+  node: ParsedCatalogNode;
   packageSha256: string;
 }
 
@@ -201,6 +241,280 @@ function mapCatalogParseError(err: unknown): never {
     throw err;
   }
   throw new KernelError(ERR_SCHEMA);
+}
+
+const CATALOG_NODE_STATIC_CODES = Object.freeze([
+  ERR_SCHEMA,
+  ERR_CATALOG_ROLE,
+  ERR_CATALOG_CAPACITY,
+  ERR_CATALOG_COVER,
+  ERR_CATALOG_REFERENCE,
+  ERR_CATALOG_DUPLICATE,
+  ERR_BOM,
+  ERR_UTF8,
+  ERR_JSON_PARSE,
+  ERR_JSON_COMMENT,
+  ERR_JSON_TRAILING_COMMA,
+  ERR_JSON_EMPTY,
+  ERR_JSON_DEPTH,
+  ERR_JSON_DUPLICATE_KEY,
+  ERR_JSON_TRAILING_TOKEN,
+  ERR_JSON_SURROGATE,
+  ERR_JSON_NONFINITE,
+  ERR_JSON_CANONICAL,
+  ERR_UNKNOWN_FIELD,
+  ERR_BASE64URL,
+  ERR_NONCANONICAL,
+  ERR_INPUT_TOO_LARGE,
+  ERR_BINDING,
+  ERR_AUTH,
+  ERR_ROOT,
+  ERR_EPOCH,
+  ERR_LOCKED,
+  ERR_UNSUPPORTED,
+  ERR_RANDOM,
+  ERR_INTERNAL,
+]);
+
+const NONEMPTY_REFERENCE_KEYS = Object.freeze([
+  "prefix",
+  "empty",
+  "recordId",
+  "generationId",
+  "rootEpoch",
+  "wireSha256",
+  "wireByteLength",
+  "plaintextByteLength",
+  "entryCount",
+  "observationCount",
+  "canonicalRecordsSha256",
+  "locators",
+]);
+
+function knownCatalogNodeCode(candidate: unknown): string | undefined {
+  if (typeof candidate !== "string") {
+    return undefined;
+  }
+  for (const code of CATALOG_NODE_STATIC_CODES) {
+    if (candidate === code) {
+      return code;
+    }
+  }
+  return undefined;
+}
+
+function rethrowCatalogNode(err: unknown, fallback: string): never {
+  let code = fallback;
+  try {
+    const isKernel = err instanceof KernelError;
+    if (isKernel) {
+      const mapped = knownCatalogNodeCode(err.code);
+      if (mapped !== undefined) {
+        code = mapped;
+      }
+    }
+  } catch {
+    code = fallback;
+  }
+  throw new KernelError(code);
+}
+
+function assertPlainJsonObject(value: unknown): asserts value is { [key: string]: unknown } {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function guardedOwnKeys(value: object): string[] {
+  try {
+    return Object.keys(value);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function hasOwnKey(value: object, key: string): boolean {
+  try {
+    return Object.prototype.hasOwnProperty.call(value, key);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function assertExactKeys(value: object, keys: readonly string[]): void {
+  const actual = guardedOwnKeys(value);
+  if (actual.length !== keys.length) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  for (const key of keys) {
+    if (!hasOwnKey(value, key)) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+  }
+}
+
+function cloneExpectedJson(value: unknown): JsonValue {
+  try {
+    return isolatedJsonView(value as JsonValue);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function assertHexDigest(value: unknown): string {
+  if (typeof value !== "string" || !/^[0-9a-f]{64}$/.test(value)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return value;
+}
+
+function assertBoundedInt(value: unknown, min: number, max: number): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < min || value > max) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return value;
+}
+
+function assertHexPrefix(value: unknown): string {
+  if (typeof value !== "string" || value.length > CATALOG_V2_LIMITS.maxPrefixDepth || !/^[0-9a-f]*$/.test(value)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return value;
+}
+
+function assertId32String(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  try {
+    decodeId32(value);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return value;
+}
+
+function assertId16String(value: unknown): string {
+  if (typeof value !== "string") {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  try {
+    decodeId16(value);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return value;
+}
+
+function copyExpectedCatalogNode(value: unknown): ExpectedCatalogNode {
+  const owned = cloneExpectedJson(value);
+  assertPlainJsonObject(owned);
+  if (owned.nodeType === "root") {
+    assertExactKeys(owned, ["nodeType", "wireSha256", "wireByteLength"]);
+    return {
+      nodeType: "root",
+      wireSha256: assertHexDigest(owned.wireSha256),
+      wireByteLength: assertBoundedInt(owned.wireByteLength, 1, CATALOG_V2_LIMITS.rootWireBytes),
+    };
+  }
+  if (owned.nodeType === "shard") {
+    assertExactKeys(owned, ["nodeType", "reference"]);
+    assertPlainJsonObject(owned.reference);
+    const reference = owned.reference;
+    assertExactKeys(reference, NONEMPTY_REFERENCE_KEYS);
+    if (reference.empty !== false) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    const locators = reference.locators;
+    if (!Array.isArray(locators) || locators.length < 1 || locators.length > CATALOG_V2_LIMITS.maxLocators) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    const copied: CatalogNonemptyReference = {
+      prefix: assertHexPrefix(reference.prefix),
+      empty: false,
+      recordId: assertId32String(reference.recordId),
+      generationId: assertId32String(reference.generationId),
+      rootEpoch: assertId16String(reference.rootEpoch),
+      wireSha256: assertHexDigest(reference.wireSha256),
+      wireByteLength: assertBoundedInt(reference.wireByteLength, 1, CATALOG_V2_LIMITS.shardWireBytes),
+      plaintextByteLength: assertBoundedInt(
+        reference.plaintextByteLength,
+        1,
+        CATALOG_V2_LIMITS.shardPlaintextBytes,
+      ),
+      entryCount: assertBoundedInt(reference.entryCount, 0, CATALOG_V2_LIMITS.maxRecordsPerLeaf),
+      observationCount: assertBoundedInt(reference.observationCount, 0, CATALOG_V2_LIMITS.maxRecordsPerLeaf),
+      canonicalRecordsSha256: assertHexDigest(reference.canonicalRecordsSha256),
+      locators: isolatedJsonView(locators as JsonValue) as unknown as CatalogV2Locator[],
+    };
+    if (copied.entryCount + copied.observationCount < 1) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    if (copied.entryCount + copied.observationCount > CATALOG_V2_LIMITS.maxRecordsPerLeaf) {
+      throw new KernelError(ERR_SCHEMA);
+    }
+    return { nodeType: "shard", reference: copied };
+  }
+  throw new KernelError(ERR_SCHEMA);
+}
+
+function catalogNodeRole(value: { [key: string]: unknown }): "root" | "shard" {
+  if (value.payloadVersion !== 2) {
+    throw new KernelError(ERR_CATALOG_ROLE);
+  }
+  if (value.nodeType === "root" || value.nodeType === "shard") {
+    return value.nodeType;
+  }
+  throw new KernelError(ERR_CATALOG_ROLE);
+}
+
+function assertShardSealBudget(recordCount: number, plaintextBytes: number): void {
+  if (recordCount < 1) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  if (recordCount === 1) {
+    if (plaintextBytes > CATALOG_V2_LIMITS.shardPlaintextBytes) {
+      throw new KernelError(ERR_CATALOG_CAPACITY);
+    }
+    return;
+  }
+  if (plaintextBytes > CATALOG_V2_LIMITS.shardTargetBytes) {
+    throw new KernelError(ERR_CATALOG_CAPACITY);
+  }
+}
+
+function catalogRecordCounts(records: readonly CatalogTaggedRecord[]): {
+  entryCount: number;
+  observationCount: number;
+} {
+  let entryCount = 0;
+  let observationCount = 0;
+  for (const record of records) {
+    if (record.recordKind === "observation") {
+      observationCount += 1;
+    } else {
+      entryCount += 1;
+    }
+  }
+  return { entryCount, observationCount };
+}
+
+function recordsFingerprint(records: readonly CatalogTaggedRecord[]): string {
+  const bytes = canonicalizeJsonBytes(records as unknown as JsonValue);
+  try {
+    return sha256Hex(bytes);
+  } finally {
+    wipeBytes(bytes);
+  }
+}
+
+function requiredEpochsInclude(epochs: readonly string[], rootEpoch: string): boolean {
+  for (const epoch of epochs) {
+    if (epoch === rootEpoch) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export class UnlockedVault {
@@ -399,6 +713,128 @@ export class UnlockedVault {
     }
   }
 
+  sealCatalogNode(payloadUtf8: Uint8Array): SealResult {
+    this.#requireUnlocked();
+    let payloadBytes: Uint8Array | undefined;
+    let canonical: Uint8Array | undefined;
+    try {
+      payloadBytes = copyOwnedBytes(payloadUtf8, CATALOG_V2_LIMITS.rootPlaintextBytes);
+      const parsed = parseJsonBytes(payloadBytes, CATALOG_V2_LIMITS.rootPlaintextBytes);
+      assertPlainJsonObject(parsed);
+      const role = catalogNodeRole(parsed);
+      canonical = canonicalizeJsonBytes(parsed);
+      const plaintextLimit =
+        role === "root" ? CATALOG_V2_LIMITS.rootPlaintextBytes : CATALOG_V2_LIMITS.shardPlaintextBytes;
+      const wireLimit = role === "root" ? CATALOG_V2_LIMITS.rootWireBytes : CATALOG_V2_LIMITS.shardWireBytes;
+      if (canonical.byteLength > plaintextLimit) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      const scopeId = this.#requireCatalogScopeId();
+      if (role === "root") {
+        const preflight = preflightCatalogRoot(canonical);
+        const epoch = activeEpoch(this.#requireEpochs());
+        if (!requiredEpochsInclude(preflight.root.requiredEpochs, epoch.rootEpoch)) {
+          throw new KernelError(ERR_CATALOG_REFERENCE);
+        }
+        this.#requireUnlocked();
+        return this.#sealJson(
+          preflight.root as unknown as JsonValue,
+          scopeId,
+          this.#requireCatalogRecordId(),
+          "catalog",
+          plaintextLimit,
+          wireLimit,
+        );
+      }
+      const node = parseCatalogNode(canonical, "shard");
+      assertShardSealBudget(node.payload.records.length, canonical.byteLength);
+      const recordId = this.#freshShardRecordId();
+      this.#requireUnlocked();
+      return this.#sealJson(
+        node.payload as unknown as JsonValue,
+        scopeId,
+        recordId,
+        "catalog",
+        plaintextLimit,
+        wireLimit,
+      );
+    } catch (err) {
+      return rethrowCatalogNode(err, ERR_SCHEMA);
+    } finally {
+      if (payloadBytes !== undefined) {
+        wipeBytes(payloadBytes);
+      }
+      if (canonical !== undefined) {
+        wipeBytes(canonical);
+      }
+    }
+  }
+
+  openCatalogNode(wire: Uint8Array, expected: ExpectedCatalogNode): OpenCatalogNodeResult {
+    this.#requireUnlocked();
+    let packageBytes: Uint8Array | undefined;
+    let plaintext: Buffer | undefined;
+    try {
+      const expectedNode = copyExpectedCatalogNode(expected);
+      const wireLimit =
+        expectedNode.nodeType === "root" ? CATALOG_V2_LIMITS.rootWireBytes : CATALOG_V2_LIMITS.shardWireBytes;
+      const plaintextLimit =
+        expectedNode.nodeType === "root"
+          ? CATALOG_V2_LIMITS.rootPlaintextBytes
+          : CATALOG_V2_LIMITS.shardPlaintextBytes;
+      packageBytes = copyOwnedBytes(wire, wireLimit);
+      const packageSha256 = sha256Hex(packageBytes);
+      const expectedHash =
+        expectedNode.nodeType === "root" ? expectedNode.wireSha256 : expectedNode.reference.wireSha256;
+      const expectedLength =
+        expectedNode.nodeType === "root" ? expectedNode.wireByteLength : expectedNode.reference.wireByteLength;
+      if (packageBytes.byteLength !== expectedLength || packageSha256 !== expectedHash) {
+        throw new KernelError(ERR_BINDING);
+      }
+      const parsed = parseJsonBytes(packageBytes, wireLimit);
+      const pack = validatePackageWire(parsed);
+      if (pack.header.kind !== "catalog") {
+        throw new KernelError(ERR_UNSUPPORTED);
+      }
+      this.#assertRootMatch(pack.header);
+      if (expectedNode.nodeType === "root") {
+        this.#assertCatalogBinding(pack.header);
+      } else {
+        this.#assertShardBinding(pack.header, expectedNode.reference);
+      }
+      plaintext = this.#decryptPack(pack.header, pack.ciphertext, pack.tag, plaintextLimit);
+      const rawParsed = parseJsonBytes(plaintext, plaintextLimit);
+      assertCanonicalPayloadBytes(plaintext, rawParsed);
+      if (expectedNode.nodeType === "root") {
+        const node = parseCatalogNode(plaintext, "root");
+        preflightCatalogRoot(plaintext);
+        if (!requiredEpochsInclude(node.payload.requiredEpochs, pack.header.rootEpoch)) {
+          throw new KernelError(ERR_CATALOG_REFERENCE);
+        }
+        this.#requireUnlocked();
+        return {
+          header: isolatedJsonView(pack.header as unknown as JsonValue) as unknown as SnapshotHeader,
+          node,
+          packageSha256,
+        };
+      }
+      const node = parseCatalogNode(plaintext, "shard");
+      this.#assertOpenedShard(node, expectedNode.reference, plaintext.byteLength);
+      this.#requireUnlocked();
+      return {
+        header: isolatedJsonView(pack.header as unknown as JsonValue) as unknown as SnapshotHeader,
+        node,
+        packageSha256,
+      };
+    } catch (err) {
+      return rethrowCatalogNode(err, ERR_SCHEMA);
+    } finally {
+      if (plaintext !== undefined) {
+        wipeBytes(plaintext);
+      }
+    }
+  }
+
   createRecoveryPack(): RecoveryPack {
     this.#requireUnlocked();
     const canonicalRoot = this.#canonicalRoot;
@@ -514,11 +950,68 @@ export class UnlockedVault {
     return this.#catalogRecordId;
   }
 
+  #freshShardRecordId(): string {
+    const catalogRecordId = this.#requireCatalogRecordId();
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const bytes = freshRandom(32);
+      try {
+        const recordId = encodeBase64Url(bytes);
+        if (recordId !== catalogRecordId) {
+          return recordId;
+        }
+      } finally {
+        wipeBytes(bytes);
+      }
+    }
+    throw new KernelError(ERR_RANDOM);
+  }
+
+  #assertShardBinding(header: SnapshotHeader, reference: CatalogNonemptyReference): void {
+    const catalogScopeId = this.#requireCatalogScopeId();
+    if (header.scopeId !== catalogScopeId) {
+      throw new KernelError(ERR_BINDING);
+    }
+    if (header.recordId !== reference.recordId) {
+      throw new KernelError(ERR_BINDING);
+    }
+    if (header.generationId !== reference.generationId) {
+      throw new KernelError(ERR_BINDING);
+    }
+    if (header.rootEpoch !== reference.rootEpoch) {
+      throw new KernelError(ERR_BINDING);
+    }
+  }
+
+  #assertOpenedShard(
+    node: ParsedCatalogNode,
+    reference: CatalogNonemptyReference,
+    plaintextByteLength: number,
+  ): void {
+    if (node.role !== "shard") {
+      throw new KernelError(ERR_CATALOG_ROLE);
+    }
+    if (node.payload.prefix !== reference.prefix) {
+      throw new KernelError(ERR_CATALOG_REFERENCE);
+    }
+    if (plaintextByteLength !== reference.plaintextByteLength) {
+      throw new KernelError(ERR_CATALOG_REFERENCE);
+    }
+    const counts = catalogRecordCounts(node.payload.records);
+    if (counts.entryCount !== reference.entryCount || counts.observationCount !== reference.observationCount) {
+      throw new KernelError(ERR_CATALOG_REFERENCE);
+    }
+    if (recordsFingerprint(node.payload.records) !== reference.canonicalRecordsSha256) {
+      throw new KernelError(ERR_CATALOG_REFERENCE);
+    }
+  }
+
   #sealJson(
     value: JsonValue,
     scopeId: string,
     recordId: string,
     kind: SnapshotHeader["kind"],
+    plaintextLimit: number = LIMIT_PLAINTEXT_BYTES,
+    wireLimit: number = LIMIT_PACKAGE_BYTES,
   ): SealResult {
     this.#requireUnlocked();
     const epoch = activeEpoch(this.#requireEpochs());
@@ -547,7 +1040,7 @@ export class UnlockedVault {
         nonce: encodeBase64Url(nonce),
       };
       plaintext = canonicalizeJsonBytes(value);
-      if (plaintext.byteLength > LIMIT_PLAINTEXT_BYTES) {
+      if (plaintext.byteLength > plaintextLimit) {
         throw new KernelError(ERR_INPUT_TOO_LARGE);
       }
       const aad = canonicalAad(header as unknown as JsonValue);
@@ -562,7 +1055,7 @@ export class UnlockedVault {
         tag: encodeBase64Url(sealed.tag),
       };
       const wire = canonicalizeJsonBytes(wireObject as unknown as JsonValue);
-      if (wire.byteLength > LIMIT_PACKAGE_BYTES) {
+      if (wire.byteLength > wireLimit) {
         throw new KernelError(ERR_INPUT_TOO_LARGE);
       }
       this.#requireUnlocked();
@@ -581,12 +1074,17 @@ export class UnlockedVault {
     }
   }
 
-  #decryptPack(header: SnapshotHeader, ciphertext: string, tag: string): Buffer {
+  #decryptPack(
+    header: SnapshotHeader,
+    ciphertext: string,
+    tag: string,
+    plaintextLimit: number = LIMIT_PLAINTEXT_BYTES,
+  ): Buffer {
     this.#assertRootMatch(header);
     const epoch = epochById(this.#requireEpochs(), header.rootEpoch);
     const nonce = decodeNonce12(header.nonce);
     const tagBytes = decodeTag16(tag);
-    const ciphertextBytes = decodeBase64Url(ciphertext, LIMIT_PLAINTEXT_BYTES);
+    const ciphertextBytes = decodeBase64Url(ciphertext, plaintextLimit);
     const aad = canonicalAad(header as unknown as JsonValue);
     const keys = deriveKeys(epoch.secretRoot, header);
     try {

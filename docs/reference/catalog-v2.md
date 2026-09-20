@@ -1,9 +1,9 @@
 # Catalog-v2 plaintext grammar and adaptive layout
 
-Status: implemented plaintext grammar, planner, and revision validator. This
-page is not kernel authentication, Drive publication, or complete M1/M3 work.
-Catalog nodes stay plaintext until a later kernel envelope integration seals
-them. Do not treat planner fingerprints as authority.
+Status: implemented plaintext grammar, planner, revision validator, and kernel
+envelope seal/open for one selected root or shard. This page is not Drive
+publication or complete M1/M3 work. Do not treat planner fingerprints as
+authority. A successful `sealCatalogNode` is not remote durability.
 
 The schema lives at [`catalog-v2.schema.json`](schemas/catalog-v2.schema.json).
 Independent route vectors live at `fixtures/catalog-v2-vectors.json`. Catalog-v1
@@ -61,10 +61,11 @@ They must include every nonempty child `reference.rootEpoch` and every retained
 snapshot `package.rootEpoch`. Receipt `newActiveEpoch` and `retainedOldEpochs`
 do not by themselves prove that an encrypted object needs that epoch. Plaintext
 may keep at most one extra epoch for the unknown authenticated root-header
-epoch. A second extra epoch is a reference error. This plaintext API does not
-prove the root-header epoch. Later kernel integration must confirm exact
-equality of the required set with the union of shard epochs, retained snapshot
-epochs, and the authenticated root-header epoch.
+epoch. A second extra epoch is a reference error. Kernel `sealCatalogNode` and
+`openCatalogNode` require the authenticated root-header epoch to be present in
+`requiredEpochs`. The whole-revision validator plus the later coordinator must
+confirm exact equality of the required set with the union of shard epochs,
+retained snapshot epochs, and that header epoch.
 
 ## Limits
 
@@ -74,9 +75,9 @@ worst-case metadata fits the byte budget.
 | Bound | Maximum |
 | --- | --- |
 | Root canonical plaintext | 4 MiB |
-| Root envelope wire (later kernel) | 8 MiB |
+| Root envelope wire | 8 MiB |
 | Shard canonical plaintext | 1 MiB |
-| Shard envelope wire (later kernel) | 2 MiB |
+| Shard envelope wire | 2 MiB |
 | Shard split target | 256 KiB |
 | Cumulative canonical shard plaintext | 64 MiB |
 | Prefix references, including empty markers | 1024 |
@@ -108,11 +109,11 @@ An empty marker is exactly `{prefix, empty: true}`. A nonempty reference binds
 0–64.
 
 `canonicalRecordsSha256` is SHA-256 of the exact canonical tagged-record array.
-It exists only inside encrypted root content after kernel integration. The
-planner may return the same fingerprint for a later verified comparison.
-Fingerprints alone are not authority. A changed leaf must receive a fresh random
-`recordId` at seal time. An unchanged fully authenticated same-epoch leaf may
-reuse exact wire bytes in that later layer.
+It exists only inside encrypted root content. The planner may return the same
+fingerprint for a later verified comparison. Fingerprints alone are not
+authority. `sealCatalogNode` gives a changed leaf a fresh random `recordId`,
+`generationId`, and nonce. An unchanged fully authenticated same-epoch leaf may
+reuse exact wire bytes in the coordinator. This kernel does not invent reuse.
 
 ## Tagged records
 
@@ -209,8 +210,9 @@ multi-record shard above the 256 KiB split target rejects. Only a single valid
 large record may use the 1 MiB leaf ceiling. Required epochs must equal the
 union of child `rootEpoch` values and retained snapshot epochs, plus at most
 one extra reserved header epoch. It does not check kernel headers, wire hashes,
-or provider bytes. The next encrypted integration layer must do those checks
-before it calls this validator. Do not label the result authenticated.
+or provider bytes. Kernel `openCatalogNode` checks exact wire digest, length, header identity, AEAD,
+raw JCS, and closed role fields before a coordinator calls this validator. Do
+not label an unauthenticated parse result as selected.
 
 Live witnesses are retained snapshot digests with no effective tombstone in the
 selected revision. History records stay in the catalog. Unique live wire lengths
@@ -233,6 +235,7 @@ observation records.
 
 ## Source API
 
-TypeScript lives in `src/storage/catalog-v2.ts`. Tests live in
-`tests/catalog-v2.test.mjs`. The module has no disk or network side effects
-beyond loading this schema at import time.
+TypeScript lives in `src/storage/catalog-v2.ts`. Kernel seal and open live in
+`src/kernel/vault.ts`. Tests live in `tests/catalog-v2.test.mjs` and
+`tests/catalog-v2-kernel.test.mjs`. The storage module has no disk or network
+side effects beyond loading this schema at import time.
