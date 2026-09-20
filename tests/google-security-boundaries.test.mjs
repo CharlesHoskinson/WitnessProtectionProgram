@@ -1840,6 +1840,130 @@ describe('public identity query and injected body copy bounds', () => {
     );
   });
 
+  test('nonthrowing response getters and proxies cannot complete listings or empty media', async () => {
+    const wppName = (seed) => `${sha256Hex(utf8(String(seed)))}.wpp`;
+    const first = {
+      id: 'file_security_response_kept',
+      name: wppName('security-response-kept'),
+      size: '10',
+    };
+    const later = {
+      id: 'file_security_response_late',
+      name: wppName('security-response-late'),
+      size: '8',
+    };
+    const jsonBody = (value) => utf8(JSON.stringify(value));
+    for (const field of ['headers', 'status', 'body', 'data']) {
+      for (const transport of ['injected', 'auth']) {
+        const data = { files: [first], nextPageToken: `security-response-next-${field}` };
+        let calls = 0;
+        const response = {
+          status: 200,
+          headers: {},
+          ...(transport === 'injected'
+            ? { body: jsonBody({ files: [first], nextPageToken: data.nextPageToken }) }
+            : { data }),
+        };
+        const returned =
+          field === 'status' ? 200 : field === 'headers' ? {} : field === 'body' ? jsonBody({ files: [] }) : { files: [] };
+        Object.defineProperty(response, field, {
+          enumerable: true,
+          configurable: true,
+          get() {
+            calls += 1;
+            delete data.nextPageToken;
+            data.files.length = 0;
+            return returned;
+          },
+        });
+        const adapter =
+          transport === 'injected'
+            ? createGoogleDriveAdapter({
+                permissionId: PERMISSION_ID,
+                request: async () => response,
+              })
+            : new GoogleDriveSession(PERMISSION_ID, {
+                authClient: {
+                  async request() {
+                    return response;
+                  },
+                },
+              });
+        const listed = await listCiphertextCandidates(adapter);
+        equal(listed.complete, false, `${transport} ${field} initial`);
+        equal(listed.candidates.length, 0, `${transport} ${field} initial`);
+        equal(data.nextPageToken, `security-response-next-${field}`, `${transport} ${field} initial`);
+        equal(data.files.length, 1, `${transport} ${field} initial files`);
+        equal(calls, 0, `${transport} ${field} initial`);
+      }
+    }
+
+    let page = 0;
+    let laterCalls = 0;
+    const laterData = { files: [later], nextPageToken: 'security-response-more' };
+    const laterResponse = { status: 200, headers: {}, data: laterData };
+    Object.defineProperty(laterResponse, 'headers', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        laterCalls += 1;
+        delete laterData.nextPageToken;
+        laterData.files.length = 0;
+        return {};
+      },
+    });
+    const laterAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          page += 1;
+          if (page === 1) {
+            return { status: 200, data: { files: [first], nextPageToken: 'security-response-next' } };
+          }
+          return laterResponse;
+        },
+      },
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterData.nextPageToken, 'security-response-more');
+    equal(laterCalls, 0);
+    equal(page, 2);
+
+    let trapCalls = 0;
+    const proxyData = { files: [first], nextPageToken: 'security-response-proxy' };
+    const proxyResponse = new Proxy(
+      { status: 200, headers: {}, data: proxyData },
+      {
+        get(target, prop, receiver) {
+          trapCalls += 1;
+          delete proxyData.nextPageToken;
+          return Reflect.get(target, prop, receiver);
+        },
+        getOwnPropertyDescriptor(target, prop) {
+          trapCalls += 1;
+          delete proxyData.nextPageToken;
+          return Reflect.getOwnPropertyDescriptor(target, prop);
+        },
+        getPrototypeOf() {
+          trapCalls += 1;
+          delete proxyData.nextPageToken;
+          return Object.prototype;
+        },
+      },
+    );
+    const proxyAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: () => proxyResponse,
+    });
+    const proxyListed = await listCiphertextCandidates(proxyAdapter);
+    equal(proxyListed.complete, false);
+    equal(proxyListed.candidates.length, 0);
+    equal(proxyData.nextPageToken, 'security-response-proxy');
+    equal(trapCalls, 0);
+  });
+
   test('detached injected bodies are rejected without leaking caller data', async () => {
     const sealed = sealSyntheticBlob();
     const body = new Uint8Array(sealed.wire);
@@ -1933,6 +2057,16 @@ describe('default Gaxios node-fetch headers normalize on localhost', () => {
           next.url = `${local.origin}/drive/v3/files${parsed.search}`;
         }
         const res = await originalRequest(next);
+        ok(types.isProxy(res) === false, 'trusted default response must not be a Proxy');
+        const proto = Object.getPrototypeOf(res);
+        ok(proto === Object.prototype || proto === null, 'trusted default response must be plain or null-prototype');
+        for (const key of ['status', 'headers', 'data']) {
+          const desc = Object.getOwnPropertyDescriptor(res, key);
+          ok(desc !== undefined, `trusted default ${key} must be own`);
+          equal(desc.get, undefined, `trusted default ${key} must not be a getter`);
+          equal(desc.set, undefined, `trusted default ${key} must not be a setter`);
+          equal(desc.enumerable, true, `trusted default ${key} must be enumerable`);
+        }
         ok(types.isProxy(res.headers) === false, 'trusted default headers must be owned before Drive');
         return res;
       };

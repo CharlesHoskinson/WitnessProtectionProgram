@@ -83,18 +83,32 @@ changing getters, detached buffers, and revoked proxies are rejected. Hash
 checks, expected-byte checks, and the returned receipt describe those owned
 bytes only.
 
-Successful responses are read once under a fail-closed boundary. The
-transport reads `status`, `headers`, `body`, and `data` with ordinary field
-access. Missing optional headers may be absent. A throwing field or a
-throwing header inspection is a static failure. It is never treated as a
-missing field and never treated as success.
+Successful responses are read once under a fail-closed boundary. Generic
+injected `AuthClient` and `InjectedRequest` seams reject a Proxy return
+value before `await` and before any other inspection. They await only a
+native `Promise` whose prototype is exactly `Promise.prototype`. They box
+an untrusted value so `await` does not read `then`. They then require a
+plain `Object.prototype` or `null` prototype. A Proxy prototype and any other prototype are
+rejected. The transport captures own descriptors for `status`, `headers`,
+`body`, and `data` once, before it consumes any field. It does not invoke
+getters. It does not call methods. It does not coerce values. It does not
+spread the response. It does not serialize the response. An accessor,
+inherited relevant field, or nonenumerable relevant field is a static
+failure. Extra Gaxios bookkeeping fields may remain. Missing optional
+headers may be absent. A throwing header inspection is a static failure.
+It is never treated as a missing field and never treated as success.
 
-Header trust is split. The owned default OAuth client wraps Gaxios
-`transporter.request`. That wrapper copies trusted Gaxios response headers
-into owned native `Headers` before Drive code inspects them. node-fetch
-3.3.2 `Headers` extends `URLSearchParams` and the constructor returns a
-Proxy. Blind rejection of every Proxy at the generic Drive boundary would
-break that default provider path.
+Header and response trust are split. The owned default OAuth client wraps
+Gaxios `transporter.request`. Gaxios 7.3.1 `_defaultAdapter` returns
+`Object.assign(res, {config, data})`. `res` is a node-fetch Response with
+prototype accessors. The wrapper copies known default fields
+`config`, `status`, `statusText`, `headers`, and `data` onto an owned
+plain record. It copies trusted Gaxios response headers into owned native
+`Headers` before Drive code inspects them. It does not mark the generic
+Drive injection path as trusted. node-fetch 3.3.2 `Headers` extends
+`URLSearchParams` and the constructor returns a Proxy. Blind rejection of
+every Proxy or every Response prototype at the generic Drive boundary
+would break that default provider path.
 
 Injected `AuthClient` and `InjectedRequest` seams stay untrusted. Generic
 Drive header normalization rejects a Proxy value before
@@ -183,10 +197,13 @@ A non-enumerable or inherited `files`, `incompleteSearch`, or
 clone prototype and it does not supply inherited completion fields.
 
 Successful list pages use the same fail-closed field capture as media GET.
-A throwing `status`, `headers`, `body`, or `data` field is a page failure.
+A Proxy response, an untrusted response prototype, an accessor, or an
+inherited `status`, `headers`, `body`, or `data` field is a page failure.
 A throwing nested header inspection is a page failure. An unsupported
-header value is a page failure. It is not a silent omission and it is not
-`complete: true`.
+header value is a page failure. A nonthrowing getter that would delete
+`nextPageToken` or replace `files` or `body` does not run. It is not a
+silent omission and it is not `complete: true`. It is not a zero-length
+success.
 
 An initial invalid listing is a failure. A later invalid page returns
 incomplete and keeps earlier candidates.
@@ -228,4 +245,5 @@ The default Node transport bound is Gaxios 7.3.1 with node-fetch 3.3.2.
 `maxContentLength` maps to node-fetch `size`. An oversized stream is aborted
 during consumption. This restore work does not replace that default fetch
 path. Localhost default-path tests prove that real node-fetch Proxy headers
-normalize into owned headers. Those tests are not live Google acceptance.
+and known Gaxios response fields normalize into owned plain records before
+generic Drive capture. Those tests are not live Google acceptance.

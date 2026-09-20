@@ -273,24 +273,88 @@ type SuccessResponseFields = {
   data: unknown;
 };
 
+const SUCCESS_RESPONSE_FIELDS = ["status", "headers", "body", "data"] as const;
+
 function assertInspectableObject(value: unknown): asserts value is object {
   if (value === null || (typeof value !== "object" && typeof value !== "function")) {
     throw new TypeError("invalid object");
   }
 }
 
+function isAccessorDescriptor(desc: PropertyDescriptor): boolean {
+  return desc.get !== undefined || desc.set !== undefined;
+}
+
+function ownResponseFieldValue(
+  record: object,
+  key: (typeof SUCCESS_RESPONSE_FIELDS)[number],
+  desc: PropertyDescriptor | undefined,
+): unknown {
+  if (desc === undefined) {
+    if (key in record) {
+      throw new TypeError("inherited response field");
+    }
+    return undefined;
+  }
+  if (isAccessorDescriptor(desc)) {
+    throw new TypeError("accessor response field");
+  }
+  if (desc.enumerable !== true) {
+    throw new TypeError("nonenumerable response field");
+  }
+  return desc.value;
+}
+
 function readSuccessResponseFields(res: unknown): SuccessResponseFields {
-  assertInspectableObject(res);
   if (isProxy(res)) {
     throw new TypeError("proxy response");
   }
-  const record = res as Record<string, unknown>;
-  return {
-    status: record.status,
-    headers: record.headers,
-    body: record.body,
-    data: record.data,
+  assertInspectableObject(res);
+  let proto: object | null;
+  try {
+    proto = OBJECT_GET_PROTOTYPE_OF(res);
+  } catch {
+    throw new TypeError("invalid response prototype");
+  }
+  if (isProxy(proto)) {
+    throw new TypeError("proxy response prototype");
+  }
+  if (proto !== Object.prototype && proto !== null) {
+    throw new TypeError("invalid response prototype");
+  }
+  const descriptors = {
+    status: undefined as PropertyDescriptor | undefined,
+    headers: undefined as PropertyDescriptor | undefined,
+    body: undefined as PropertyDescriptor | undefined,
+    data: undefined as PropertyDescriptor | undefined,
   };
+  for (const key of SUCCESS_RESPONSE_FIELDS) {
+    descriptors[key] = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(res, key);
+  }
+  return {
+    status: ownResponseFieldValue(res, "status", descriptors.status),
+    headers: ownResponseFieldValue(res, "headers", descriptors.headers),
+    body: ownResponseFieldValue(res, "body", descriptors.body),
+    data: ownResponseFieldValue(res, "data", descriptors.data),
+  };
+}
+
+async function receiveUntrustedResponse(pending: unknown): Promise<{ value: unknown }> {
+  if (isProxy(pending)) {
+    throw new TypeError("proxy response");
+  }
+  if (
+    pending !== null &&
+    (typeof pending === "object" || typeof pending === "function") &&
+    OBJECT_GET_PROTOTYPE_OF(pending) === Promise.prototype
+  ) {
+    const res = await (pending as Promise<unknown>);
+    if (isProxy(res)) {
+      throw new TypeError("proxy response");
+    }
+    return { value: res };
+  }
+  return { value: pending };
 }
 
 function assertValidContentLength(value: string): void {
@@ -551,10 +615,6 @@ const LIST_COMPLETION_KEY_SET = new Set<string>(LIST_COMPLETION_KEYS);
 
 function listJsonFail(reason: string): { ok: false; reason: string } {
   return { ok: false, reason };
-}
-
-function isAccessorDescriptor(desc: PropertyDescriptor): boolean {
-  return desc.get !== undefined || desc.set !== undefined;
 }
 
 function addExactJsonBytes(state: JsonCloneState, n: number): boolean {
@@ -916,12 +976,14 @@ async function sessionRequest(
   if (internals.request !== undefined) {
     let res: unknown;
     try {
-      res = await internals.request({
-        method: opts.method,
-        url: opts.url,
-        headers: opts.headers,
-        body: opts.body,
-      });
+      res = (await receiveUntrustedResponse(
+        internals.request({
+          method: opts.method,
+          url: opts.url,
+          headers: opts.headers,
+          body: opts.body,
+        }),
+      )).value;
     } catch (err) {
       mapRequestFailure(err, opts.phase);
     }
@@ -974,7 +1036,7 @@ async function sessionRequest(
       gaxiosOpts.responseType = "arraybuffer";
     }
     try {
-      const res = await internals.authClient.request(gaxiosOpts);
+      const res = (await receiveUntrustedResponse(internals.authClient.request(gaxiosOpts))).value;
       let fields: SuccessResponseFields;
       let status: number | undefined;
       let headers: Record<string, string>;
@@ -1167,17 +1229,21 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
     if (captured === undefined) {
       throwFresh(ERR_BIND_IDENTITY);
     }
-    const res = await captured.request({
-      method: "GET",
-      url: `${DRIVE_ABOUT_URL}?fields=user(permissionId)`,
-      retry: false,
-      redirect: "manual",
-      follow: 0,
-      maxRedirects: 0,
-      timeout: GOOGLE_REQUEST_TIMEOUT_MS,
-      maxContentLength: GOOGLE_JSON_MAX_BYTES,
-      responseType: "json",
-    });
+    const res = (
+      await receiveUntrustedResponse(
+        captured.request({
+          method: "GET",
+          url: `${DRIVE_ABOUT_URL}?fields=user(permissionId)`,
+          retry: false,
+          redirect: "manual",
+          follow: 0,
+          maxRedirects: 0,
+          timeout: GOOGLE_REQUEST_TIMEOUT_MS,
+          maxContentLength: GOOGLE_JSON_MAX_BYTES,
+          responseType: "json",
+        }),
+      )
+    ).value;
     let fields: SuccessResponseFields;
     try {
       fields = readSuccessResponseFields(res);
@@ -1584,10 +1650,14 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
   if (internals.request !== undefined) {
     let res: unknown;
     try {
-      res = await internals.request({
-        method: "GET",
-        url,
-      });
+      res = (
+        await receiveUntrustedResponse(
+          internals.request({
+            method: "GET",
+            url,
+          }),
+        )
+      ).value;
     } catch (err) {
       return mapListTransportError(err);
     }
@@ -1597,17 +1667,21 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
   if (internals.authClient !== undefined) {
     let res: unknown;
     try {
-      res = await internals.authClient.request({
-        method: "GET",
-        url,
-        retry: false,
-        redirect: "manual",
-        follow: 0,
-        maxRedirects: 0,
-        timeout: GOOGLE_REQUEST_TIMEOUT_MS,
-        maxContentLength: DRIVE_LIST_JSON_MAX_BYTES,
-        responseType: "json",
-      });
+      res = (
+        await receiveUntrustedResponse(
+          internals.authClient.request({
+            method: "GET",
+            url,
+            retry: false,
+            redirect: "manual",
+            follow: 0,
+            maxRedirects: 0,
+            timeout: GOOGLE_REQUEST_TIMEOUT_MS,
+            maxContentLength: DRIVE_LIST_JSON_MAX_BYTES,
+            responseType: "json",
+          }),
+        )
+      ).value;
     } catch (err) {
       return mapListTransportError(err);
     }

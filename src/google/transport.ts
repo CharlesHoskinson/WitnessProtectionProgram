@@ -234,14 +234,36 @@ function ownTrustedDefaultHeaders(headers: unknown): Headers {
   throw new TypeError("invalid trusted header prototype");
 }
 
-function attachOwnedTrustedHeaders(res: { headers?: unknown }): void {
-  const owned = ownTrustedDefaultHeaders(res.headers);
-  Object.defineProperty(res, "headers", {
+function defineOwnedTrustedField(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
     configurable: true,
     enumerable: true,
     writable: true,
-    value: owned,
+    value,
   });
+}
+
+function ownTrustedDefaultResponse(res: unknown): Record<string, unknown> {
+  if (isProxy(res)) {
+    throw new TypeError("proxy trusted response");
+  }
+  if (res === null || typeof res !== "object") {
+    throw new TypeError("invalid trusted response");
+  }
+  const record = res as Record<string, unknown>;
+  const status = record.status;
+  const statusText = record.statusText;
+  const rawHeaders = record.headers;
+  const data = record.data;
+  const config = record.config;
+  const headers = ownTrustedDefaultHeaders(rawHeaders);
+  const owned = Object.create(null) as Record<string, unknown>;
+  defineOwnedTrustedField(owned, "status", status);
+  defineOwnedTrustedField(owned, "statusText", statusText);
+  defineOwnedTrustedField(owned, "headers", headers);
+  defineOwnedTrustedField(owned, "data", data);
+  defineOwnedTrustedField(owned, "config", config);
+  return owned;
 }
 
 function hardenTransporter(
@@ -278,11 +300,9 @@ function hardenTransporter(
       },
     };
     const res = await original(next);
-    applyTokenScope(next, res.data, state);
-    if (res !== null && typeof res === "object") {
-      attachOwnedTrustedHeaders(res);
-    }
-    return res;
+    const owned = ownTrustedDefaultResponse(res);
+    applyTokenScope(next, owned.data, state);
+    return owned;
   };
 }
 
