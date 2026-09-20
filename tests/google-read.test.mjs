@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { UnlockedVault } from '../dist/kernel/index.js';
 import { LIMIT_PACKAGE_BYTES } from '../dist/kernel/json.js';
 import {
+  DRIVE_ABOUT_URL,
   DRIVE_FILES_URL,
   DRIVE_LIST_FIELDS,
   DRIVE_LIST_JSON_MAX_BYTES,
@@ -18,6 +19,7 @@ import {
   DRIVE_LIST_QUERY,
   GoogleError,
   createGoogleDriveAdapter,
+  createGoogleDriveAdapterFromAuthClient,
   getOwnedCiphertext,
   listCiphertextCandidates,
 } from '../dist/google/index.js';
@@ -277,7 +279,7 @@ describe('getOwnedCiphertext', () => {
       expected.permissionId = OTHER_PERMISSION_ID;
       expected.sha256 = '0'.repeat(64);
       expected.byteCount = 1;
-      adapter.permissionId = OTHER_PERMISSION_ID;
+      equal(Reflect.set(adapter, 'permissionId', OTHER_PERMISSION_ID), false);
       assertMediaUrl(url, 'file-orig');
       return {
         status: 200,
@@ -288,9 +290,221 @@ describe('getOwnedCiphertext', () => {
     const receipt = await getOwnedCiphertext(adapter, expected);
     equal(receipt.fileId, 'file-orig');
     equal(receipt.sha256, sealed.sha256);
+    equal(adapter.permissionId, PERMISSION_ID);
     equal(calls.length, 1);
     match(calls[0].url, /file-orig/);
     equal(calls[0].url.includes('file-mutated'), false);
+  });
+
+  test('public permissionId assignment cannot rebind account identity', async () => {
+    const sealed = sealSyntheticBlob();
+    let sawOther = false;
+    const { adapter } = listingAdapter(async ({ url }) => {
+      if (String(url).includes('file-other')) {
+        sawOther = true;
+      }
+      assertMediaUrl(url, 'file-orig');
+      return {
+        status: 200,
+        headers: { 'content-length': String(sealed.wire.byteLength) },
+        body: Buffer.from(sealed.wire),
+      };
+    });
+    equal(Reflect.set(adapter, 'permissionId', OTHER_PERMISSION_ID), false);
+    equal(
+      Reflect.defineProperty(adapter, 'permissionId', {
+        value: OTHER_PERMISSION_ID,
+        writable: true,
+        configurable: true,
+      }),
+      false,
+    );
+    equal(adapter.permissionId, PERMISSION_ID);
+    await rejects(
+      getOwnedCiphertext(adapter, {
+        permissionId: OTHER_PERMISSION_ID,
+        fileId: 'file-other',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    const receipt = await getOwnedCiphertext(adapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-orig',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.fileId, 'file-orig');
+    equal(sawOther, false);
+  });
+
+  test('locator getters and hostile transport errors map to fresh static codes', async () => {
+    const sealed = sealSyntheticBlob();
+    const expected = {
+      fileId: 'file-hostile',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    };
+    Object.defineProperty(expected, 'permissionId', {
+      get() {
+        throw new Error(TOKEN_SENTINEL);
+      },
+    });
+    const { adapter } = listingAdapter(async () => {
+      throw new Error('network must not run');
+    });
+    await rejects(getOwnedCiphertext(adapter, expected), (err) => {
+      assertGoogleCode('GOOGLE_DRIVE_INPUT')(err);
+      equal(inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const proxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error(TOKEN_SENTINEL);
+        },
+      },
+    );
+    await rejects(getOwnedCiphertext(adapter, proxy), assertGoogleCode('GOOGLE_DRIVE_INPUT'));
+
+    const hostile = new GoogleError('GOOGLE_DRIVE_READBACK');
+    Object.defineProperty(hostile, 'message', {
+      get() {
+        return TOKEN_SENTINEL;
+      },
+    });
+    Object.defineProperty(hostile, 'code', {
+      get() {
+        return TOKEN_SENTINEL;
+      },
+    });
+    const hostileAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => {
+        throw hostile;
+      },
+    });
+    await rejects(
+      getOwnedCiphertext(hostileAdapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-hostile',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      (err) => {
+        assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+        equal(err === hostile, false);
+        equal(inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL), false);
+        return true;
+      },
+    );
+
+    const throwingResponse = new Error('transport');
+    Object.defineProperty(throwingResponse, 'response', {
+      get() {
+        throw new Error(TOKEN_SENTINEL);
+      },
+    });
+    const responseAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => {
+        throw throwingResponse;
+      },
+    });
+    await rejects(
+      getOwnedCiphertext(responseAdapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-hostile',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      (err) => {
+        assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+        equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+        return true;
+      },
+    );
+
+    await rejects(
+      getOwnedCiphertext(adapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-hostile',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_DRIVE_READBACK'),
+    );
+
+    const badStatus = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: Number.NaN,
+        headers: {},
+        body: Buffer.from(sealed.wire),
+      }),
+    });
+    await rejects(
+      getOwnedCiphertext(badStatus, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-hostile',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_DRIVE_READBACK'),
+    );
+
+    const badBody = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: 200,
+        headers: { 'content-length': String(sealed.wire.byteLength) },
+        body: sealed.wire.toString('base64'),
+      }),
+    });
+    await rejects(
+      getOwnedCiphertext(badBody, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-hostile',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_DRIVE_READBACK'),
+    );
+  });
+
+  test('injected request identity is copied at construction', async () => {
+    const sealed = sealSyntheticBlob();
+    let used = 'none';
+    const options = {
+      permissionId: PERMISSION_ID,
+      request: async ({ url }) => {
+        used = 'A';
+        assertMediaUrl(url, 'file-a');
+        return {
+          status: 200,
+          headers: { 'content-length': String(sealed.wire.byteLength) },
+          body: Buffer.from(sealed.wire),
+        };
+      },
+    };
+    const adapter = createGoogleDriveAdapter(options);
+    options.request = async () => {
+      used = 'B';
+      throw new Error('unchecked B');
+    };
+    options.permissionId = OTHER_PERMISSION_ID;
+    const receipt = await getOwnedCiphertext(adapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-a',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.fileId, 'file-a');
+    equal(used, 'A');
+    equal(adapter.permissionId, PERMISSION_ID);
   });
 
   test('corrupt truncated swapped overlong and content-length mismatch are readback errors', async () => {
@@ -537,6 +751,16 @@ describe('listCiphertextCandidates', () => {
     equal(listed.reason, 'GOOGLE_DRIVE_INCOMPLETE_SEARCH');
     equal(listed.candidates.length, 1);
     equal(listed.candidates[0].fileId, file.id);
+
+    const { adapter: invalidAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [file], incompleteSearch: 'true' }),
+    }));
+    const invalid = await listCiphertextCandidates(invalidAdapter);
+    equal(invalid.complete, false);
+    equal(invalid.reason, 'GOOGLE_DRIVE_PAGE_FAILURE');
+    equal(invalid.candidates.length, 1);
   });
 
   test('page ceiling preserves collected candidates', async () => {
@@ -571,24 +795,20 @@ describe('listCiphertextCandidates', () => {
     let pages = 0;
     const { adapter } = listingAdapter(async () => {
       pages += 1;
-      if (pages === 1) {
-        return {
-          status: 200,
-          headers: {},
-          body: jsonBody({ files: pageFiles(0, 5000), nextPageToken: 'more' }),
-        };
-      }
       return {
         status: 200,
         headers: {},
-        body: jsonBody({ files: pageFiles(5000, 5000), nextPageToken: 'still-more' }),
+        body: jsonBody({
+          files: pageFiles((pages - 1) * DRIVE_LIST_PAGE_SIZE, DRIVE_LIST_PAGE_SIZE),
+          nextPageToken: `page-${pages + 1}`,
+        }),
       };
     });
     const listed = await listCiphertextCandidates(adapter);
     equal(listed.complete, false);
     equal(listed.reason, 'GOOGLE_DRIVE_ITEM_CEILING');
     equal(listed.candidates.length, DRIVE_LIST_MAX_ITEMS);
-    equal(pages, 2);
+    equal(pages, DRIVE_LIST_MAX_PAGES);
   });
 
   test('malformed JSON size and matching filename are incomplete', async () => {
@@ -745,6 +965,138 @@ describe('listCiphertextCandidates', () => {
     });
     await rejects(listCiphertextCandidates(redirect), assertGoogleCode('GOOGLE_DRIVE_REDIRECT'));
     equal(called, 1);
+  });
+
+  test('later-page redirect keeps collected candidates and does not follow', async () => {
+    const first = fileRecord('kept-redirect', 20);
+    let followed = 0;
+    const { adapter } = listingAdapter(async ({ url }) => {
+      const parsed = new URL(url);
+      if (!parsed.searchParams.has('pageToken')) {
+        return {
+          status: 200,
+          headers: {},
+          body: jsonBody({ files: [first], nextPageToken: 'next' }),
+        };
+      }
+      followed += 1;
+      return {
+        status: 302,
+        headers: { location: 'https://evil.example/list-next' },
+        body: utf8(''),
+      };
+    });
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.reason, 'GOOGLE_DRIVE_REDIRECT');
+    equal(listed.candidates.length, 1);
+    equal(listed.candidates[0].fileId, first.id);
+    equal(followed, 1);
+    equal(inspect(listed).includes('evil.example'), false);
+  });
+
+  test('invalid completion fields and oversized pages cannot claim complete', async () => {
+    const first = fileRecord('shape', 11);
+    const { adapter: tokenAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [first], nextPageToken: 123 }),
+    }));
+    const badToken = await listCiphertextCandidates(tokenAdapter);
+    equal(badToken.complete, false);
+    equal(badToken.reason, 'GOOGLE_DRIVE_PAGE_TOKEN');
+    equal(badToken.candidates.length, 1);
+
+    const oversized = [];
+    for (let i = 0; i < DRIVE_LIST_PAGE_SIZE + 1; i += 1) {
+      oversized.push(fileRecord(`over-${i}`, 8));
+    }
+    const { adapter: overAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: oversized }),
+    }));
+    const over = await listCiphertextCandidates(overAdapter);
+    equal(over.complete, false);
+    equal(over.reason, 'GOOGLE_DRIVE_PAGE_FAILURE');
+    equal(over.candidates.length, 0);
+
+    const { adapter: filesAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: { id: first.id, name: first.name, size: '11' } }),
+    }));
+    const badFiles = await listCiphertextCandidates(filesAdapter);
+    equal(badFiles.complete, false);
+    equal(badFiles.reason, 'GOOGLE_DRIVE_PAGE_FAILURE');
+    equal(badFiles.complete, false);
+  });
+
+  test('auth-client About capture ignores concurrent client replacement', async () => {
+    const sealed = sealSyntheticBlob();
+    let used = 'none';
+    const clientB = {
+      async request() {
+        used = 'B';
+        throw new Error(`unchecked B ${TOKEN_SENTINEL}`);
+      },
+    };
+    const options = {
+      permissionId: PERMISSION_ID,
+      authClient: {
+        async request(opts) {
+          const url = String(opts.url ?? '');
+          if (url.startsWith(DRIVE_ABOUT_URL)) {
+            options.authClient = clientB;
+            options.permissionId = OTHER_PERMISSION_ID;
+            return { status: 200, data: { user: { permissionId: PERMISSION_ID } } };
+          }
+          used = 'A';
+          equal(url.includes('alt=media'), true);
+          return {
+            status: 200,
+            data: Buffer.from(sealed.wire),
+            headers: { 'content-length': String(sealed.wire.byteLength) },
+          };
+        },
+      },
+    };
+    const adapter = await createGoogleDriveAdapterFromAuthClient(options);
+    equal(adapter.permissionId, PERMISSION_ID);
+    const receipt = await getOwnedCiphertext(adapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-captured',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.fileId, 'file-captured');
+    equal(used, 'A');
+    await rejects(
+      getOwnedCiphertext(adapter, {
+        permissionId: OTHER_PERMISSION_ID,
+        fileId: 'file-captured',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+
+    const throwingOptions = {};
+    Object.defineProperty(throwingOptions, 'permissionId', {
+      get() {
+        throw new Error(TOKEN_SENTINEL);
+      },
+    });
+    Object.defineProperty(throwingOptions, 'authClient', {
+      get() {
+        return options.authClient;
+      },
+    });
+    await rejects(createGoogleDriveAdapterFromAuthClient(throwingOptions), (err) => {
+      assertGoogleCode('GOOGLE_BIND_IDENTITY')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
   });
 
   test('injected list and get fixtures are not live Google evidence', () => {

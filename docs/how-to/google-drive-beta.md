@@ -22,14 +22,15 @@ That command compiles TypeScript and runs `node --test tests/*.test.mjs`.
 
 - multi-page listing with the fixed query, fields, and page size
 - duplicate and cyclic pages
-- `incompleteSearch`
-- page and item exhaustion
+- `incompleteSearch` and invalid completion fields
+- page and item exhaustion with at most 100 files per page
 - malformed JSON, size, and file id
 - overlong JSON and media streams
 - wrong account or unbound session
-- caller mutation during a read
+- caller mutation during a read, including public identity assignment
 - corrupt, truncated, and swapped bytes
-- redirect, untrusted page token, and late read error
+- first-page redirect, later-page 3xx with preserved candidates, untrusted page token, and late read error
+- hostile locator getters and static redacted transport errors
 - kernel-sealed synthetic read-back opened by the real kernel in the same test
 
 Existing Google tests under `tests/google-drive.test.mjs` and

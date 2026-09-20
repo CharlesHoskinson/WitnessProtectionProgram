@@ -17,6 +17,7 @@ import {
   ERR_DRIVE_QUOTA,
   ERR_DRIVE_READBACK,
   ERR_DRIVE_REDIRECT,
+  ERR_OAUTH_SCOPE,
   GoogleError,
 } from "./errors.js";
 import {
@@ -52,6 +53,7 @@ import {
 } from "./types.js";
 
 interface SessionInternals {
+  permissionId: string;
   request?: InjectedRequest;
   authClient?: Pick<AuthClientLike, "request">;
 }
@@ -61,6 +63,17 @@ const FILE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 const WPP_NAME_RE = /^[0-9a-f]{64}\.wpp$/;
 const MATCHING_WPP_NAME_RE = /\.wpp$/i;
+const STATIC_DRIVE_CODES = new Set<string>([
+  ERR_BIND_IDENTITY,
+  ERR_DRIVE_AUTH,
+  ERR_DRIVE_CREATE,
+  ERR_DRIVE_INCOMPLETE,
+  ERR_DRIVE_INPUT,
+  ERR_DRIVE_QUOTA,
+  ERR_DRIVE_READBACK,
+  ERR_DRIVE_REDIRECT,
+  ERR_OAUTH_SCOPE,
+]);
 
 export function isOpaquePermissionId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9_.-]{1,128}$/.test(value);
@@ -75,6 +88,72 @@ function equalHex(actual: string, expected: string): boolean {
     return false;
   }
   return timingSafeEqual(Buffer.from(actual, "utf8"), Buffer.from(expected, "utf8"));
+}
+
+function equalOpaqueId(actual: string, expected: string): boolean {
+  if (actual.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(actual, "utf8"), Buffer.from(expected, "utf8"));
+}
+
+function safeGet(value: unknown, key: string): unknown {
+  try {
+    if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+      return undefined;
+    }
+    return (value as Record<string, unknown>)[key];
+  } catch {
+    return undefined;
+  }
+}
+
+function asFiniteInteger(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isInteger(value) || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+function staticCode(value: unknown, fallback: string): string {
+  return typeof value === "string" && STATIC_DRIVE_CODES.has(value) ? value : fallback;
+}
+
+function freshError(code: string): GoogleError {
+  return new GoogleError(staticCode(code, ERR_DRIVE_READBACK));
+}
+
+function remapError(err: unknown, fallback: string): GoogleError {
+  return freshError(staticCode(safeGet(err, "code"), fallback));
+}
+
+function throwFresh(code: string): never {
+  throw freshError(code);
+}
+
+function copyInjectedBody(body: unknown): Buffer | undefined {
+  if (!(body instanceof Uint8Array)) {
+    return undefined;
+  }
+  try {
+    return Buffer.from(Uint8Array.prototype.slice.call(body) as Uint8Array);
+  } catch {
+    return undefined;
+  }
+}
+
+function captureAuthClient(
+  authClient: unknown,
+): Pick<AuthClientLike, "request"> | undefined {
+  if (authClient === null || (typeof authClient !== "object" && typeof authClient !== "function")) {
+    return undefined;
+  }
+  const method = safeGet(authClient, "request");
+  if (typeof method !== "function") {
+    return undefined;
+  }
+  const bound = (method as AuthClientLike["request"]).bind(authClient);
+  return { request: bound };
 }
 
 function normalizeHeaders(headers: unknown): Record<string, string> {
@@ -115,58 +194,71 @@ function inspectErrorData(data: unknown): { reason: string; status: string } {
   if (!isRecord(data)) {
     return { reason: "", status: "" };
   }
-  const error = data.error;
+  const error = safeGet(data, "error");
   if (typeof error === "string") {
     return { reason: boundedField(error, 64), status: "" };
   }
   if (!isRecord(error)) {
     return { reason: "", status: "" };
   }
-  let reason = boundedField(error.reason, 64);
-  const status = boundedField(error.status, 64);
-  if (reason.length === 0 && Array.isArray(error.errors) && isRecord(error.errors[0])) {
-    reason = boundedField(error.errors[0].reason, 64);
+  let reason = boundedField(safeGet(error, "reason"), 64);
+  const status = boundedField(safeGet(error, "status"), 64);
+  const errors = safeGet(error, "errors");
+  if (reason.length === 0 && Array.isArray(errors) && isRecord(errors[0])) {
+    reason = boundedField(safeGet(errors[0], "reason"), 64);
   }
   return { reason, status };
 }
 
 function classifyDriveError(status: number, data: unknown, phase: "create" | "read"): never {
-  const info = inspectErrorData(data);
-  if (status === 401) {
-    throw new GoogleError(ERR_DRIVE_AUTH);
+  let code = phase === "create" ? ERR_DRIVE_CREATE : ERR_DRIVE_READBACK;
+  try {
+    const info = inspectErrorData(data);
+    if (status === 401) {
+      code = ERR_DRIVE_AUTH;
+    } else if (status === 403 && info.reason === "storageQuotaExceeded") {
+      code = ERR_DRIVE_QUOTA;
+    } else if (status === 403) {
+      code = ERR_DRIVE_AUTH;
+    } else if (status >= 300 && status < 400) {
+      code = ERR_DRIVE_REDIRECT;
+    } else if (phase === "create" && status >= 500) {
+      code = ERR_DRIVE_INCOMPLETE;
+    } else if (phase === "create") {
+      code = ERR_DRIVE_CREATE;
+    } else {
+      code = ERR_DRIVE_READBACK;
+    }
+  } catch {
+    code = phase === "create" ? ERR_DRIVE_CREATE : ERR_DRIVE_READBACK;
   }
-  if (status === 403 && info.reason === "storageQuotaExceeded") {
-    throw new GoogleError(ERR_DRIVE_QUOTA);
-  }
-  if (status === 403) {
-    throw new GoogleError(ERR_DRIVE_AUTH);
-  }
-  if (status >= 300 && status < 400) {
-    throw new GoogleError(ERR_DRIVE_REDIRECT);
-  }
-  if (phase === "create" && status >= 500) {
-    throw new GoogleError(ERR_DRIVE_INCOMPLETE);
-  }
-  if (phase === "create") {
-    throw new GoogleError(ERR_DRIVE_CREATE);
-  }
-  throw new GoogleError(ERR_DRIVE_READBACK);
+  throwFresh(code);
 }
 
 function isAbortOrSize(err: unknown): boolean {
-  if (!(err instanceof Error)) {
+  try {
+    if (!(err instanceof Error)) {
+      return false;
+    }
+    const code = safeGet(err, "code");
+    const name = safeGet(err, "name");
+    const messageValue = safeGet(err, "message");
+    const message = typeof messageValue === "string" ? messageValue.toLowerCase() : "";
+    if (code === "ERR_RESPONSE_TOO_LARGE" || code === "TimeoutError" || code === "ABORT_ERR") {
+      return true;
+    }
+    if (name === "TimeoutError" || name === "AbortError") {
+      return true;
+    }
+    return (
+      message.includes("aborted") ||
+      message.includes("timeout") ||
+      message.includes("maxcontentlength") ||
+      message.includes("max content")
+    );
+  } catch {
     return false;
   }
-  const code = (err as { code?: unknown }).code;
-  const name = err.name;
-  const message = err.message.toLowerCase();
-  if (code === "ERR_RESPONSE_TOO_LARGE" || code === "TimeoutError" || code === "ABORT_ERR") {
-    return true;
-  }
-  if (name === "TimeoutError" || name === "AbortError") {
-    return true;
-  }
-  return message.includes("aborted") || message.includes("timeout") || message.includes("maxcontentlength") || message.includes("max content");
 }
 
 function toBytes(data: unknown): Uint8Array {
@@ -207,6 +299,30 @@ function jsonByteLength(value: unknown): number {
   }
 }
 
+function mapRequestFailure(err: unknown, phase: "create" | "read"): never {
+  const fallback = phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK;
+  const allowlisted = staticCode(safeGet(err, "code"), "");
+  if (allowlisted.length > 0) {
+    throwFresh(allowlisted);
+  }
+  try {
+    const response = safeGet(err, "response");
+    const status = asFiniteInteger(safeGet(response, "status"));
+    if (status !== undefined) {
+      classifyDriveError(status, safeGet(response, "data"), phase);
+    }
+  } catch (inner) {
+    const innerCode = staticCode(safeGet(inner, "code"), "");
+    if (innerCode.length > 0) {
+      throwFresh(innerCode);
+    }
+  }
+  if (isAbortOrSize(err)) {
+    throwFresh(fallback);
+  }
+  throwFresh(fallback);
+}
+
 async function sessionRequest(
   internals: SessionInternals,
   opts: {
@@ -220,8 +336,9 @@ async function sessionRequest(
   },
 ): Promise<{ status: number; headers: Record<string, string>; json?: unknown; bytes?: Uint8Array }> {
   const ceiling = opts.maxBytes ?? GOOGLE_JSON_MAX_BYTES;
+  const fallback = opts.phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK;
   if (internals.request !== undefined) {
-    let res: { status: number; headers?: Record<string, string> | Headers; body: Uint8Array };
+    let res: unknown;
     try {
       res = await internals.request({
         method: opts.method,
@@ -229,21 +346,36 @@ async function sessionRequest(
         headers: opts.headers,
         body: opts.body,
       });
+    } catch (err) {
+      mapRequestFailure(err, opts.phase);
+    }
+    let status: number | undefined;
+    let headers: Record<string, string> = {};
+    let bytes: Buffer | undefined;
+    try {
+      status = asFiniteInteger(safeGet(res, "status"));
+      headers = normalizeHeaders(safeGet(res, "headers"));
+      bytes = copyInjectedBody(safeGet(res, "body"));
     } catch {
-      throw new GoogleError(opts.phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK);
+      throwFresh(fallback);
     }
-    const headers = normalizeHeaders(res.headers);
-    const bytes = Buffer.from(res.body ?? []);
+    if (status === undefined || bytes === undefined) {
+      throwFresh(fallback);
+    }
     if (bytes.byteLength > ceiling) {
-      throw new GoogleError(opts.phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK);
+      throwFresh(fallback);
     }
-    if (res.status < 200 || res.status >= 300) {
-      classifyDriveError(res.status, parseJsonResponse(bytes) ?? Buffer.from(bytes).toString("utf8").slice(0, 96), opts.phase);
+    if (status < 200 || status >= 300) {
+      classifyDriveError(
+        status,
+        parseJsonResponse(bytes) ?? Buffer.from(bytes).toString("utf8").slice(0, 96),
+        opts.phase,
+      );
     }
     if (opts.asJson) {
-      return { status: res.status, headers, json: parseJsonResponse(bytes), bytes };
+      return { status, headers, json: parseJsonResponse(bytes), bytes };
     }
-    return { status: res.status, headers, bytes };
+    return { status, headers, bytes };
   }
 
   if (internals.authClient !== undefined) {
@@ -268,43 +400,37 @@ async function sessionRequest(
     }
     try {
       const res = await internals.authClient.request(gaxiosOpts);
-      const status = typeof res.status === "number" ? res.status : 0;
-      const headers = normalizeHeaders(res.headers);
+      const status = asFiniteInteger(safeGet(res, "status"));
+      if (status === undefined) {
+        throwFresh(fallback);
+      }
+      const headers = normalizeHeaders(safeGet(res, "headers"));
       if (status < 200 || status >= 300) {
-        classifyDriveError(status, res.data, opts.phase);
+        classifyDriveError(status, safeGet(res, "data"), opts.phase);
       }
       if (opts.asJson) {
-        if (jsonByteLength(res.data) > ceiling) {
-          throw new GoogleError(ERR_DRIVE_INCOMPLETE);
+        const data = safeGet(res, "data");
+        if (jsonByteLength(data) > ceiling) {
+          throwFresh(ERR_DRIVE_INCOMPLETE);
         }
-        return { status, headers, json: res.data };
+        return { status, headers, json: data };
       }
-      const bytes = toBytes(res.data);
+      const bytes = toBytes(safeGet(res, "data"));
       if (bytes.byteLength > ceiling) {
-        throw new GoogleError(ERR_DRIVE_READBACK);
+        throwFresh(ERR_DRIVE_READBACK);
       }
       return { status, headers, bytes };
     } catch (err) {
-      if (err instanceof GoogleError) {
-        throw err;
-      }
-      const response = (err as { response?: { status?: number; data?: unknown } }).response;
-      if (typeof response?.status === "number") {
-        classifyDriveError(response.status, response.data, opts.phase);
-      }
-      if (isAbortOrSize(err)) {
-        throw new GoogleError(opts.phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK);
-      }
-      throw new GoogleError(opts.phase === "create" ? ERR_DRIVE_INCOMPLETE : ERR_DRIVE_READBACK);
+      mapRequestFailure(err, opts.phase);
     }
   }
 
-  throw new GoogleError(ERR_DRIVE_CREATE);
+  throwFresh(ERR_DRIVE_CREATE);
 }
 
 function parseFileId(value: unknown): string {
   if (typeof value !== "string" || !FILE_ID_RE.test(value)) {
-    throw new GoogleError(ERR_DRIVE_INCOMPLETE);
+    throwFresh(ERR_DRIVE_INCOMPLETE);
   }
   return value;
 }
@@ -316,7 +442,7 @@ function parseSize(value: unknown): number {
   if (typeof value === "string" && /^(0|[1-9][0-9]{0,15})$/.test(value)) {
     return Number(value);
   }
-  throw new GoogleError(ERR_DRIVE_INCOMPLETE);
+  throwFresh(ERR_DRIVE_INCOMPLETE);
 }
 
 function buildMultipart(name: string, bytes: Uint8Array): { body: Buffer; contentType: string } {
@@ -346,7 +472,7 @@ function assertSealedPackageGrammar(bytes: Uint8Array): void {
     tag = decodeTag16(wire.tag);
     ciphertext = decodeBase64Url(wire.ciphertext, LIMIT_PLAINTEXT_BYTES);
   } catch {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+    throwFresh(ERR_DRIVE_INPUT);
   } finally {
     if (nonce !== undefined) {
       wipeBytes(nonce);
@@ -360,15 +486,48 @@ function assertSealedPackageGrammar(bytes: Uint8Array): void {
   }
 }
 
-export class GoogleDriveSession {
-  readonly permissionId: string;
+function storeSession(
+  session: GoogleDriveSession,
+  permissionId: string,
+  internals: { request?: InjectedRequest; authClient?: Pick<AuthClientLike, "request"> },
+): void {
+  let boundPermissionId: string;
+  let request: InjectedRequest | undefined;
+  let authClient: Pick<AuthClientLike, "request"> | undefined;
+  try {
+    boundPermissionId = permissionId;
+    request = internals.request;
+    authClient = captureAuthClient(internals.authClient);
+  } catch {
+    throwFresh(ERR_BIND_IDENTITY);
+  }
+  if (!isOpaquePermissionId(boundPermissionId)) {
+    throwFresh(ERR_BIND_IDENTITY);
+  }
+  if (request !== undefined && typeof request !== "function") {
+    throwFresh(ERR_DRIVE_INPUT);
+  }
+  const stored: SessionInternals = Object.freeze({
+    permissionId: boundPermissionId,
+    request,
+    authClient,
+  });
+  SESSION_INTERNALS.set(session, stored);
+  Object.defineProperty(session, "permissionId", {
+    configurable: false,
+    enumerable: true,
+    get: () => stored.permissionId,
+  });
+}
 
-  constructor(permissionId: string, internals: SessionInternals) {
-    if (!isOpaquePermissionId(permissionId)) {
-      throw new GoogleError(ERR_BIND_IDENTITY);
-    }
-    this.permissionId = permissionId;
-    SESSION_INTERNALS.set(this, internals);
+export class GoogleDriveSession {
+  declare readonly permissionId: string;
+
+  constructor(
+    permissionId: string,
+    internals: { request?: InjectedRequest; authClient?: Pick<AuthClientLike, "request"> },
+  ) {
+    storeSession(this, permissionId, internals);
   }
 
   toJSON(): { permissionId: string } {
@@ -399,13 +558,28 @@ export function createGoogleDriveAdapter(options: {
   permissionId: string;
   request: InjectedRequest;
 }): GoogleDriveSession {
-  return bindGoogleDriveSession(options.permissionId, { request: options.request });
+  let permissionId: string;
+  let request: InjectedRequest;
+  try {
+    permissionId = options.permissionId;
+    request = options.request;
+  } catch {
+    throwFresh(ERR_DRIVE_INPUT);
+  }
+  if (typeof request !== "function") {
+    throwFresh(ERR_DRIVE_INPUT);
+  }
+  return bindGoogleDriveSession(permissionId, { request });
 }
 
 export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "request">): Promise<string> {
-  let res: { status?: number; data?: unknown };
+  const captured = captureAuthClient(authClient);
+  if (captured === undefined) {
+    throwFresh(ERR_BIND_IDENTITY);
+  }
+  let res: unknown;
   try {
-    res = await authClient.request({
+    res = await captured.request({
       method: "GET",
       url: `${DRIVE_ABOUT_URL}?fields=user(permissionId)`,
       retry: false,
@@ -417,45 +591,59 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
       responseType: "json",
     });
   } catch (err) {
-    if (err instanceof GoogleError) {
-      throw err;
+    const code = staticCode(safeGet(err, "code"), "");
+    if (code === ERR_OAUTH_SCOPE || code === ERR_DRIVE_REDIRECT || code === ERR_DRIVE_AUTH) {
+      throwFresh(code);
     }
-    throw new GoogleError(ERR_BIND_IDENTITY);
+    throwFresh(ERR_BIND_IDENTITY);
   }
-  const status = typeof res.status === "number" ? res.status : 200;
-  if (status < 200 || status >= 300) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  try {
+    const status = asFiniteInteger(safeGet(res, "status"));
+    if (status !== undefined && (status < 200 || status >= 300)) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    const data = safeGet(res, "data");
+    if (jsonByteLength(data) > GOOGLE_JSON_MAX_BYTES) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    if (!isRecord(data)) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    const user = safeGet(data, "user");
+    if (!isRecord(user)) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    const permissionId = safeGet(user, "permissionId");
+    if (!isOpaquePermissionId(permissionId)) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    return permissionId;
+  } catch (err) {
+    throw remapError(err, ERR_BIND_IDENTITY);
   }
-  if (jsonByteLength(res.data) > GOOGLE_JSON_MAX_BYTES) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
-  }
-  const data = res.data;
-  if (data === null || typeof data !== "object") {
-    throw new GoogleError(ERR_BIND_IDENTITY);
-  }
-  const user = (data as { user?: unknown }).user;
-  if (user === null || typeof user !== "object") {
-    throw new GoogleError(ERR_BIND_IDENTITY);
-  }
-  const permissionId = (user as { permissionId?: unknown }).permissionId;
-  if (!isOpaquePermissionId(permissionId)) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
-  }
-  return permissionId;
 }
 
 export async function createGoogleDriveAdapterFromAuthClient(options: {
   permissionId: string;
   authClient: Pick<AuthClientLike, "request">;
 }): Promise<GoogleDriveSession> {
-  if (!isOpaquePermissionId(options.permissionId)) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  let claimed: string;
+  let client: Pick<AuthClientLike, "request">;
+  try {
+    claimed = options.permissionId;
+    const captured = captureAuthClient(options.authClient);
+    if (!isOpaquePermissionId(claimed) || captured === undefined) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    client = captured;
+  } catch (err) {
+    throw remapError(err, ERR_BIND_IDENTITY);
   }
-  const actual = await queryBoundPermissionId(options.authClient);
-  if (actual !== options.permissionId) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  const actual = await queryBoundPermissionId(client);
+  if (!equalOpaqueId(actual, claimed)) {
+    throwFresh(ERR_BIND_IDENTITY);
   }
-  return new GoogleDriveSession(actual, { authClient: options.authClient });
+  return new GoogleDriveSession(claimed, { authClient: client });
 }
 
 export async function putOwnedCiphertext(
@@ -463,23 +651,20 @@ export async function putOwnedCiphertext(
   ciphertext: Uint8Array,
   sha256: string,
 ): Promise<RemotePutReceipt> {
-  const internals = SESSION_INTERNALS.get(session);
-  if (internals === undefined) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
-  }
+  const internals = snapshotInternals(session);
   if (typeof sha256 !== "string" || !SHA256_HEX_RE.test(sha256.toLowerCase())) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+    throwFresh(ERR_DRIVE_INPUT);
   }
   const expected = sha256.toLowerCase();
   let owned: Uint8Array;
   try {
     owned = copyOwnedBytes(ciphertext, LIMIT_PACKAGE_BYTES);
   } catch {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+    throwFresh(ERR_DRIVE_INPUT);
   }
   const digest = sha256Hex(owned);
   if (!equalHex(digest, expected)) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+    throwFresh(ERR_DRIVE_INPUT);
   }
   assertSealedPackageGrammar(owned);
 
@@ -497,13 +682,13 @@ export async function putOwnedCiphertext(
   });
   const json = created.json;
   if (json === null || typeof json !== "object" || Array.isArray(json)) {
-    throw new GoogleError(ERR_DRIVE_INCOMPLETE);
+    throwFresh(ERR_DRIVE_INCOMPLETE);
   }
   const record = json as { id?: unknown; size?: unknown };
-  const fileId = parseFileId(record.id);
-  const size = parseSize(record.size);
+  const fileId = parseFileId(safeGet(record, "id"));
+  const size = parseSize(safeGet(record, "size"));
   if (size !== owned.byteLength) {
-    throw new GoogleError(ERR_DRIVE_INCOMPLETE);
+    throwFresh(ERR_DRIVE_INCOMPLETE);
   }
 
   const getUrl = `${DRIVE_FILES_URL}/${encodeURIComponent(fileId)}?alt=media`;
@@ -516,18 +701,18 @@ export async function putOwnedCiphertext(
   });
   const body = read.bytes;
   if (body === undefined) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const contentLength = read.headers["content-length"];
   if (contentLength !== undefined && contentLength !== String(owned.byteLength)) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   if (body.byteLength !== owned.byteLength) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const remoteHash = sha256Hex(body);
   if (!equalHex(remoteHash, expected)) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const ownedReadback = Buffer.from(body);
   const receipt: RemotePutReceipt = {
@@ -546,24 +731,26 @@ export async function putOwnedCiphertext(
   return receipt;
 }
 
-function equalOpaqueId(actual: string, expected: string): boolean {
-  if (actual.length !== expected.length) {
-    return false;
-  }
-  return timingSafeEqual(Buffer.from(actual, "utf8"), Buffer.from(expected, "utf8"));
-}
-
 function snapshotInternals(session: GoogleDriveSession): SessionInternals {
-  const internals = SESSION_INTERNALS.get(session);
-  if (internals === undefined) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+  let internals: SessionInternals | undefined;
+  try {
+    internals = SESSION_INTERNALS.get(session);
+  } catch {
+    throwFresh(ERR_DRIVE_INPUT);
   }
+  if (internals === undefined) {
+    throwFresh(ERR_DRIVE_INPUT);
+  }
+  const permissionId = internals.permissionId;
   const request = internals.request;
   const authClient = internals.authClient;
-  if (request === undefined && authClient === undefined) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+  if (!isOpaquePermissionId(permissionId)) {
+    throwFresh(ERR_BIND_IDENTITY);
   }
-  return { request, authClient };
+  if (request === undefined && authClient === undefined) {
+    throwFresh(ERR_DRIVE_INPUT);
+  }
+  return { permissionId, request, authClient };
 }
 
 function copyExpectedLocator(expected: unknown): {
@@ -572,37 +759,40 @@ function copyExpectedLocator(expected: unknown): {
   sha256: string;
   byteCount: number;
 } {
-  if (expected === null || typeof expected !== "object" || Array.isArray(expected)) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
+  try {
+    if (expected === null || typeof expected !== "object" || Array.isArray(expected)) {
+      throwFresh(ERR_DRIVE_INPUT);
+    }
+    const permissionId = safeGet(expected, "permissionId");
+    const fileId = safeGet(expected, "fileId");
+    const sha256 = safeGet(expected, "sha256");
+    const byteCount = safeGet(expected, "byteCount");
+    if (typeof permissionId !== "string" || !isOpaquePermissionId(permissionId)) {
+      throwFresh(ERR_DRIVE_INPUT);
+    }
+    if (typeof fileId !== "string" || !FILE_ID_RE.test(fileId)) {
+      throwFresh(ERR_DRIVE_INPUT);
+    }
+    if (typeof sha256 !== "string" || !SHA256_HEX_RE.test(sha256)) {
+      throwFresh(ERR_DRIVE_INPUT);
+    }
+    if (
+      typeof byteCount !== "number" ||
+      !Number.isSafeInteger(byteCount) ||
+      byteCount <= 0 ||
+      byteCount > LIMIT_PACKAGE_BYTES
+    ) {
+      throwFresh(ERR_DRIVE_INPUT);
+    }
+    return {
+      permissionId,
+      fileId,
+      sha256,
+      byteCount,
+    };
+  } catch (err) {
+    throw remapError(err, ERR_DRIVE_INPUT);
   }
-  const record = expected as Record<string, unknown>;
-  const permissionId = record.permissionId;
-  const fileId = record.fileId;
-  const sha256 = record.sha256;
-  const byteCount = record.byteCount;
-  if (typeof permissionId !== "string" || !isOpaquePermissionId(permissionId)) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
-  }
-  if (typeof fileId !== "string" || !FILE_ID_RE.test(fileId)) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
-  }
-  if (typeof sha256 !== "string" || !SHA256_HEX_RE.test(sha256)) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
-  }
-  if (
-    typeof byteCount !== "number" ||
-    !Number.isSafeInteger(byteCount) ||
-    byteCount <= 0 ||
-    byteCount > LIMIT_PACKAGE_BYTES
-  ) {
-    throw new GoogleError(ERR_DRIVE_INPUT);
-  }
-  return {
-    permissionId,
-    fileId,
-    sha256,
-    byteCount,
-  };
 }
 
 function bindOwnedReadback(
@@ -622,14 +812,21 @@ export async function getOwnedCiphertext(
   session: GoogleDriveSession,
   expected: RemoteGetExpected,
 ): Promise<RemoteGetReceipt> {
-  const internals = snapshotInternals(session);
-  const boundPermissionId = session.permissionId;
-  if (!isOpaquePermissionId(boundPermissionId)) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  let internals: SessionInternals;
+  let locator: {
+    permissionId: string;
+    fileId: string;
+    sha256: string;
+    byteCount: number;
+  };
+  try {
+    internals = snapshotInternals(session);
+    locator = copyExpectedLocator(expected);
+  } catch (err) {
+    throw remapError(err, ERR_DRIVE_INPUT);
   }
-  const locator = copyExpectedLocator(expected);
-  if (!equalOpaqueId(locator.permissionId, boundPermissionId)) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  if (!equalOpaqueId(locator.permissionId, internals.permissionId)) {
+    throwFresh(ERR_BIND_IDENTITY);
   }
   const getUrl = `${DRIVE_FILES_URL}/${encodeURIComponent(locator.fileId)}?alt=media`;
   const read = await sessionRequest(internals, {
@@ -641,18 +838,18 @@ export async function getOwnedCiphertext(
   });
   const body = read.bytes;
   if (body === undefined) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const contentLength = read.headers["content-length"];
   if (contentLength !== undefined && contentLength !== String(locator.byteCount)) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   if (body.byteLength !== locator.byteCount) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const remoteHash = sha256Hex(body);
   if (!equalHex(remoteHash, locator.sha256)) {
-    throw new GoogleError(ERR_DRIVE_READBACK);
+    throwFresh(ERR_DRIVE_READBACK);
   }
   const ownedReadback = Buffer.from(body);
   const receipt: RemoteGetReceipt = {
@@ -710,46 +907,91 @@ function inspectNextPageToken(value: unknown): { done: true } | { token: string 
   return { token: value };
 }
 
+function inspectIncompleteSearch(value: unknown): { ok: true } | { reason: string } {
+  if (value === undefined || value === false) {
+    return { ok: true };
+  }
+  if (value === true) {
+    return { reason: LIST_REASON_INCOMPLETE_SEARCH };
+  }
+  return { reason: LIST_REASON_PAGE_FAILURE };
+}
+
 function incompleteList(reason: string, candidates: CiphertextCandidate[]): CiphertextCandidateList {
   return { complete: false, reason, candidates: candidates.slice() };
 }
 
 type ListPageResult = { ok: true; json: unknown } | { ok: false; reason: string };
 
+function injectedListFailure(res: unknown): ListPageResult {
+  let status: number | undefined;
+  let headers: Record<string, string> = {};
+  let bytes: Buffer | undefined;
+  try {
+    status = asFiniteInteger(safeGet(res, "status"));
+    headers = normalizeHeaders(safeGet(res, "headers"));
+    bytes = copyInjectedBody(safeGet(res, "body"));
+  } catch {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  if (status === undefined || bytes === undefined) {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  const contentLength = headers["content-length"];
+  if (contentLength !== undefined) {
+    const declared = Number.parseInt(contentLength, 10);
+    if (!Number.isSafeInteger(declared) || declared < 0 || declared > DRIVE_LIST_JSON_MAX_BYTES) {
+      return { ok: false, reason: LIST_REASON_JSON_BOUND };
+    }
+  }
+  if (bytes.byteLength > DRIVE_LIST_JSON_MAX_BYTES) {
+    return { ok: false, reason: LIST_REASON_JSON_BOUND };
+  }
+  if (status >= 300 && status < 400) {
+    return { ok: false, reason: ERR_DRIVE_REDIRECT };
+  }
+  if (status < 200 || status >= 300) {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  const json = parseJsonResponse(bytes);
+  if (json === undefined) {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  return { ok: true, json };
+}
+
+function mapListTransportError(err: unknown): ListPageResult {
+  const allowlisted = staticCode(safeGet(err, "code"), "");
+  if (allowlisted === ERR_DRIVE_REDIRECT) {
+    return { ok: false, reason: ERR_DRIVE_REDIRECT };
+  }
+  if (isAbortOrSize(err)) {
+    return { ok: false, reason: LIST_REASON_JSON_BOUND };
+  }
+  try {
+    const response = safeGet(err, "response");
+    const status = asFiniteInteger(safeGet(response, "status"));
+    if (status !== undefined && status >= 300 && status < 400) {
+      return { ok: false, reason: ERR_DRIVE_REDIRECT };
+    }
+  } catch {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+}
+
 async function fetchListPage(internals: SessionInternals, url: string): Promise<ListPageResult> {
   if (internals.request !== undefined) {
-    let res: { status: number; headers?: Record<string, string> | Headers; body: Uint8Array };
+    let res: unknown;
     try {
       res = await internals.request({
         method: "GET",
         url,
       });
-    } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    } catch (err) {
+      return mapListTransportError(err);
     }
-    const headers = normalizeHeaders(res.headers);
-    const contentLength = headers["content-length"];
-    if (contentLength !== undefined) {
-      const declared = Number.parseInt(contentLength, 10);
-      if (!Number.isSafeInteger(declared) || declared < 0 || declared > DRIVE_LIST_JSON_MAX_BYTES) {
-        return { ok: false, reason: LIST_REASON_JSON_BOUND };
-      }
-    }
-    const bytes = Buffer.from(res.body ?? []);
-    if (bytes.byteLength > DRIVE_LIST_JSON_MAX_BYTES) {
-      return { ok: false, reason: LIST_REASON_JSON_BOUND };
-    }
-    if (res.status >= 300 && res.status < 400) {
-      throw new GoogleError(ERR_DRIVE_REDIRECT);
-    }
-    if (res.status < 200 || res.status >= 300) {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-    }
-    const json = parseJsonResponse(bytes);
-    if (json === undefined) {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-    }
-    return { ok: true, json };
+    return injectedListFailure(res);
   }
 
   if (internals.authClient !== undefined) {
@@ -765,48 +1007,108 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
         maxContentLength: DRIVE_LIST_JSON_MAX_BYTES,
         responseType: "json",
       });
-      const status = typeof res.status === "number" ? res.status : 0;
+      const status = asFiniteInteger(safeGet(res, "status"));
+      if (status === undefined) {
+        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      }
       if (status >= 300 && status < 400) {
-        throw new GoogleError(ERR_DRIVE_REDIRECT);
+        return { ok: false, reason: ERR_DRIVE_REDIRECT };
       }
       if (status < 200 || status >= 300) {
         return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
       }
-      if (jsonByteLength(res.data) > DRIVE_LIST_JSON_MAX_BYTES) {
+      const data = safeGet(res, "data");
+      if (jsonByteLength(data) > DRIVE_LIST_JSON_MAX_BYTES) {
         return { ok: false, reason: LIST_REASON_JSON_BOUND };
       }
-      if (res.data === undefined) {
+      if (data === undefined) {
         return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
       }
-      return { ok: true, json: res.data };
+      return { ok: true, json: data };
     } catch (err) {
-      if (err instanceof GoogleError) {
-        if (err.code === ERR_DRIVE_REDIRECT) {
-          throw err;
-        }
-        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-      }
-      if (isAbortOrSize(err)) {
-        return { ok: false, reason: LIST_REASON_JSON_BOUND };
-      }
-      const response = (err as { response?: { status?: number } }).response;
-      if (typeof response?.status === "number" && response.status >= 300 && response.status < 400) {
-        throw new GoogleError(ERR_DRIVE_REDIRECT);
-      }
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      return mapListTransportError(err);
     }
   }
 
-  throw new GoogleError(ERR_DRIVE_INPUT);
+  throwFresh(ERR_DRIVE_INPUT);
+}
+
+function copyPageFiles(files: unknown): unknown[] | { reason: string } {
+  try {
+    if (files === undefined) {
+      return [];
+    }
+    if (!Array.isArray(files)) {
+      return { reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (files.length > DRIVE_LIST_PAGE_SIZE) {
+      return { reason: LIST_REASON_PAGE_FAILURE };
+    }
+    const items = files.slice(0, DRIVE_LIST_PAGE_SIZE + 1);
+    if (items.length > DRIVE_LIST_PAGE_SIZE) {
+      return { reason: LIST_REASON_PAGE_FAILURE };
+    }
+    return items;
+  } catch {
+    return { reason: LIST_REASON_PAGE_FAILURE };
+  }
+}
+
+function absorbCandidate(
+  item: unknown,
+  byId: Map<string, CiphertextCandidate>,
+  candidates: CiphertextCandidate[],
+): string | undefined {
+  try {
+    if (!isRecord(item)) {
+      return LIST_REASON_PAGE_FAILURE;
+    }
+    const name = safeGet(item, "name");
+    if (typeof name !== "string" || !MATCHING_WPP_NAME_RE.test(name)) {
+      return undefined;
+    }
+    if (!WPP_NAME_RE.test(name)) {
+      return LIST_REASON_MALFORMED_CANDIDATE;
+    }
+    const id = safeGet(item, "id");
+    if (typeof id !== "string" || !FILE_ID_RE.test(id)) {
+      return LIST_REASON_MALFORMED_CANDIDATE;
+    }
+    const byteCount = parsePositiveBoundedSize(safeGet(item, "size"));
+    if (byteCount === undefined) {
+      return LIST_REASON_MALFORMED_CANDIDATE;
+    }
+    const existing = byId.get(id);
+    if (existing !== undefined) {
+      if (existing.name === name && existing.byteCount === byteCount) {
+        return undefined;
+      }
+      return LIST_REASON_DUPLICATE_CONFLICT;
+    }
+    if (byId.size >= DRIVE_LIST_MAX_ITEMS) {
+      return LIST_REASON_ITEM_CEILING;
+    }
+    const candidate: CiphertextCandidate = {
+      fileId: id,
+      name,
+      byteCount,
+    };
+    byId.set(id, candidate);
+    candidates.push(candidate);
+    return undefined;
+  } catch {
+    return LIST_REASON_PAGE_FAILURE;
+  }
 }
 
 export async function listCiphertextCandidates(
   session: GoogleDriveSession,
 ): Promise<CiphertextCandidateList> {
-  const internals = snapshotInternals(session);
-  const boundPermissionId = session.permissionId;
-  if (!isOpaquePermissionId(boundPermissionId)) {
-    throw new GoogleError(ERR_BIND_IDENTITY);
+  let internals: SessionInternals;
+  try {
+    internals = snapshotInternals(session);
+  } catch (err) {
+    throw remapError(err, ERR_DRIVE_INPUT);
   }
   const candidates: CiphertextCandidate[] = [];
   const byId = new Map<string, CiphertextCandidate>();
@@ -822,57 +1124,39 @@ export async function listCiphertextCandidates(
     }
     const page = await fetchListPage(internals, buildListUrl(pageToken));
     if (!page.ok) {
+      if (page.reason === ERR_DRIVE_REDIRECT && candidates.length === 0) {
+        throwFresh(ERR_DRIVE_REDIRECT);
+      }
       return incompleteList(page.reason, candidates);
     }
-    if (!isRecord(page.json)) {
+    let filesValue: unknown;
+    let incompleteSearch: unknown;
+    let nextPageToken: unknown;
+    try {
+      if (!isRecord(page.json)) {
+        return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
+      }
+      filesValue = safeGet(page.json, "files");
+      incompleteSearch = safeGet(page.json, "incompleteSearch");
+      nextPageToken = safeGet(page.json, "nextPageToken");
+    } catch {
       return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
     }
-    const files = page.json.files;
-    if (files !== undefined && !Array.isArray(files)) {
-      return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
+    const files = copyPageFiles(filesValue);
+    if (!Array.isArray(files)) {
+      return incompleteList(files.reason, candidates);
     }
-    if (Array.isArray(files)) {
-      for (const item of files) {
-        if (!isRecord(item)) {
-          return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
-        }
-        const name = item.name;
-        if (typeof name !== "string" || !MATCHING_WPP_NAME_RE.test(name)) {
-          continue;
-        }
-        if (!WPP_NAME_RE.test(name)) {
-          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
-        }
-        if (typeof item.id !== "string" || !FILE_ID_RE.test(item.id)) {
-          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
-        }
-        const byteCount = parsePositiveBoundedSize(item.size);
-        if (byteCount === undefined) {
-          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
-        }
-        const existing = byId.get(item.id);
-        if (existing !== undefined) {
-          if (existing.name === name && existing.byteCount === byteCount) {
-            continue;
-          }
-          return incompleteList(LIST_REASON_DUPLICATE_CONFLICT, candidates);
-        }
-        if (byId.size >= DRIVE_LIST_MAX_ITEMS) {
-          return incompleteList(LIST_REASON_ITEM_CEILING, candidates);
-        }
-        const candidate: CiphertextCandidate = {
-          fileId: item.id,
-          name,
-          byteCount,
-        };
-        byId.set(item.id, candidate);
-        candidates.push(candidate);
+    for (const item of files) {
+      const reason = absorbCandidate(item, byId, candidates);
+      if (reason !== undefined) {
+        return incompleteList(reason, candidates);
       }
     }
-    if (page.json.incompleteSearch === true) {
-      return incompleteList(LIST_REASON_INCOMPLETE_SEARCH, candidates);
+    const search = inspectIncompleteSearch(incompleteSearch);
+    if ("reason" in search) {
+      return incompleteList(search.reason, candidates);
     }
-    const next = inspectNextPageToken(page.json.nextPageToken);
+    const next = inspectNextPageToken(nextPageToken);
     if ("reason" in next) {
       return incompleteList(next.reason, candidates);
     }
