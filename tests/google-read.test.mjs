@@ -413,6 +413,109 @@ function throwingNestedHeaders(thrown, extra = {}) {
   return headers;
 }
 
+function headersProxyDisguise(data) {
+  let trapCalls = 0;
+  let iteratorCalls = 0;
+  const eraseToken = () => {
+    if (data !== null && typeof data === 'object') {
+      delete data.nextPageToken;
+    }
+  };
+  const headers = new Proxy(
+    {},
+    {
+      getPrototypeOf() {
+        trapCalls += 1;
+        eraseToken();
+        return Headers.prototype;
+      },
+      get(_target, prop) {
+        trapCalls += 1;
+        eraseToken();
+        if (prop === 'entries' || prop === Symbol.iterator) {
+          return function* entries() {
+            iteratorCalls += 1;
+          };
+        }
+        if (prop === 'forEach') {
+          return function forEach() {
+            iteratorCalls += 1;
+          };
+        }
+        return undefined;
+      },
+      getOwnPropertyDescriptor() {
+        trapCalls += 1;
+        eraseToken();
+        return undefined;
+      },
+      ownKeys() {
+        trapCalls += 1;
+        eraseToken();
+        return [];
+      },
+      has() {
+        trapCalls += 1;
+        eraseToken();
+        return false;
+      },
+    },
+  );
+  return { headers, getTrapCalls: () => trapCalls, getIteratorCalls: () => iteratorCalls };
+}
+
+function deeperProxyHeaderPrototype(data) {
+  let trapCalls = 0;
+  const eraseToken = () => {
+    if (data !== null && typeof data === 'object') {
+      delete data.nextPageToken;
+    }
+  };
+  const proto = new Proxy(Object.prototype, {
+    getPrototypeOf() {
+      trapCalls += 1;
+      eraseToken();
+      return Object.prototype;
+    },
+    get(target, prop, receiver) {
+      trapCalls += 1;
+      eraseToken();
+      return Reflect.get(target, prop, receiver);
+    },
+    getOwnPropertyDescriptor() {
+      trapCalls += 1;
+      eraseToken();
+      return undefined;
+    },
+    ownKeys() {
+      trapCalls += 1;
+      eraseToken();
+      return [];
+    },
+    has() {
+      trapCalls += 1;
+      eraseToken();
+      return false;
+    },
+  });
+  return { headers: Object.create(proto), getTrapCalls: () => trapCalls };
+}
+
+function nonenumerableContentLength(value) {
+  const headers = { 'content-type': 'application/octet-stream' };
+  Object.defineProperty(headers, 'content-length', {
+    value,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  });
+  return headers;
+}
+
+function inheritedContentLength(value) {
+  return Object.create({ 'content-length': value });
+}
+
 function secretBearingThrows() {
   const revoked = Proxy.revocable({ secret: TOKEN_SENTINEL }, {});
   revoked.revoke();
@@ -2729,5 +2832,271 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
       request: async () => ({ status: 200, data: validUser }),
     });
     equal(permissionId, PERMISSION_ID);
+  });
+});
+
+describe('header ownership on injected and AuthClient seams', () => {
+  function tinyLocator() {
+    const bytes = Buffer.from('abc');
+    return {
+      bytes,
+      locator: {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-header-own',
+        sha256: sha256Hex(bytes),
+        byteCount: bytes.byteLength,
+      },
+    };
+  }
+
+  function mediaResponse(transport, headers, bytes) {
+    if (transport === 'injected') {
+      return { status: 200, headers, body: Buffer.from(bytes) };
+    }
+    return { status: 200, headers, data: Buffer.from(bytes) };
+  }
+
+  function adapterFor(transport, response) {
+    if (transport === 'injected') {
+      return listingAdapter(async () => response);
+    }
+    return authClientAdapter(async () => response);
+  }
+
+  test('proxy Headers disguise cannot complete first or later listings on either transport', async () => {
+    const first = fileRecord('header-proxy-kept', 11);
+    const later = fileRecord('header-proxy-late', 9);
+    for (const transport of ['injected', 'auth']) {
+      const data = { files: [first], nextPageToken: 'header-proxy-next' };
+      const disguise = headersProxyDisguise(data);
+      const response =
+        transport === 'injected'
+          ? { status: 200, headers: disguise.headers, body: jsonBody({ files: [first], nextPageToken: 'header-proxy-next' }) }
+          : { status: 200, headers: disguise.headers, data };
+      const { adapter, calls } = adapterFor(transport, response);
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, transport);
+      equal(listed.candidates.length, 0, transport);
+      equal(data.nextPageToken, 'header-proxy-next', transport);
+      equal(disguise.getTrapCalls(), 0, transport);
+      equal(disguise.getIteratorCalls(), 0, transport);
+      equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false, transport);
+      assertNoWrites(calls);
+
+      let page = 0;
+      const laterData = { files: [later], nextPageToken: 'header-proxy-more' };
+      const laterDisguise = headersProxyDisguise(laterData);
+      const handler = async () => {
+        page += 1;
+        if (page === 1) {
+          if (transport === 'injected') {
+            return { status: 200, headers: {}, body: jsonBody({ files: [first], nextPageToken: 'header-proxy-next' }) };
+          }
+          return { status: 200, headers: {}, data: { files: [first], nextPageToken: 'header-proxy-next' } };
+        }
+        if (transport === 'injected') {
+          return {
+            status: 200,
+            headers: laterDisguise.headers,
+            body: jsonBody({ files: [later], nextPageToken: 'header-proxy-more' }),
+          };
+        }
+        return { status: 200, headers: laterDisguise.headers, data: laterData };
+      };
+      const rebuilt =
+        transport === 'injected' ? listingAdapter(handler) : authClientAdapter(handler);
+      const laterListed = await listCiphertextCandidates(rebuilt.adapter);
+      equal(laterListed.complete, false, `${transport} later`);
+      equal(laterListed.candidates.length, 1, `${transport} later`);
+      equal(laterListed.candidates[0].fileId, first.id, `${transport} later`);
+      equal(laterData.nextPageToken, 'header-proxy-more', `${transport} later`);
+      equal(laterDisguise.getTrapCalls(), 0, `${transport} later`);
+      equal(laterDisguise.getIteratorCalls(), 0, `${transport} later`);
+      equal(inspect(laterListed, { showHidden: true }).includes(TOKEN_SENTINEL), false, `${transport} later`);
+      assertNoWrites(rebuilt.calls);
+    }
+  });
+
+  test('deeper proxy header prototypes cannot mutate continuation on either listing transport', async () => {
+    const first = fileRecord('header-deep-kept', 12);
+    for (const transport of ['injected', 'auth']) {
+      const data = { files: [first], nextPageToken: 'header-deep-next' };
+      const hostile = deeperProxyHeaderPrototype(data);
+      const response =
+        transport === 'injected'
+          ? { status: 200, headers: hostile.headers, body: jsonBody({ files: [first], nextPageToken: 'header-deep-next' }) }
+          : { status: 200, headers: hostile.headers, data };
+      const { adapter, calls } = adapterFor(transport, response);
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, transport);
+      equal(listed.candidates.length, 0, transport);
+      equal(data.nextPageToken, 'header-deep-next', transport);
+      equal(hostile.getTrapCalls(), 0, transport);
+      assertNoWrites(calls);
+
+      let page = 0;
+      const laterData = { files: [fileRecord('header-deep-late', 8)], nextPageToken: 'header-deep-more' };
+      const laterHostile = deeperProxyHeaderPrototype(laterData);
+      const handler = async () => {
+        page += 1;
+        if (page === 1) {
+          if (transport === 'injected') {
+            return { status: 200, headers: {}, body: jsonBody({ files: [first], nextPageToken: 'header-deep-next' }) };
+          }
+          return { status: 200, headers: {}, data: { files: [first], nextPageToken: 'header-deep-next' } };
+        }
+        if (transport === 'injected') {
+          return {
+            status: 200,
+            headers: laterHostile.headers,
+            body: jsonBody({ files: [fileRecord('header-deep-late', 8)], nextPageToken: 'header-deep-more' }),
+          };
+        }
+        return { status: 200, headers: laterHostile.headers, data: laterData };
+      };
+      const rebuilt = transport === 'injected' ? listingAdapter(handler) : authClientAdapter(handler);
+      const laterListed = await listCiphertextCandidates(rebuilt.adapter);
+      equal(laterListed.complete, false, `${transport} later`);
+      equal(laterListed.candidates.length, 1, `${transport} later`);
+      equal(laterListed.candidates[0].fileId, first.id, `${transport} later`);
+      equal(laterData.nextPageToken, 'header-deep-more', `${transport} later`);
+      equal(laterHostile.getTrapCalls(), 0, `${transport} later`);
+      assertNoWrites(rebuilt.calls);
+    }
+  });
+
+  test('proxy Headers disguise cannot succeed on either media transport', async () => {
+    const { bytes, locator } = tinyLocator();
+    for (const transport of ['injected', 'auth']) {
+      const disguise = headersProxyDisguise(null);
+      const { adapter } = adapterFor(transport, mediaResponse(transport, disguise.headers, bytes));
+      await rejects(getOwnedCiphertext(adapter, locator), (err) => {
+        assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+        equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+        return true;
+      });
+      equal(disguise.getTrapCalls(), 0, transport);
+      equal(disguise.getIteratorCalls(), 0, transport);
+    }
+  });
+
+  test('nonenumerable inherited malformed throwing and case-variant content-length fail on both media transports', async () => {
+    const { bytes, locator } = tinyLocator();
+    const throwing = throwingNestedHeaders(new Error(TOKEN_SENTINEL));
+    const cases = [
+      ['numeric', { 'content-length': 999 }],
+      ['object', { 'content-length': { length: 999 } }],
+      ['invalid-decimal', { 'content-length': '3.0' }],
+      ['nonenumerable', nonenumerableContentLength('999')],
+      ['inherited', inheritedContentLength('999')],
+      ['accessor', throwing],
+      ['case-variants', { 'Content-Length': '999', 'content-length': '3' }],
+    ];
+    for (const transport of ['injected', 'auth']) {
+      for (const [label, headers] of cases) {
+        const { adapter } = adapterFor(transport, mediaResponse(transport, headers, bytes));
+        await rejects(
+          getOwnedCiphertext(adapter, locator),
+          (err) => {
+            assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+            equal(
+              inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL),
+              false,
+              `${transport} ${label}`,
+            );
+            return true;
+          },
+        );
+      }
+    }
+  });
+
+  test('listing rejects malformed content-length without losing earlier candidates', async () => {
+    const first = fileRecord('header-clen-kept', 14);
+    const pageTwo = fileRecord('header-clen-late', 8);
+    const malformed = [
+      ['numeric', { 'content-length': 999 }],
+      ['nonenumerable', nonenumerableContentLength('12')],
+      ['inherited', inheritedContentLength('12')],
+      ['case-variants', { 'Content-Length': '12', 'content-length': '12' }],
+    ];
+    for (const transport of ['injected', 'auth']) {
+      for (const [label, headers] of malformed) {
+        const firstBody = jsonBody({ files: [first], nextPageToken: `next-${label}` });
+        let page = 0;
+        const handler = async () => {
+          page += 1;
+          if (page === 1) {
+            if (transport === 'injected') {
+              return { status: 200, headers: {}, body: firstBody };
+            }
+            return { status: 200, headers: {}, data: { files: [first], nextPageToken: `next-${label}` } };
+          }
+          if (transport === 'injected') {
+            return { status: 200, headers, body: jsonBody({ files: [pageTwo] }) };
+          }
+          return { status: 200, headers, data: { files: [pageTwo] } };
+        };
+        const { adapter, calls } = transport === 'injected' ? listingAdapter(handler) : authClientAdapter(handler);
+        const listed = await listCiphertextCandidates(adapter);
+        equal(listed.complete, false, `${transport} ${label}`);
+        equal(listed.candidates.length, 1, `${transport} ${label}`);
+        equal(listed.candidates[0].fileId, first.id, `${transport} ${label}`);
+        equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false, `${transport} ${label}`);
+        assertNoWrites(calls);
+      }
+    }
+  });
+
+  test('genuine native Headers URLSearchParams and plain records remain valid', async () => {
+    const sealed = sealSyntheticBlob();
+    const locator = {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-header-genuine',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    };
+    const params = new URLSearchParams();
+    params.set('content-length', String(sealed.wire.byteLength));
+    const genuine = [
+      ['native', new Headers({ 'content-length': String(sealed.wire.byteLength) })],
+      ['urlsearchparams', params],
+      ['plain', { 'content-length': String(sealed.wire.byteLength) }],
+      ['plain-null-proto', Object.assign(Object.create(null), { 'content-length': String(sealed.wire.byteLength) })],
+      ['missing', {}],
+    ];
+    for (const transport of ['injected', 'auth']) {
+      for (const [label, headers] of genuine) {
+        const { adapter } = adapterFor(transport, mediaResponse(transport, headers, sealed.wire));
+        const receipt = await getOwnedCiphertext(adapter, locator);
+        equal(receipt.fileId, locator.fileId, `${transport} ${label}`);
+        equal(receipt.byteCount, sealed.wire.byteLength, `${transport} ${label}`);
+        equal(sha256Hex(receipt.ownedReadback), sealed.sha256, `${transport} ${label}`);
+      }
+    }
+
+    const first = fileRecord('header-genuine-list', 7);
+    const listParams = new URLSearchParams();
+    listParams.set('content-type', 'application/json');
+    const listHeaders = [
+      ['native', new Headers({ 'content-type': 'application/json' })],
+      ['urlsearchparams', listParams],
+      ['plain', { 'content-type': 'application/json' }],
+      ['missing', {}],
+    ];
+    for (const transport of ['injected', 'auth']) {
+      for (const [label, headers] of listHeaders) {
+        const response =
+          transport === 'injected'
+            ? { status: 200, headers, body: jsonBody({ files: [first] }) }
+            : { status: 200, headers, data: { files: [first] } };
+        const { adapter, calls } = adapterFor(transport, response);
+        const listed = await listCiphertextCandidates(adapter);
+        equal(listed.complete, true, `${transport} ${label}`);
+        equal(listed.candidates.length, 1, `${transport} ${label}`);
+        equal(listed.candidates[0].fileId, first.id, `${transport} ${label}`);
+        assertNoWrites(calls);
+      }
+    }
   });
 });

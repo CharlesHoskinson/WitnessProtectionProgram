@@ -68,6 +68,12 @@ const MATCHING_WPP_NAME_RE = /\.wpp$/i;
 const INTRINSIC_BIND = Function.prototype.bind;
 const INTRINSIC_CALL = Function.prototype.call;
 const INTRINSIC_SET = Uint8Array.prototype.set;
+const OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const OBJECT_GET_OWN_PROPERTY_DESCRIPTOR = Object.getOwnPropertyDescriptor;
+const OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const HEADERS_FOREACH = Headers.prototype.forEach;
+const URLSEARCHPARAMS_FOREACH = URLSearchParams.prototype.forEach;
+const CONTENT_LENGTH_RE = /^(0|[1-9][0-9]{0,15})$/;
 const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype),
   "byteLength",
@@ -287,35 +293,107 @@ function readSuccessResponseFields(res: unknown): SuccessResponseFields {
   };
 }
 
-function normalizeHeaders(headers: unknown): Record<string, string> {
+function assertValidContentLength(value: string): void {
+  if (!CONTENT_LENGTH_RE.test(value)) {
+    throw new TypeError("invalid content-length");
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new TypeError("invalid content-length");
+  }
+}
+
+type HeaderForEach = (this: object, callback: (value: string, name: string) => void) => void;
+
+function collectBrandedHeaders(headers: object, forEach: HeaderForEach): Record<string, string> {
   const out: Record<string, string> = {};
-  if (headers === undefined || headers === null) {
-    return out;
-  }
-  assertInspectableObject(headers);
-  const proto = Object.getPrototypeOf(headers);
-  if (isProxy(proto)) {
-    throw new TypeError("proxy header prototype");
-  }
-  if (headers instanceof Headers || headers instanceof URLSearchParams) {
-    for (const [key, value] of headers.entries()) {
-      if (typeof key === "string" && typeof value === "string") {
-        out[key.toLowerCase()] = value;
+  const seen = new Set<string>();
+  const invalid = new TypeError("invalid header entry");
+  try {
+    forEach.call(headers, (value, name) => {
+      if (typeof name !== "string" || typeof value !== "string") {
+        throw invalid;
       }
+      const lower = name.toLowerCase();
+      if (seen.has(lower)) {
+        throw invalid;
+      }
+      seen.add(lower);
+      out[lower] = value;
+    });
+  } catch (err) {
+    if (err === invalid) {
+      throw invalid;
     }
-    return out;
+    throw new TypeError("spoofed header brand");
   }
-  if (isProxy(headers)) {
-    throw new TypeError("proxy headers");
+  if (out["content-length"] !== undefined) {
+    assertValidContentLength(out["content-length"]);
   }
-  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
-    if (typeof value === "string") {
-      out[key.toLowerCase()] = value;
-    } else if (Array.isArray(value) && typeof value[0] === "string") {
-      out[key.toLowerCase()] = value.join(", ");
+  return out;
+}
+
+function normalizePlainHeaderRecord(headers: object): Record<string, string> {
+  const out: Record<string, string> = {};
+  const seen = new Set<string>();
+  for (const name of OBJECT_GET_OWN_PROPERTY_NAMES(headers)) {
+    const desc = OBJECT_GET_OWN_PROPERTY_DESCRIPTOR(headers, name);
+    if (desc === undefined) {
+      throw new TypeError("inaccessible header");
+    }
+    const lower = name.toLowerCase();
+    if (seen.has(lower)) {
+      throw new TypeError("duplicate header");
+    }
+    seen.add(lower);
+    if (lower === "content-length") {
+      if (desc.get !== undefined || desc.set !== undefined) {
+        throw new TypeError("accessor content-length");
+      }
+      if (!desc.enumerable) {
+        throw new TypeError("nonenumerable content-length");
+      }
+      if (typeof desc.value !== "string") {
+        throw new TypeError("unsupported content-length");
+      }
+      assertValidContentLength(desc.value);
+      out[lower] = desc.value;
+      continue;
+    }
+    if (!desc.enumerable || desc.get !== undefined || desc.set !== undefined) {
+      continue;
+    }
+    if (typeof desc.value === "string") {
+      out[lower] = desc.value;
+    } else if (Array.isArray(desc.value) && typeof desc.value[0] === "string") {
+      out[lower] = desc.value.join(", ");
     }
   }
   return out;
+}
+
+function normalizeHeaders(headers: unknown): Record<string, string> {
+  if (headers === undefined || headers === null) {
+    return {};
+  }
+  assertInspectableObject(headers);
+  if (isProxy(headers)) {
+    throw new TypeError("proxy headers");
+  }
+  const proto = OBJECT_GET_PROTOTYPE_OF(headers);
+  if (isProxy(proto)) {
+    throw new TypeError("proxy header prototype");
+  }
+  if (proto === Headers.prototype) {
+    return collectBrandedHeaders(headers, HEADERS_FOREACH as HeaderForEach);
+  }
+  if (proto === URLSearchParams.prototype) {
+    return collectBrandedHeaders(headers, URLSEARCHPARAMS_FOREACH as HeaderForEach);
+  }
+  if (proto !== Object.prototype && proto !== null) {
+    throw new TypeError("invalid header prototype");
+  }
+  return normalizePlainHeaderRecord(headers);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

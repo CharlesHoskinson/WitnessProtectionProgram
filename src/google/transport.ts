@@ -1,3 +1,4 @@
+import { isProxy } from "node:util/types";
 import { OAuth2Client } from "google-auth-library";
 
 import { ERR_OAUTH_SCOPE, GoogleError } from "./errors.js";
@@ -191,6 +192,58 @@ function applyTokenScope(opts: Record<string, unknown>, data: unknown, state: Sc
   state.validated = true;
 }
 
+function ownTrustedDefaultHeaders(headers: unknown): Headers {
+  const owned = new Headers();
+  if (headers === undefined || headers === null) {
+    return owned;
+  }
+  if (typeof headers !== "object") {
+    throw new TypeError("invalid trusted headers");
+  }
+  const appendOwned = (value: unknown, name: unknown): void => {
+    if (typeof name === "string" && typeof value === "string") {
+      owned.append(name, value);
+    }
+  };
+  if (isProxy(headers)) {
+    const forEach = (headers as { forEach?: unknown }).forEach;
+    if (typeof forEach !== "function") {
+      throw new TypeError("invalid trusted proxy headers");
+    }
+    (forEach as (callback: (value: unknown, name: unknown) => void) => void).call(headers, appendOwned);
+    return owned;
+  }
+  const proto = Object.getPrototypeOf(headers);
+  if (proto === Headers.prototype) {
+    Headers.prototype.forEach.call(headers, appendOwned);
+    return owned;
+  }
+  if (proto === URLSearchParams.prototype) {
+    URLSearchParams.prototype.forEach.call(headers, appendOwned);
+    return owned;
+  }
+  if (proto === Object.prototype || proto === null) {
+    for (const name of Object.getOwnPropertyNames(headers)) {
+      const desc = Object.getOwnPropertyDescriptor(headers, name);
+      if (desc !== undefined && desc.enumerable && typeof desc.value === "string") {
+        owned.append(name, desc.value);
+      }
+    }
+    return owned;
+  }
+  throw new TypeError("invalid trusted header prototype");
+}
+
+function attachOwnedTrustedHeaders(res: { headers?: unknown }): void {
+  const owned = ownTrustedDefaultHeaders(res.headers);
+  Object.defineProperty(res, "headers", {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: owned,
+  });
+}
+
 function hardenTransporter(
   client: OAuth2Client,
   bounds: { timeoutMs: number; jsonMaxBytes: number },
@@ -226,6 +279,9 @@ function hardenTransporter(
     };
     const res = await original(next);
     applyTokenScope(next, res.data, state);
+    if (res !== null && typeof res === "object") {
+      attachOwnedTrustedHeaders(res);
+    }
     return res;
   };
 }

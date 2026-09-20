@@ -87,8 +87,32 @@ Successful responses are read once under a fail-closed boundary. The
 transport reads `status`, `headers`, `body`, and `data` with ordinary field
 access. Missing optional headers may be absent. A throwing field or a
 throwing header inspection is a static failure. It is never treated as a
-missing field and never treated as success. Native `Headers` and Gaxios `URLSearchParams`-based headers remain
-supported. Diagnostic `safeGet` stays on explicit error paths only.
+missing field and never treated as success.
+
+Header trust is split. The owned default OAuth client wraps Gaxios
+`transporter.request`. That wrapper copies trusted Gaxios response headers
+into owned native `Headers` before Drive code inspects them. node-fetch
+3.3.2 `Headers` extends `URLSearchParams` and the constructor returns a
+Proxy. Blind rejection of every Proxy at the generic Drive boundary would
+break that default provider path.
+
+Injected `AuthClient` and `InjectedRequest` seams stay untrusted. Generic
+Drive header normalization rejects a Proxy value before
+`Object.getPrototypeOf`. It does not walk a caller prototype chain. It does
+not call caller `entries` or `instanceof` through an arbitrary object.
+
+Genuine native `Headers` and `URLSearchParams` use captured intrinsic
+`forEach` after an exact prototype match. Spoofed brands fail. Plain header
+records must use `Object.prototype` or `null`. The transport reads own data
+descriptors and does not execute getters.
+
+A present `Content-Length` must be an enumerable own decimal string. An
+inherited, nonenumerable, accessor, numeric, object, duplicate case-variant,
+or invalid decimal length is a static failure. A missing optional
+`Content-Length` remains valid. Exact expected length, actual length, and
+hash checks still apply after that copy.
+
+Diagnostic `safeGet` stays on explicit error paths only.
 
 ## listCiphertextCandidates
 
@@ -185,4 +209,6 @@ These functions do not measure live Google Drive behavior.
 
 The default Node transport bound is Gaxios 7.3.1 with node-fetch 3.3.2.
 `maxContentLength` maps to node-fetch `size`. An oversized stream is aborted
-during consumption. This restore work does not replace that default fetch path.
+during consumption. This restore work does not replace that default fetch
+path. Localhost default-path tests prove that real node-fetch Proxy headers
+normalize into owned headers. Those tests are not live Google acceptance.

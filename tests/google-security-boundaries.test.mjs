@@ -7,7 +7,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { inspect } from 'node:util';
+import { inspect, types } from 'node:util';
+import nodeFetch from 'node-fetch';
 
 import { UnlockedVault } from '../dist/kernel/index.js';
 import {
@@ -1864,6 +1865,98 @@ describe('public identity query and injected body copy bounds', () => {
         return true;
       },
     );
+  });
+});
+
+describe('default Gaxios node-fetch headers normalize on localhost', () => {
+  test('owned default path copies proxy-backed headers and bounded media plus listing succeed', async () => {
+    const sealed = sealSyntheticBlob();
+    const fileId = 'file-default-headers';
+    const fileName = `${sealed.sha256}.wpp`;
+    const local = await listen((req, res) => {
+      const url = req.url ?? '';
+      if (url.startsWith('/drive/v3/about')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ user: { permissionId: PERMISSION_ID } }));
+        return;
+      }
+      if (url.startsWith('/drive/v3/files/') && url.includes('alt=media')) {
+        res.writeHead(200, {
+          'content-type': 'application/octet-stream',
+          'content-length': String(sealed.wire.byteLength),
+        });
+        res.end(Buffer.from(sealed.wire));
+        return;
+      }
+      if (url.startsWith('/drive/v3/files')) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            files: [{ id: fileId, name: fileName, size: String(sealed.wire.byteLength) }],
+          }),
+        );
+        return;
+      }
+      res.writeHead(404);
+      res.end('missing');
+    });
+    try {
+      const raw = await nodeFetch(`${local.origin}/drive/v3/files/${fileId}?alt=media`);
+      ok(types.isProxy(raw.headers), 'node-fetch 3.3.2 Headers must be a Proxy');
+      equal(raw.headers instanceof Headers, false);
+      equal(raw.headers instanceof URLSearchParams, true);
+      await raw.arrayBuffer();
+
+      const client = createOwnedOAuth2Client({
+        clientId: CLIENT_ID,
+        clientSecret: CLIENT_SECRET,
+        redirectUri: 'http://127.0.0.1/oauth2/callback',
+        timeoutMs: 2000,
+        endpoints: { oauth2TokenUrl: `${local.origin}/token` },
+      });
+      client.setCredentials({
+        access_token: TOKEN_SENTINEL,
+        expiry_date: futureExpiry(),
+        token_type: 'Bearer',
+        scope: DRIVE_FILE_SCOPE_VALUE,
+      });
+      const originalRequest = client.transporter.request.bind(client.transporter);
+      client.transporter.request = async (opts) => {
+        const next = { ...opts };
+        const url = String(opts.url ?? '');
+        if (url.startsWith(ABOUT_URL)) {
+          next.url = `${local.origin}/drive/v3/about?fields=user(permissionId)`;
+        } else if (url.startsWith(FILES_URL) && url.includes('alt=media')) {
+          next.url = `${local.origin}/drive/v3/files/${fileId}?alt=media`;
+        } else if (url.startsWith(FILES_URL)) {
+          const parsed = new URL(url);
+          next.url = `${local.origin}/drive/v3/files${parsed.search}`;
+        }
+        const res = await originalRequest(next);
+        ok(types.isProxy(res.headers) === false, 'trusted default headers must be owned before Drive');
+        return res;
+      };
+      const adapter = await createGoogleDriveAdapterFromAuthClient({
+        permissionId: PERMISSION_ID,
+        authClient: client,
+      });
+      const receipt = await getOwnedCiphertext(adapter, {
+        permissionId: PERMISSION_ID,
+        fileId,
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      });
+      equal(receipt.fileId, fileId);
+      equal(receipt.byteCount, sealed.wire.byteLength);
+      equal(sha256Hex(receipt.ownedReadback), sealed.sha256);
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, true);
+      equal(listed.candidates.length, 1);
+      equal(listed.candidates[0].fileId, fileId);
+      equal(listed.candidates[0].name, fileName);
+    } finally {
+      await closeServer(local.server);
+    }
   });
 });
 
