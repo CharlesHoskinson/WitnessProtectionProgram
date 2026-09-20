@@ -13,6 +13,9 @@ import {
   LIMIT_PLAINTEXT_BYTES,
   LIMIT_RECOVERY_WIRE_BYTES,
   LIMIT_ROOT_BYTES,
+  assertByteCeiling,
+  copyExactOwnedBytes,
+  copyOwnedBytes,
   parseJsonBytes,
 } from '../dist/kernel/json.js';
 
@@ -344,6 +347,27 @@ describe('kernel byte ceilings and BOM checks', () => {
     assertUnchanged(bomHostile, bomBefore);
 
     throws(() => parseJsonBytes(null, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+
+    const CALLER_SENTINEL = 'CALLER_SECRET_SENTINEL';
+    let traps = 0;
+    const hostile = new Proxy(json, {
+      getPrototypeOf() {
+        traps += 1;
+        throw new Error(CALLER_SENTINEL);
+      },
+    });
+    throws(() => parseJsonBytes(hostile, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+    equal(traps, 0);
+    const { proxy, revoke } = Proxy.revocable(json, {});
+    revoke();
+    throws(() => parseJsonBytes(proxy, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+    const detached = new Uint8Array(json);
+    detached.buffer.transfer();
+    throws(() => parseJsonBytes(detached, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+    throws(() => copyOwnedBytes(hostile, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+    throws(() => copyExactOwnedBytes(hostile, json.byteLength, ERR_RECOVERY), assertCode(ERR_SCHEMA));
+    throws(() => assertByteCeiling(hostile, LIMIT_ROOT_BYTES), assertCode(ERR_SCHEMA));
+    equal(traps, 0);
 
     const originalFill = Uint8Array.prototype.fill;
     let wipedOwnedCopy = false;

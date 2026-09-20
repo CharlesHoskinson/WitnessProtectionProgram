@@ -12,5 +12,6 @@ test-google-drive
 maintain-documentation
 validate-local-package
 validate-catalog
+seal-catalog
 reopen-local-journal
 ```

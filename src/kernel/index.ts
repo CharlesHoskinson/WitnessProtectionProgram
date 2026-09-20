@@ -4,6 +4,7 @@ export {
   UnlockedVault,
   type CodecPolicy,
   type ExpectedSnapshot,
+  type OpenCatalogResult,
   type OpenResult,
   type RecoveryPack,
   type SealInput,

@@ -12,11 +12,21 @@ The public API lives in `src/kernel/index.ts`. Tests import the compiled module 
 
 `openSnapshot(wire, expected)` authenticates the package and parses the payload. It copies caller package bytes into an owned buffer before hash and parse. It uses that same owned copy for both steps. It copies `expected` into an owned binding snapshot. It compares that snapshot to authenticated metadata before it calls the codec.
 
+`sealCatalog(payloadUtf8)` encrypts one catalog-v1 payload. The method copies the payload bytes at entry. It validates the payload with the accepted catalog semantic parser. It then JCS-encodes the normalized catalog.
+
+The header uses the root record `catalogScopeId` and `catalogRecordId`. The caller cannot supply other catalog identifiers. The header `kind` is `catalog`. The method uses the active epoch, a fresh generation identifier, and a fresh nonce. Key derivation, AEAD, and header JCS match snapshot sealing.
+
+`openCatalog(wire)` authenticates a catalog package and returns `{header, catalog, packageSha256}`. The header `kind` must be `catalog`. The unlocked vault identifier, vault salt, and epoch must match. The header scope and record identifiers must match the owned root catalog identifiers.
+
+The kernel authenticates the AEAD payload before it parses catalog plaintext. It checks that the authenticated bytes equal the JCS encoding of the raw parsed JSON. That check runs before semantic normalization. Valid JCS that preserves a different array order still opens.
+
+The returned catalog is the semantically normalized object. Snapshot open rejects catalog envelopes. Catalog open rejects snapshot envelopes.
+
 Null `genesisHash` or `codeHash` is recorded. It is not compatible activation evidence. A `SharedArrayBuffer` copy is not an atomic snapshot. Any accepted hash and content still come from the same owned buffer.
 
 `createRecoveryPack()` encrypts the canonical root record under a fresh 32-byte key. The caller owns the returned key and must export it through a later checked workflow.
 
-`lock()` zeros owned secret buffers and drops policy references. Further seal, open, and recovery operations fail with `WPP_LOCKED`. The method is idempotent. If a codec validator calls `lock()` during `sealSnapshot` or `openSnapshot`, that current call fails with `WPP_LOCKED`. The call does not return ciphertext or plaintext. Finalizers still zero derived keys.
+`lock()` zeros owned secret buffers and drops policy references. Further seal, open, recovery, and catalog operations fail with `WPP_LOCKED`. The method is idempotent. If a codec validator calls `lock()` during `sealSnapshot` or `openSnapshot`, that current call fails with `WPP_LOCKED`. The call does not return ciphertext or plaintext. Finalizers still zero derived keys.
 
 Returned buffers are caller-owned copies. The kernel does not export root bytes, object keys, or an RNG override.
 
@@ -30,7 +40,9 @@ Trusted callbacks cannot be sandboxed. Accidental async return still fails close
 
 ## Limits
 
-Raw input ceilings apply before JSON decode. A public byte input that is not a `Uint8Array` fails with `WPP_SCHEMA` before length or hash checks. Node `Buffer` is accepted. Open reads the intrinsic typed-array length, checks the 24 MiB ceiling, then copies into a plain owned buffer. It does not trust subclass size or copy methods for that bound.
+Raw input ceilings apply before JSON decode. A public byte input that is not a native `Uint8Array` fails with `WPP_SCHEMA` before length or hash checks. The kernel uses a non-trapping native brand check. It does not run `instanceof` or caller prototype traps. Node `Buffer` and `Uint8Array` subclasses are accepted. Proxies and detached buffers fail with `WPP_SCHEMA`.
+
+Open reads the intrinsic typed-array length. It checks the ceiling before it allocates. It then copies into a plain owned buffer. It does not trust subclass size or copy methods for that bound.
 
 Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed wire must stay at or under 24 MiB before return. Open hashes a package only after that owned copy.
 
@@ -38,6 +50,7 @@ Canonical snapshot plaintext must stay at or under 16 MiB after JCS. The sealed 
 | --- | --- |
 | Witness package | 24 MiB |
 | Snapshot plaintext | 16 MiB |
+| Catalog plaintext | 16 MiB |
 | Root record | 64 KiB |
 | Recovery wire | 96 KiB |
 
@@ -51,7 +64,7 @@ Ajv runs with `strict: true` and `strictTypes: false`. `strictTypes: false` only
 
 ## Cryptography
 
-Derivation follows the draft profile. `PRK = HMAC-SHA256(vaultSalt, secretRoot)`. Child keys use one HMAC-SHA256 expand block with info `|| 0x01`. AES-256-GCM uses a 12-byte nonce, a 16-byte tag, and AAD equal to the canonical header. Authenticated snapshot plaintext must equal the JCS encoding of the parsed payload.
+Derivation follows the draft profile. `PRK = HMAC-SHA256(vaultSalt, secretRoot)`. Child keys use one HMAC-SHA256 expand block with info `|| 0x01`. AES-256-GCM uses a 12-byte nonce, a 16-byte tag, and AAD equal to the canonical header. Authenticated snapshot plaintext must equal the JCS encoding of the parsed payload. Authenticated catalog plaintext must equal the JCS encoding of the raw parsed JSON before catalog normalization.
 
 This kernel uses Node `crypto`. It does not implement AES in application code.
 
@@ -61,4 +74,4 @@ JavaScript strings are immutable. Parser copies, previously returned plaintext, 
 
 ## Remaining work
 
-Catalog reconciliation, native staging, Bitwarden export UX, and cloud adapters are later slices. This kernel does not claim those behaviors. A local journal candidate exists in this tree. It is not a completed M1.
+Catalog envelope seal and open in this kernel do not complete sharded catalog storage. Closed versioned root and shard manifests, byte-based splitting, unchanged-ciphertext reuse, missing-child rejection, and Drive reconstruction remain later slices. Native staging, Bitwarden export UX, and cloud adapters also remain later. This kernel does not claim those behaviors. A local journal candidate exists in this tree. It is not a completed M1.

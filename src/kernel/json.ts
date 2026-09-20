@@ -1,3 +1,4 @@
+import { types } from "node:util";
 import { visit, ParseErrorCode, type JSONVisitor } from "jsonc-parser";
 import canonicalize from "canonicalize";
 
@@ -60,44 +61,66 @@ const VISIT_OPTIONS = {
   allowEmptyContent: false,
 } as const;
 
+const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(Uint8Array.prototype);
 const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
-  Object.getPrototypeOf(Uint8Array.prototype),
+  TYPED_ARRAY_PROTOTYPE,
   "byteLength",
 )?.get;
+const TYPED_ARRAY_BUFFER = Object.getOwnPropertyDescriptor(TYPED_ARRAY_PROTOTYPE, "buffer")?.get;
+const ARRAY_BUFFER_DETACHED = Object.getOwnPropertyDescriptor(ArrayBuffer.prototype, "detached")?.get;
+
+function assertNativeBytes(bytes: unknown): asserts bytes is Uint8Array {
+  if (!types.isUint8Array(bytes)) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+}
+
+function isDetachedBytes(bytes: Uint8Array): boolean {
+  if (typeof TYPED_ARRAY_BUFFER !== "function" || typeof ARRAY_BUFFER_DETACHED !== "function") {
+    throw new KernelError(ERR_INTERNAL);
+  }
+  let buffer: ArrayBufferLike;
+  try {
+    buffer = TYPED_ARRAY_BUFFER.call(bytes);
+  } catch {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  try {
+    return ARRAY_BUFFER_DETACHED.call(buffer) === true;
+  } catch {
+    return false;
+  }
+}
 
 function intrinsicByteLength(bytes: Uint8Array): number {
   if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
     throw new KernelError(ERR_INTERNAL);
   }
+  let length: unknown;
   try {
-    const length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
-    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
-      throw new KernelError(ERR_SCHEMA);
-    }
-    return length;
-  } catch (err) {
-    if (err instanceof KernelError) {
-      throw err;
-    }
+    length = TYPED_ARRAY_BYTE_LENGTH.call(bytes);
+  } catch {
     throw new KernelError(ERR_SCHEMA);
   }
+  if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+    throw new KernelError(ERR_SCHEMA);
+  }
+  return length;
 }
 
 function copyFromIntrinsic(bytes: Uint8Array, length: number): Uint8Array {
   const owned = new Uint8Array(length);
   try {
     Uint8Array.prototype.set.call(owned, bytes);
-  } catch (err) {
-    if (err instanceof KernelError) {
-      throw err;
-    }
+  } catch {
     throw new KernelError(ERR_SCHEMA);
   }
   return owned;
 }
 
 export function copyOwnedBytes(bytes: Uint8Array, maxBytes: number): Uint8Array {
-  if (!(bytes instanceof Uint8Array)) {
+  assertNativeBytes(bytes);
+  if (isDetachedBytes(bytes)) {
     throw new KernelError(ERR_SCHEMA);
   }
   const length = intrinsicByteLength(bytes);
@@ -112,7 +135,8 @@ export function copyExactOwnedBytes(
   exactBytes: number,
   mismatchCode: string,
 ): Uint8Array {
-  if (!(bytes instanceof Uint8Array)) {
+  assertNativeBytes(bytes);
+  if (isDetachedBytes(bytes)) {
     throw new KernelError(ERR_SCHEMA);
   }
   const length = intrinsicByteLength(bytes);
@@ -123,7 +147,8 @@ export function copyExactOwnedBytes(
 }
 
 export function assertByteCeiling(bytes: Uint8Array, maxBytes: number): void {
-  if (!(bytes instanceof Uint8Array)) {
+  assertNativeBytes(bytes);
+  if (isDetachedBytes(bytes)) {
     throw new KernelError(ERR_SCHEMA);
   }
   if (intrinsicByteLength(bytes) > maxBytes) {
