@@ -6,6 +6,7 @@ between recovery, authentication and storage.
 ```{toctree}
 :maxdepth: 1
 
+application
 google-drive
 catalog-database
 storage-layout

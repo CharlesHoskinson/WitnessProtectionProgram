@@ -7,8 +7,9 @@ complete M1 or M3 work.
 The production catalog-v2 plaintext grammar and adaptive planner live in
 `src/storage/` and [`catalog-v2`](../reference/catalog-v2.md). Those functions
 parse and partition canonical JSON only. Call `preflightCatalogRoot` before any
-later coordinator starts child downloads. Catalog nodes are not encrypted until
-a later kernel `kind=catalog` integration. The runnable prototype in
+later coordinator starts child downloads. Kernel `sealCatalogNode` and `openCatalogNode` now encrypt and authenticate
+selected root and shard envelopes. Coordinated journal persistence and cloud
+publication remain integration work. The runnable prototype in
 `experiments/storage-layout/` still uses application-codec snapshot envelopes
 as test carriers. Do not treat that prototype as the production format.
 
@@ -79,9 +80,9 @@ node experiments/storage-layout/benchmark.mjs --quick
 
 The catalog-v2 planner now splits by encoded UTF-8 canonical shard size with a
 256 KiB target, a 1 MiB leaf ceiling, and at most 1024 prefix references. A
-complete cover has at most 1021 references. Kernel seal/open of catalog nodes,
-journal persistence, and Drive publication remain later work. Missing children,
-concurrent heads, and malformed authenticated manifests still need those later
-tests. This grammar core does not complete M1.
+complete cover has at most 1021 references. Kernel seal/open of catalog nodes is implemented, including authenticated
+root-to-shard bindings. Coordinated journal persistence and Drive publication
+remain integration work. End-to-end recovery with missing children and concurrent
+heads still requires acceptance evidence. These components do not complete M1.
 
 M3 keeps one-click Google Drive backup first. Packs remain a conditional pilot after real provider measurements. Native exports remain opaque whole records. This experiment does not justify convergent deduplication, plaintext content-defined chunking, searchable server indexes, ORAM, erasure coding or automated garbage collection. Those need separate threat models and recovery evidence.
