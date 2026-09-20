@@ -346,28 +346,19 @@ function normalizePlainHeaderRecord(headers: object): Record<string, string> {
       throw new TypeError("duplicate header");
     }
     seen.add(lower);
+    if (desc.get !== undefined || desc.set !== undefined) {
+      throw new TypeError(lower === "content-length" ? "accessor content-length" : "accessor header");
+    }
+    if (!desc.enumerable) {
+      throw new TypeError(lower === "content-length" ? "nonenumerable content-length" : "nonenumerable header");
+    }
+    if (typeof desc.value !== "string") {
+      throw new TypeError(lower === "content-length" ? "unsupported content-length" : "unsupported header");
+    }
     if (lower === "content-length") {
-      if (desc.get !== undefined || desc.set !== undefined) {
-        throw new TypeError("accessor content-length");
-      }
-      if (!desc.enumerable) {
-        throw new TypeError("nonenumerable content-length");
-      }
-      if (typeof desc.value !== "string") {
-        throw new TypeError("unsupported content-length");
-      }
       assertValidContentLength(desc.value);
-      out[lower] = desc.value;
-      continue;
     }
-    if (!desc.enumerable || desc.get !== undefined || desc.set !== undefined) {
-      continue;
-    }
-    if (typeof desc.value === "string") {
-      out[lower] = desc.value;
-    } else if (Array.isArray(desc.value) && typeof desc.value[0] === "string") {
-      out[lower] = desc.value.join(", ");
-    }
+    out[lower] = desc.value;
   }
   return out;
 }

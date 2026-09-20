@@ -516,6 +516,137 @@ function inheritedContentLength(value) {
   return Object.create({ 'content-length': value });
 }
 
+function eraseNextPageToken(data) {
+  if (data !== null && typeof data === 'object') {
+    delete data.nextPageToken;
+  }
+}
+
+function mutatingJoinHeaders(data) {
+  let joinCalls = 0;
+  const value = ['application/json'];
+  Object.defineProperty(value, 'join', {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(...args) {
+      joinCalls += 1;
+      eraseNextPageToken(data);
+      return Array.prototype.join.apply(this, args);
+    },
+  });
+  return { headers: { 'content-type': value }, getCalls: () => joinCalls };
+}
+
+function getterElementHeaders(data) {
+  let getCalls = 0;
+  const value = [];
+  Object.defineProperty(value, '0', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      getCalls += 1;
+      eraseNextPageToken(data);
+      return 'application/json';
+    },
+  });
+  value.length = 1;
+  return { headers: { 'content-type': value }, getCalls: () => getCalls };
+}
+
+function proxyArrayHeaders(data) {
+  let trapCalls = 0;
+  const erase = () => {
+    trapCalls += 1;
+    eraseNextPageToken(data);
+  };
+  const value = new Proxy(['application/json'], {
+    get(target, prop, receiver) {
+      erase();
+      return Reflect.get(target, prop, receiver);
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      erase();
+      return Reflect.getOwnPropertyDescriptor(target, prop);
+    },
+    ownKeys(target) {
+      erase();
+      return Reflect.ownKeys(target);
+    },
+    has(target, prop) {
+      erase();
+      return Reflect.has(target, prop);
+    },
+  });
+  return { headers: { 'content-type': value }, getCalls: () => trapCalls };
+}
+
+function coercionHookHeaders(data) {
+  let coerceCalls = 0;
+  const hook = {
+    toString() {
+      coerceCalls += 1;
+      eraseNextPageToken(data);
+      return 'application/json';
+    },
+    valueOf() {
+      coerceCalls += 1;
+      eraseNextPageToken(data);
+      return 'application/json';
+    },
+    [Symbol.toPrimitive]() {
+      coerceCalls += 1;
+      eraseNextPageToken(data);
+      return 'application/json';
+    },
+  };
+  return { headers: { 'content-type': [hook] }, getCalls: () => coerceCalls };
+}
+
+function mutatingAccessorHeaders(data) {
+  let getCalls = 0;
+  const headers = {};
+  Object.defineProperty(headers, 'content-type', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      getCalls += 1;
+      eraseNextPageToken(data);
+      return 'application/json';
+    },
+  });
+  return { headers, getCalls: () => getCalls };
+}
+
+function makeUnsupportedHeaders(label, data) {
+  if (label === 'join') {
+    return mutatingJoinHeaders(data);
+  }
+  if (label === 'element-getter') {
+    return getterElementHeaders(data);
+  }
+  if (label === 'proxy-array') {
+    return proxyArrayHeaders(data);
+  }
+  if (label === 'coercion') {
+    return coercionHookHeaders(data);
+  }
+  if (label === 'accessor') {
+    return mutatingAccessorHeaders(data);
+  }
+  return { headers: { 'content-type': 1 }, getCalls: () => 0 };
+}
+
+function withOwnContentLength(headers, length) {
+  Object.defineProperty(headers, 'content-length', {
+    value: String(length),
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return headers;
+}
+
 function secretBearingThrows() {
   const revoked = Proxy.revocable({ secret: TOKEN_SENTINEL }, {});
   revoked.revoke();
@@ -3096,6 +3227,81 @@ describe('header ownership on injected and AuthClient seams', () => {
         equal(listed.candidates.length, 1, `${transport} ${label}`);
         equal(listed.candidates[0].fileId, first.id, `${transport} ${label}`);
         assertNoWrites(calls);
+      }
+    }
+  });
+
+  test('array-valued and other unsupported headers fail without inspecting values on both transports', async () => {
+    const { bytes, locator } = tinyLocator();
+    const first = fileRecord('header-array-kept', 13);
+    const later = fileRecord('header-array-late', 7);
+    const labels = ['join', 'element-getter', 'proxy-array', 'coercion', 'accessor', 'numeric'];
+    for (const transport of ['injected', 'auth']) {
+      for (const label of labels) {
+        const initialData = { files: [first], nextPageToken: `header-array-next-${label}` };
+        const initialHostile = makeUnsupportedHeaders(label, initialData);
+        const initialResponse =
+          transport === 'injected'
+            ? {
+                status: 200,
+                headers: initialHostile.headers,
+                body: jsonBody({ files: [first], nextPageToken: `header-array-next-${label}` }),
+              }
+            : { status: 200, headers: initialHostile.headers, data: initialData };
+        const { adapter, calls } = adapterFor(transport, initialResponse);
+        const listed = await listCiphertextCandidates(adapter);
+        equal(listed.complete, false, `${transport} ${label} initial`);
+        equal(listed.candidates.length, 0, `${transport} ${label} initial`);
+        equal(initialData.nextPageToken, `header-array-next-${label}`, `${transport} ${label} initial`);
+        equal(initialHostile.getCalls(), 0, `${transport} ${label} initial`);
+        equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false, `${transport} ${label} initial`);
+        assertNoWrites(calls);
+
+        let page = 0;
+        const laterData = { files: [later], nextPageToken: `header-array-more-${label}` };
+        const laterHostile = makeUnsupportedHeaders(label, laterData);
+        const handler = async () => {
+          page += 1;
+          if (page === 1) {
+            if (transport === 'injected') {
+              return {
+                status: 200,
+                headers: {},
+                body: jsonBody({ files: [first], nextPageToken: `header-array-next-${label}` }),
+              };
+            }
+            return { status: 200, headers: {}, data: { files: [first], nextPageToken: `header-array-next-${label}` } };
+          }
+          if (transport === 'injected') {
+            return {
+              status: 200,
+              headers: laterHostile.headers,
+              body: jsonBody({ files: [later], nextPageToken: `header-array-more-${label}` }),
+            };
+          }
+          return { status: 200, headers: laterHostile.headers, data: laterData };
+        };
+        const rebuilt = transport === 'injected' ? listingAdapter(handler) : authClientAdapter(handler);
+        const laterListed = await listCiphertextCandidates(rebuilt.adapter);
+        equal(laterListed.complete, false, `${transport} ${label} later`);
+        equal(laterListed.candidates.length, 1, `${transport} ${label} later`);
+        equal(laterListed.candidates[0].fileId, first.id, `${transport} ${label} later`);
+        equal(laterData.nextPageToken, `header-array-more-${label}`, `${transport} ${label} later`);
+        equal(laterHostile.getCalls(), 0, `${transport} ${label} later`);
+        equal(inspect(laterListed, { showHidden: true }).includes(TOKEN_SENTINEL), false, `${transport} ${label} later`);
+        assertNoWrites(rebuilt.calls);
+
+        const mediaData = { nextPageToken: `header-array-media-${label}` };
+        const mediaHostile = makeUnsupportedHeaders(label, mediaData);
+        const mediaHeaders = withOwnContentLength(mediaHostile.headers, bytes.byteLength);
+        const { adapter: mediaAdapter } = adapterFor(transport, mediaResponse(transport, mediaHeaders, bytes));
+        await rejects(getOwnedCiphertext(mediaAdapter, locator), (err) => {
+          assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+          equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false, `${transport} ${label} media`);
+          return true;
+        });
+        equal(mediaData.nextPageToken, `header-array-media-${label}`, `${transport} ${label} media`);
+        equal(mediaHostile.getCalls(), 0, `${transport} ${label} media`);
       }
     }
   });

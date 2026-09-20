@@ -106,11 +106,24 @@ Genuine native `Headers` and `URLSearchParams` use captured intrinsic
 records must use `Object.prototype` or `null`. The transport reads own data
 descriptors and does not execute getters.
 
+A valid ordinary enumerable own header value is a primitive string. The
+transport does not index a caller-supplied header value. It does not call
+methods on that value. It does not coerce that value. It does not enumerate
+that value.
+
+An array is a static failure. An accessor is a static failure without
+invocation. A nonenumerable own value is a static failure. Any other
+unsupported value is a static failure. These rules apply to every header
+name, including names other than `Content-Length`.
+
+The transport does not join array values. It does not skip unsupported
+values and then report a complete listing.
+
 A present `Content-Length` must be an enumerable own decimal string. An
-inherited, nonenumerable, accessor, numeric, object, duplicate case-variant,
-or invalid decimal length is a static failure. A missing optional
-`Content-Length` remains valid. Exact expected length, actual length, and
-hash checks still apply after that copy.
+inherited, nonenumerable, accessor, numeric, object, array, duplicate
+case-variant, or invalid decimal length is a static failure. A missing
+optional `Content-Length` remains valid. Exact expected length, actual
+length, and hash checks still apply after that copy.
 
 Diagnostic `safeGet` stays on explicit error paths only.
 
@@ -171,8 +184,12 @@ clone prototype and it does not supply inherited completion fields.
 
 Successful list pages use the same fail-closed field capture as media GET.
 A throwing `status`, `headers`, `body`, or `data` field is a page failure.
-A throwing nested header inspection is a page failure. It is not a silent
-omission and it is not `complete: true`.
+A throwing nested header inspection is a page failure. An unsupported
+header value is a page failure. It is not a silent omission and it is not
+`complete: true`.
+
+An initial invalid listing is a failure. A later invalid page returns
+incomplete and keeps earlier candidates.
 
 Unknown JSON fields may remain for sizing. String and key sizes use
 incremental escaped UTF-8 JSON accounting and stop at the remaining budget.
