@@ -109,11 +109,20 @@ listing incomplete. Repeated `fileId` values collapse only when name and size
 agree. Conflicting metadata makes the listing incomplete.
 
 Pagination is complete only when `nextPageToken` is absent. A null token, an
-empty string, or any other type is incomplete. Successful list JSON is copied
-into an owned object once. Throwing `files`, `incompleteSearch`, or
-`nextPageToken` getters make the listing incomplete. They do not count as
-absent fields. Malformed serialization, circular data, and undefined data
-fail closed. They do not use a size sentinel below the 1 MiB page ceiling.
+empty string, a function, a symbol, or any other type is incomplete.
+
+The transport captures one owned JSON-shaped object. That same object is the
+byte-budget source and the consumed page. It does not serialize the original
+caller value after capture. It inspects own data descriptors and does not
+execute accessors. It does not call caller `toJSON` or other serializers.
+Accessors, functions, symbols, BigInt, cycles, custom `toJSON`, hostile
+Proxy traps, and other non-JSON objects make the page incomplete.
+
+A non-enumerable or inherited `files`, `incompleteSearch`, or
+`nextPageToken` field is a rejection. It is not a silent omission. Unknown
+JSON fields may remain for sizing. The exact UTF-8 size of the owned JSON
+must stay at or under 1 MiB.
+
 The transport never follows an arbitrary URL from the response. It detects
 repeated `nextPageToken` values as cycles. `incompleteSearch: true`, a page
 or request failure, a later-page 3xx, a missing next page, and a count, byte,

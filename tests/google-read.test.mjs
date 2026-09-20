@@ -204,14 +204,78 @@ function flippingLengthBody(bytes) {
 
 function hostileListData(field, base) {
   const data = { ...base };
+  let reads = 0;
   Object.defineProperty(data, field, {
     configurable: true,
     enumerable: true,
     get() {
+      reads += 1;
       throw new Error(TOKEN_SENTINEL);
     },
   });
-  return data;
+  return { data, getReads: () => reads };
+}
+
+function flippingOversizeFiles() {
+  let reads = 0;
+  const pad = 'a'.repeat(DRIVE_LIST_JSON_MAX_BYTES + 16);
+  const data = {};
+  Object.defineProperty(data, 'files', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      reads += 1;
+      if (reads === 1) {
+        return [{ id: 'file_flip_oversize', name: wppName('flip-oversize'), size: '8', pad }];
+      }
+      return [];
+    },
+  });
+  return { data, getReads: () => reads };
+}
+
+function nestedFlippingGetter(file) {
+  let reads = 0;
+  const item = { name: file.name, size: file.size };
+  Object.defineProperty(item, 'id', {
+    configurable: true,
+    enumerable: true,
+    get() {
+      reads += 1;
+      if (reads === 1) {
+        return file.id;
+      }
+      return 'mutated-id';
+    },
+  });
+  return { item, getReads: () => reads };
+}
+
+function customToJsonData(base, disguised) {
+  const data = { ...base };
+  let calls = 0;
+  Object.defineProperty(data, 'toJSON', {
+    enumerable: false,
+    value() {
+      calls += 1;
+      return disguised;
+    },
+  });
+  return { data, getCalls: () => calls };
+}
+
+function throwingListProxy(target) {
+  return new Proxy(target, {
+    get() {
+      throw new Error(TOKEN_SENTINEL);
+    },
+    getOwnPropertyDescriptor() {
+      throw new Error(TOKEN_SENTINEL);
+    },
+    ownKeys() {
+      throw new Error(TOKEN_SENTINEL);
+    },
+  });
 }
 
 describe('getOwnedCiphertext', () => {
@@ -1483,14 +1547,16 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
 
   test('throwing list field getters are incomplete on the first AuthClient page', async () => {
     for (const field of LIST_FIELDS) {
+      const hostile = hostileListData(field, { files: [fileRecord(`throw-${field}`, 16)] });
       const { adapter, calls } = authClientAdapter(async () => ({
         status: 200,
-        data: hostileListData(field, { files: [fileRecord(`throw-${field}`, 16)] }),
+        data: hostile.data,
       }));
       const listed = await listCiphertextCandidates(adapter);
       equal(listed.complete, false, field);
       equal(listed.reason, 'GOOGLE_DRIVE_PAGE_FAILURE', field);
       equal(listed.candidates.length, 0, field);
+      equal(hostile.getReads(), 0, field);
       assertNoWrites(calls);
       equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
     }
@@ -1499,6 +1565,7 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
   test('throwing list field getters keep prior candidates on a later AuthClient page', async () => {
     const first = fileRecord('kept-auth', 20);
     for (const field of LIST_FIELDS) {
+      const hostile = hostileListData(field, { files: [fileRecord(`late-${field}`, 12)] });
       let page = 0;
       const { adapter, calls } = authClientAdapter(async () => {
         page += 1;
@@ -1507,7 +1574,7 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
         }
         return {
           status: 200,
-          data: hostileListData(field, { files: [fileRecord(`late-${field}`, 12)] }),
+          data: hostile.data,
         };
       });
       const listed = await listCiphertextCandidates(adapter);
@@ -1516,6 +1583,7 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
       equal(listed.candidates.length, 1, field);
       equal(listed.candidates[0].fileId, first.id, field);
       equal(page, 2, field);
+      equal(hostile.getReads(), 0, field);
       assertNoWrites(calls);
     }
   });
@@ -1603,6 +1671,324 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
     equal(undefListed.complete, false);
     equal(undefListed.complete, false);
     equal(undefListed.candidates.length, 0);
+  });
+
+  test('function-valued list fields cannot complete on the first or later AuthClient page', async () => {
+    const first = fileRecord('fn-kept', 14);
+    for (const field of LIST_FIELDS) {
+      const { adapter, calls } = authClientAdapter(async () => ({
+        status: 200,
+        data: {
+          files: [fileRecord(`fn-${field}`, 8)],
+          [field]: () => TOKEN_SENTINEL,
+        },
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.candidates.length, 0, field);
+      assertNoWrites(calls);
+      equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+    }
+    for (const field of LIST_FIELDS) {
+      let page = 0;
+      const { adapter, calls } = authClientAdapter(async () => {
+        page += 1;
+        if (page === 1) {
+          return { status: 200, data: { files: [first], nextPageToken: `fn-next-${field}` } };
+        }
+        return {
+          status: 200,
+          data: {
+            files: [fileRecord(`fn-late-${field}`, 8)],
+            [field]: () => TOKEN_SENTINEL,
+          },
+        };
+      });
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.candidates.length, 1, field);
+      equal(listed.candidates[0].fileId, first.id, field);
+      equal(page, 2, field);
+      assertNoWrites(calls);
+    }
+  });
+
+  test('symbol-valued list fields cannot complete on the first or later AuthClient page', async () => {
+    const first = fileRecord('sym-kept', 15);
+    for (const field of LIST_FIELDS) {
+      const { adapter, calls } = authClientAdapter(async () => ({
+        status: 200,
+        data: {
+          files: [fileRecord(`sym-${field}`, 8)],
+          [field]: Symbol(TOKEN_SENTINEL),
+        },
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.candidates.length, 0, field);
+      assertNoWrites(calls);
+      equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+    }
+    for (const field of LIST_FIELDS) {
+      let page = 0;
+      const { adapter, calls } = authClientAdapter(async () => {
+        page += 1;
+        if (page === 1) {
+          return { status: 200, data: { files: [first], nextPageToken: `sym-next-${field}` } };
+        }
+        return {
+          status: 200,
+          data: {
+            files: [fileRecord(`sym-late-${field}`, 8)],
+            [field]: Symbol(TOKEN_SENTINEL),
+          },
+        };
+      });
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.candidates.length, 1, field);
+      equal(listed.candidates[0].fileId, first.id, field);
+      equal(page, 2, field);
+      assertNoWrites(calls);
+    }
+  });
+
+  test('custom toJSON cannot change listing shape or complete pagination', async () => {
+    const visible = fileRecord('tojson-visible', 9);
+    const hidden = fileRecord('tojson-hidden', 9);
+    const firstPage = customToJsonData(
+      { files: [visible], nextPageToken: 'tojson-next' },
+      { files: [hidden] },
+    );
+    const { adapter: firstAdapter, calls: firstCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: firstPage.data,
+    }));
+    const firstListed = await listCiphertextCandidates(firstAdapter);
+    equal(firstListed.complete, false);
+    equal(firstListed.candidates.length, 0);
+    equal(firstPage.getCalls(), 0);
+    assertNoWrites(firstCalls);
+
+    let page = 0;
+    const laterPage = customToJsonData(
+      { files: [hidden], nextPageToken: null },
+      { files: [hidden] },
+    );
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [visible], nextPageToken: 'tojson-later' } };
+      }
+      return { status: 200, data: laterPage.data };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, visible.id);
+    equal(laterPage.getCalls(), 0);
+    assertNoWrites(laterCalls);
+  });
+
+  test('changing oversize list getters are rejected without execution', async () => {
+    const hostile = flippingOversizeFiles();
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: hostile.data,
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.candidates.length, 0);
+    equal(hostile.getReads(), 0);
+    assertNoWrites(calls);
+
+    const first = fileRecord('flip-kept', 18);
+    const later = flippingOversizeFiles();
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'flip-next' } };
+      }
+      return { status: 200, data: later.data };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(later.getReads(), 0);
+    assertNoWrites(laterCalls);
+  });
+
+  test('nested changing getters are rejected without execution', async () => {
+    const file = fileRecord('nested-flip', 10);
+    const hostile = nestedFlippingGetter(file);
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: [hostile.item] },
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.candidates.length, 0);
+    equal(hostile.getReads(), 0);
+    assertNoWrites(calls);
+
+    const first = fileRecord('nested-kept', 11);
+    const laterHostile = nestedFlippingGetter(fileRecord('nested-late', 12));
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'nested-next' } };
+      }
+      return { status: 200, data: { files: [laterHostile.item] } };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterHostile.getReads(), 0);
+    assertNoWrites(laterCalls);
+  });
+
+  test('top-level and nested throwing proxies cannot complete a listing', async () => {
+    const first = fileRecord('proxy-kept', 13);
+    const { adapter: topAdapter, calls: topCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: throwingListProxy({ files: [fileRecord('proxy-top', 8)] }),
+    }));
+    const topListed = await listCiphertextCandidates(topAdapter);
+    equal(topListed.complete, false);
+    equal(topListed.candidates.length, 0);
+    assertNoWrites(topCalls);
+    equal(inspect(topListed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+
+    const { adapter: nestedAdapter, calls: nestedCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: [throwingListProxy(fileRecord('proxy-nested', 8))] },
+    }));
+    const nestedListed = await listCiphertextCandidates(nestedAdapter);
+    equal(nestedListed.complete, false);
+    equal(nestedListed.candidates.length, 0);
+    assertNoWrites(nestedCalls);
+
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'proxy-next' } };
+      }
+      return {
+        status: 200,
+        data: { files: [throwingListProxy(fileRecord('proxy-late', 8))] },
+      };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    assertNoWrites(laterCalls);
+  });
+
+  test('top-level and nested revoked proxies cannot complete a listing', async () => {
+    const first = fileRecord('revoked-kept', 16);
+    const top = Proxy.revocable({ files: [fileRecord('revoked-top', 8)] }, {});
+    top.revoke();
+    const { adapter: topAdapter, calls: topCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: top.proxy,
+    }));
+    const topListed = await listCiphertextCandidates(topAdapter);
+    equal(topListed.complete, false);
+    equal(topListed.candidates.length, 0);
+    assertNoWrites(topCalls);
+
+    const nested = Proxy.revocable(fileRecord('revoked-nested', 8), {});
+    nested.revoke();
+    const { adapter: nestedAdapter, calls: nestedCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: [nested.proxy] },
+    }));
+    const nestedListed = await listCiphertextCandidates(nestedAdapter);
+    equal(nestedListed.complete, false);
+    equal(nestedListed.candidates.length, 0);
+    assertNoWrites(nestedCalls);
+
+    let page = 0;
+    const later = Proxy.revocable(fileRecord('revoked-late', 8), {});
+    later.revoke();
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'revoked-next' } };
+      }
+      return { status: 200, data: { files: [later.proxy] } };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    assertNoWrites(laterCalls);
+  });
+
+  test('non-enumerable and inherited completion fields cannot complete a listing', async () => {
+    const visible = fileRecord('hidden-token', 8);
+    const hidden = { files: [visible] };
+    Object.defineProperty(hidden, 'nextPageToken', {
+      enumerable: false,
+      value: 'hidden-token',
+    });
+    const { adapter: hiddenAdapter, calls: hiddenCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: hidden,
+    }));
+    const hiddenListed = await listCiphertextCandidates(hiddenAdapter);
+    equal(hiddenListed.complete, false);
+    equal(hiddenListed.candidates.length, 0);
+    assertNoWrites(hiddenCalls);
+
+    const proto = { nextPageToken: 'from-proto' };
+    const inherited = Object.create(proto);
+    inherited.files = [visible];
+    const { adapter: protoAdapter, calls: protoCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: inherited,
+    }));
+    const protoListed = await listCiphertextCandidates(protoAdapter);
+    equal(protoListed.complete, false);
+    equal(protoListed.candidates.length, 0);
+    assertNoWrites(protoCalls);
+  });
+
+  test('unknown JSON fields count toward the owned listing byte bound', async () => {
+    const first = fileRecord('owned-pad', 8);
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: [first], pad: 'x'.repeat(DRIVE_LIST_JSON_MAX_BYTES) },
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(listed.candidates.length, 0);
+    assertNoWrites(calls);
+
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'pad-next' } };
+      }
+      return {
+        status: 200,
+        data: { files: [fileRecord('owned-pad-late', 8)], pad: 'x'.repeat(DRIVE_LIST_JSON_MAX_BYTES) },
+      };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    assertNoWrites(laterCalls);
   });
 
   test('queryBoundPermissionId requires a finite integer 2xx status', async () => {
