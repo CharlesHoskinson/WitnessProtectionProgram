@@ -70,6 +70,10 @@ const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
   Object.getPrototypeOf(Uint8Array.prototype),
   "byteLength",
 )?.get;
+const ARRAY_BUFFER_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  ArrayBuffer.prototype,
+  "byteLength",
+)?.get;
 const STATIC_DRIVE_CODES = new Set<string>([
   ERR_BIND_IDENTITY,
   ERR_DRIVE_AUTH,
@@ -158,24 +162,70 @@ function intrinsicTypedArrayByteLength(value: Uint8Array): number | undefined {
   }
 }
 
+function intrinsicArrayBufferByteLength(value: ArrayBuffer): number | undefined {
+  if (typeof ARRAY_BUFFER_BYTE_LENGTH !== "function") {
+    return undefined;
+  }
+  try {
+    const length = ARRAY_BUFFER_BYTE_LENGTH.call(value);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+      return undefined;
+    }
+    return length;
+  } catch {
+    return undefined;
+  }
+}
+
+function copyFromArrayBuffer(data: ArrayBuffer, ceiling: number): InjectedBodyCopy {
+  const length = intrinsicArrayBufferByteLength(data);
+  if (length === undefined) {
+    return { kind: "invalid" };
+  }
+  if (length > ceiling) {
+    return { kind: "oversize" };
+  }
+  const owned = Buffer.alloc(length);
+  try {
+    const view = new Uint8Array(data);
+    if (length > 0) {
+      INTRINSIC_CALL.call(INTRINSIC_SET, owned, view);
+    }
+  } catch {
+    return { kind: "invalid" };
+  }
+  return { kind: "ok", bytes: owned };
+}
+
+function copyFromTypedArray(body: Uint8Array, ceiling: number): InjectedBodyCopy {
+  const length = intrinsicTypedArrayByteLength(body);
+  if (length === undefined) {
+    return { kind: "invalid" };
+  }
+  if (length > ceiling) {
+    return { kind: "oversize" };
+  }
+  const owned = Buffer.alloc(length);
+  try {
+    INTRINSIC_CALL.call(INTRINSIC_SET, owned, body);
+  } catch {
+    return { kind: "invalid" };
+  }
+  return { kind: "ok", bytes: owned };
+}
+
 function copyInjectedBody(body: unknown, ceiling: number): InjectedBodyCopy {
   try {
-    if (!(body instanceof Uint8Array)) {
-      return { kind: "invalid" };
-    }
     if (typeof ceiling !== "number" || !Number.isSafeInteger(ceiling) || ceiling < 0) {
       return { kind: "invalid" };
     }
-    const length = intrinsicTypedArrayByteLength(body);
-    if (length === undefined) {
-      return { kind: "invalid" };
+    if (body instanceof ArrayBuffer) {
+      return copyFromArrayBuffer(body, ceiling);
     }
-    if (length > ceiling) {
-      return { kind: "oversize" };
+    if (body instanceof Uint8Array) {
+      return copyFromTypedArray(body, ceiling);
     }
-    const owned = Buffer.alloc(length);
-    INTRINSIC_CALL.call(INTRINSIC_SET, owned, body);
-    return { kind: "ok", bytes: owned };
+    return { kind: "invalid" };
   } catch {
     return { kind: "invalid" };
   }
@@ -307,19 +357,6 @@ function isAbortOrSize(err: unknown): boolean {
   }
 }
 
-function toBytes(data: unknown): Uint8Array {
-  if (data instanceof Uint8Array) {
-    return data;
-  }
-  if (data instanceof ArrayBuffer) {
-    return new Uint8Array(data);
-  }
-  if (typeof data === "string") {
-    return Buffer.from(data);
-  }
-  return Buffer.alloc(0);
-}
-
 function parseJsonResponse(body: Uint8Array): unknown {
   if (body.byteLength === 0) {
     return undefined;
@@ -331,17 +368,117 @@ function parseJsonResponse(body: Uint8Array): unknown {
   }
 }
 
-function jsonByteLength(value: unknown): number {
-  if (typeof value === "string") {
-    return Buffer.byteLength(value);
-  }
-  if (value instanceof Uint8Array) {
-    return value.byteLength;
-  }
+type JsonCapture =
+  | { kind: "ok"; json: unknown }
+  | { kind: "oversize" }
+  | { kind: "invalid" };
+
+function captureOwnedJsonValue(value: unknown, ceiling: number): JsonCapture {
   try {
-    return Buffer.byteLength(JSON.stringify(value));
+    if (typeof ceiling !== "number" || !Number.isSafeInteger(ceiling) || ceiling < 0) {
+      return { kind: "invalid" };
+    }
+    if (typeof value === "string") {
+      const length = Buffer.byteLength(value);
+      if (length > ceiling) {
+        return { kind: "oversize" };
+      }
+      return { kind: "ok", json: JSON.parse(value) };
+    }
+    const copied = copyInjectedBody(value, ceiling);
+    if (copied.kind === "ok") {
+      if (copied.bytes.byteLength === 0) {
+        return { kind: "invalid" };
+      }
+      try {
+        return { kind: "ok", json: JSON.parse(copied.bytes.toString("utf8")) };
+      } catch {
+        return { kind: "invalid" };
+      }
+    }
+    if (copied.kind === "oversize") {
+      return { kind: "oversize" };
+    }
+    if (value === undefined || value === null) {
+      return { kind: "invalid" };
+    }
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(value);
+    } catch {
+      return { kind: "invalid" };
+    }
+    if (typeof serialized !== "string") {
+      return { kind: "invalid" };
+    }
+    const length = Buffer.byteLength(serialized);
+    if (length > ceiling) {
+      return { kind: "oversize" };
+    }
+    return { kind: "ok", json: JSON.parse(serialized) };
   } catch {
-    return GOOGLE_JSON_MAX_BYTES + 1;
+    return { kind: "invalid" };
+  }
+}
+
+function captureListJson(data: unknown, ceiling: number): ListPageResult {
+  try {
+    if (data === undefined || data === null || !isRecord(data)) {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    const record = data;
+    let files: unknown;
+    let incompleteSearch: unknown;
+    let nextPageToken: unknown;
+    try {
+      files = record.files;
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    try {
+      incompleteSearch = record.incompleteSearch;
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    try {
+      nextPageToken = record.nextPageToken;
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    const owned: Record<string, unknown> = {};
+    if (files !== undefined) {
+      owned.files = files;
+    }
+    if (incompleteSearch !== undefined) {
+      owned.incompleteSearch = incompleteSearch;
+    }
+    if (nextPageToken !== undefined) {
+      owned.nextPageToken = nextPageToken;
+    }
+    let serializedAll: string;
+    try {
+      serializedAll = JSON.stringify(data);
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (typeof serializedAll !== "string") {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (Buffer.byteLength(serializedAll) > ceiling) {
+      return { ok: false, reason: LIST_REASON_JSON_BOUND };
+    }
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(owned);
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (typeof serialized !== "string") {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    return { ok: true, json: JSON.parse(serialized) as unknown };
+  } catch {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
 }
 
@@ -453,17 +590,23 @@ async function sessionRequest(
         classifyDriveError(status, safeGet(res, "data"), opts.phase);
       }
       if (opts.asJson) {
-        const data = safeGet(res, "data");
-        if (jsonByteLength(data) > ceiling) {
+        const captured = captureOwnedJsonValue(safeGet(res, "data"), ceiling);
+        if (captured.kind === "oversize") {
           throwFresh(ERR_DRIVE_INCOMPLETE);
         }
-        return { status, headers, json: data };
+        if (captured.kind !== "ok") {
+          throwFresh(fallback);
+        }
+        return { status, headers, json: captured.json };
       }
-      const bytes = toBytes(safeGet(res, "data"));
-      if (bytes.byteLength > ceiling) {
+      const copiedBytes = copyInjectedBody(safeGet(res, "data"), ceiling);
+      if (copiedBytes.kind === "oversize") {
         throwFresh(ERR_DRIVE_READBACK);
       }
-      return { status, headers, bytes };
+      if (copiedBytes.kind !== "ok") {
+        throwFresh(fallback);
+      }
+      return { status, headers, bytes: copiedBytes.bytes };
     } catch (err) {
       mapRequestFailure(err, opts.phase);
     }
@@ -634,13 +777,14 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
       responseType: "json",
     });
     const status = asFiniteInteger(safeGet(res, "status"));
-    if (status !== undefined && (status < 200 || status >= 300)) {
+    if (status === undefined || status < 200 || status >= 300) {
       throwFresh(ERR_BIND_IDENTITY);
     }
-    const data = safeGet(res, "data");
-    if (jsonByteLength(data) > GOOGLE_JSON_MAX_BYTES) {
+    const ownedJson = captureOwnedJsonValue(safeGet(res, "data"), GOOGLE_JSON_MAX_BYTES);
+    if (ownedJson.kind !== "ok") {
       throwFresh(ERR_BIND_IDENTITY);
     }
+    const data = ownedJson.json;
     if (!isRecord(data)) {
       throwFresh(ERR_BIND_IDENTITY);
     }
@@ -1004,7 +1148,7 @@ function injectedListFailure(res: unknown): ListPageResult {
   if (json === undefined) {
     return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
-  return { ok: true, json };
+  return captureListJson(json, DRIVE_LIST_JSON_MAX_BYTES);
 }
 
 function mapListTransportError(err: unknown): ListPageResult {
@@ -1064,14 +1208,7 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
       if (status < 200 || status >= 300) {
         return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
       }
-      const data = safeGet(res, "data");
-      if (jsonByteLength(data) > DRIVE_LIST_JSON_MAX_BYTES) {
-        return { ok: false, reason: LIST_REASON_JSON_BOUND };
-      }
-      if (data === undefined) {
-        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-      }
-      return { ok: true, json: data };
+      return captureListJson(safeGet(res, "data"), DRIVE_LIST_JSON_MAX_BYTES);
     } catch (err) {
       return mapListTransportError(err);
     }
@@ -1186,9 +1323,9 @@ export async function listCiphertextCandidates(
       if (!isRecord(page.json)) {
         return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
       }
-      filesValue = safeGet(page.json, "files");
-      incompleteSearch = safeGet(page.json, "incompleteSearch");
-      nextPageToken = safeGet(page.json, "nextPageToken");
+      filesValue = page.json.files;
+      incompleteSearch = page.json.incompleteSearch;
+      nextPageToken = page.json.nextPageToken;
     } catch {
       return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
     }
