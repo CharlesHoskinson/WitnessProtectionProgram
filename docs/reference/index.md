@@ -13,5 +13,6 @@ catalog-runtime
 catalog-v2
 kernel
 local-journal
+backup-restore
 ../witness-package-format
 ```

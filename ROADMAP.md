@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-M0 remains open. This tree has a draft interchange profile, synthetic package vectors, a draft catalog JSON Schema, synthetic catalog examples, and grammar tests. Reviewed local encoding, decoding, recovery-pack, ciphertext-journal, catalog reconciliation and catalog-v1 encryption code now exists. A developer Google Drive round trip has passed. Production sharded backup, native interop, the one-click application and cryptographic approval remain open. Later milestones remain planned. Production handling of private witnesses requires all applicable release criteria.
+M0 remains open. This tree has a draft interchange profile, synthetic package vectors, a draft catalog JSON Schema, synthetic catalog examples, and grammar tests. Reviewed local encoding, decoding, recovery-pack, ciphertext-journal, catalog reconciliation and catalog-v1 encryption code now exists. A developer Google Drive round trip has passed. This tree now also authors a candidate `GoogleBackupCoordinator` in `src/backup/` that publishes and restores catalog-v2 shards through `UnlockedVault`, `CiphertextJournal`, and `GoogleDriveSession`. Local injected-Drive tests cover reuse, unchanged observation counts, lock, missing and corrupted objects, over-budget roots, and cold restore. The live Google sharded CLI is `scripts/google-sharded-roundtrip.mjs`. It is not run by `npm test`. Native interop, the one-click retail application, and cryptographic approval remain open. Later milestones remain planned. Production handling of private witnesses requires all applicable release criteria. M0 through M6 remain open.
 
 ## Storage augmentation — experiment-backed direction
 
@@ -61,7 +61,8 @@ Current Google beta progress (2026-09-19):
 - [x] Astra medium and Fable 5.1 low accepted the corrected developer probe at `ccdcd0e`.
 - [x] Integrate the approved Google candidate into this campaign.
 - [x] Browser consent and a live Google Drive upload, download and authenticated decrypt succeeded: 1,469 synthetic encrypted bytes, SHA-256 `326488920835d8ec8160296121a67e821b5f3de2ffed929a4c1b7c5d0c917c7c`, candidate `ccdcd0e` (2026-09-19).
-- [ ] Visible-folder discovery, immutable catalog publication, reconnect and fresh-device restore are implemented and tested.
+- [x] Candidate sharded backup and cold restore coordinator authored in `src/backup/` with injected-Drive tests and a manual synthetic CLI.
+- [ ] Visible-folder discovery, immutable catalog publication, reconnect and fresh-device restore are implemented and tested on a live consumer account.
 - [ ] Retail publishing requirements and a fresh consumer-account test are complete.
 
 These checks describe the developer probe. They do not complete M3 or establish production security approval.
