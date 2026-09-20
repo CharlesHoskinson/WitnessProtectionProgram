@@ -3,7 +3,9 @@ export type { JsonValue } from "./json.js";
 export {
   UnlockedVault,
   type CodecPolicy,
+  type ExpectedCatalogNode,
   type ExpectedSnapshot,
+  type OpenCatalogNodeResult,
   type OpenCatalogResult,
   type OpenResult,
   type RecoveryPack,

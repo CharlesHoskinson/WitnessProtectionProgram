@@ -1,0 +1,29 @@
+{
+  "notice": "PUBLIC SYNTHETIC TEST DATA. This file is not a live vault, recovery pack, production catalog, or real Google Drive object.",
+  "envelopeKind": "catalog",
+  "payloadVersion": 2,
+  "sealMethod": "sealCatalogNode",
+  "openMethod": "openCatalogNode",
+  "expectedRoot": {
+    "nodeType": "root",
+    "fields": ["nodeType", "wireSha256", "wireByteLength"]
+  },
+  "expectedShard": {
+    "nodeType": "shard",
+    "empty": false,
+    "referenceFields": [
+      "prefix",
+      "empty",
+      "recordId",
+      "generationId",
+      "rootEpoch",
+      "wireSha256",
+      "wireByteLength",
+      "plaintextByteLength",
+      "entryCount",
+      "observationCount",
+      "canonicalRecordsSha256",
+      "locators"
+    ]
+  }
+}
