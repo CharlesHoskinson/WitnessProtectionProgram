@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-M0 remains open. This tree has a draft interchange profile, synthetic package vectors, a draft catalog JSON Schema, synthetic catalog examples, and grammar tests. Candidate local encoding, decoding, recovery-pack and ciphertext-journal code now exists. Native interop, the Drive adapter, the one-click application and cryptographic approval remain open. Later milestones remain planned. Production handling of private witnesses requires all applicable release criteria.
+M0 remains open. This tree has a draft interchange profile, synthetic package vectors, a draft catalog JSON Schema, synthetic catalog examples, and grammar tests. Reviewed local encoding, decoding, recovery-pack, ciphertext-journal, catalog reconciliation and catalog-v1 encryption code now exists. A developer Google Drive round trip has passed. Production sharded backup, native interop, the one-click application and cryptographic approval remain open. Later milestones remain planned. Production handling of private witnesses requires all applicable release criteria.
 
 ## Storage augmentation — experiment-backed direction
 
@@ -14,7 +14,7 @@ The user confirmed that the researched data structures must be implemented in WP
 
 ## M0 — Freeze an interoperable format
 
-Review the package grammar, secret hierarchy, native Midnight export adapter, root record, independent recovery pack and maximum sizes. Resolve SDK version compatibility against the pinned repositories. Publish synthetic examples and independently generated vectors before freezing a wire version. A draft catalog schema and synthetic catalog fixtures exist as grammar tools. They are not a freeze, a parser, or cryptographic approval. A review of this draft is not cryptographic approval.
+Review the package grammar, secret hierarchy, native Midnight export adapter, root record, independent recovery pack and maximum sizes. Resolve SDK version compatibility against the pinned repositories. Publish synthetic examples and independently generated vectors before freezing a wire version. A draft catalog schema and synthetic catalog fixtures exist as grammar tools. They are not a format freeze or cryptographic approval. The implemented catalog-v1 parser and reconciliation runtime are separate from these grammar fixtures. A review of this draft is not cryptographic approval.
 
 Define closed, versioned catalog-root and shard manifests, and a separately reviewed pack-extent extension if adopted. Bind scope, record identity, version, byte lengths and ciphertext hashes. Preserve native export fields without reinterpretation.
 
@@ -26,11 +26,13 @@ Use established cryptographic implementations. Do not implement AES manually. Es
 
 This tree authors a candidate trusted local envelope kernel in `src/kernel/` and a local ciphertext journal in `src/journal/`. The kernel seals and opens snapshot packages, validates input, registers explicit codecs, creates independent recovery packs, and locks owned secret buffers. The journal persists exact sealed wire bytes on an admitted Linux ext-family directory, reopens them after process exit, and returns `local-durable` only after file and directory fsync. Canonical ciphertext validation was corrected in `c24afed`; independent Astra medium and Fable low reviews approved the bounded local kernel/journal scope. This is not production security approval.
 
-Build and test results are candidate-specific evidence, not production security acceptance. This tree does not claim a complete M1. It does not claim catalog reconciliation, native capture, Drive, Bitwarden, or cryptographic approval. Do not treat a successful local seal or journal fsync as remote durability. Do not treat a successful open as activation or restore.
+Build and test results are candidate-specific evidence, not production security acceptance. This tree does not claim a complete M1. It does not claim complete native capture, production Drive backup/restore, Bitwarden integration, or cryptographic approval. Do not treat a successful local seal or journal fsync as remote durability. Do not treat a successful open as activation or restore.
+
+Catalog reconciliation was integrated in `95b3a0f` after host verification and Astra medium/Fable low approval of source `b338bb9`. It preserves concurrent heads, reports missing ancestry and compares snapshot claims with trusted kernel results; comparison itself is not authentication. Catalog-v1 seal/open was integrated in `f15e9b2` after the same review process for source `a15f107`, including independent Python decryption, retired-epoch opening, authenticated malformed-input rejection and fresh-process recovery tests. These bounded acceptances do not establish sharded storage or remote durability.
 
 Remaining M1 work is still required:
 
-- catalog semantic reconciliation, immutable revision heads, preserved concurrent heads and a rebuildable local index
+- integrate the accepted reconciliation runtime with authenticated immutable revision heads and a rebuildable local index
 - bounded encrypted catalog shards with byte-based splitting and exact reuse of unchanged encrypted nodes
 - authenticated root-to-shard references, missing/corrupt child rejection, cold reconstruction and malformed-manifest tests
 - encrypted upload-observation queue and remote verification
