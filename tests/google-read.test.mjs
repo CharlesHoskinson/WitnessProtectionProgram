@@ -278,6 +278,96 @@ function throwingListProxy(target) {
   });
 }
 
+function changingDescriptorContinuation(files, token) {
+  let descriptorReads = 0;
+  const target = { files, nextPageToken: token };
+  return {
+    data: new Proxy(target, {
+      getOwnPropertyDescriptor(_ignored, prop) {
+        if (prop === 'nextPageToken') {
+          descriptorReads += 1;
+          return {
+            configurable: true,
+            enumerable: descriptorReads === 1,
+            writable: true,
+            value: token,
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, prop);
+      },
+      ownKeys() {
+        return ['files', 'nextPageToken'];
+      },
+      getPrototypeOf() {
+        return Object.prototype;
+      },
+      has(_ignored, prop) {
+        return Object.prototype.hasOwnProperty.call(target, prop);
+      },
+    }),
+    getDescriptorReads: () => descriptorReads,
+  };
+}
+
+function ownProtoListing(fields, protoValue) {
+  const data = Object.create(null);
+  for (const key of Object.getOwnPropertyNames(fields)) {
+    Object.defineProperty(data, key, {
+      value: fields[key],
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  Object.defineProperty(data, '__proto__', {
+    value: protoValue,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+  return data;
+}
+
+function jsonUtf8Size(value) {
+  return Buffer.byteLength(JSON.stringify(value));
+}
+
+function padRepeatsForBudget(unit, targetBytes) {
+  const make = (n) => ({ files: [], pad: unit.repeat(n) });
+  const empty = jsonUtf8Size(make(0));
+  const one = jsonUtf8Size(make(1));
+  const per = one - empty;
+  ok(per > 0, `unit ${inspect(unit)} must add JSON bytes`);
+  let n = Math.floor((targetBytes - empty) / per);
+  if (n < 0) {
+    n = 0;
+  }
+  while (jsonUtf8Size(make(n + 1)) <= targetBytes) {
+    n += 1;
+  }
+  while (n > 0 && jsonUtf8Size(make(n)) > targetBytes) {
+    n -= 1;
+  }
+  return n;
+}
+
+async function withStringifyProbe(fn) {
+  const original = JSON.stringify;
+  let largest = 0;
+  JSON.stringify = (...args) => {
+    const result = original(...args);
+    if (typeof result === 'string' && result.length > largest) {
+      largest = result.length;
+    }
+    return result;
+  };
+  try {
+    return { result: await fn(), largest };
+  } finally {
+    JSON.stringify = original;
+  }
+}
+
 describe('getOwnedCiphertext', () => {
   test('kernel-sealed synthetic bytes round-trip through owned readback and openSnapshot', async () => {
     const sealed = sealSyntheticBlob();
@@ -1989,6 +2079,232 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
     equal(laterListed.candidates.length, 1);
     equal(laterListed.candidates[0].fileId, first.id);
     assertNoWrites(laterCalls);
+  });
+
+  test('changing descriptor Proxy continuation cannot complete on the first or later AuthClient page', async () => {
+    const first = fileRecord('desc-proxy-first', 8);
+    const hostile = changingDescriptorContinuation([fileRecord('desc-proxy-hide', 8)], 'still-next');
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: hostile.data,
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.candidates.length, 0);
+    assertNoWrites(calls);
+
+    const later = changingDescriptorContinuation([fileRecord('desc-proxy-late', 8)], 'later-hidden');
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'desc-proxy-next' } };
+      }
+      return { status: 200, data: later.data };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(page, 2);
+    assertNoWrites(laterCalls);
+  });
+
+  test('literal own __proto__ keys stay data and do not complete from nested completion fields', async () => {
+    const visible = fileRecord('proto-own', 8);
+    const nested = {
+      files: [fileRecord('proto-nested', 8)],
+      nextPageToken: 'from-proto-value',
+      incompleteSearch: true,
+    };
+    const firstPage = ownProtoListing({ files: [visible] }, nested);
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: firstPage,
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, true);
+    equal(listed.candidates.length, 1);
+    equal(listed.candidates[0].fileId, visible.id);
+    equal(calls.length, 1);
+    assertNoWrites(calls);
+
+    const continued = fileRecord('proto-continue', 9);
+    const withToken = ownProtoListing(
+      { files: [continued], nextPageToken: 'real-next' },
+      nested,
+    );
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: withToken };
+      }
+      return { status: 200, data: { files: [fileRecord('proto-page-two', 8)] } };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, true);
+    equal(laterListed.candidates.length, 2);
+    equal(laterListed.candidates[0].fileId, continued.id);
+    equal(laterListed.candidates[1].fileId, 'file_proto-page-two');
+    equal(page, 2);
+    equal(laterCalls.length, 2);
+    assertNoWrites(laterCalls);
+
+    const injectedFile = fileRecord('proto-injected', 8);
+    const { adapter: injectedAdapter, calls: injectedCalls } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: utf8(
+        `{"files":[${JSON.stringify(injectedFile)}],"__proto__":{"files":[],"nextPageToken":"injected-hidden","incompleteSearch":true}}`,
+      ),
+    }));
+    const injectedListed = await listCiphertextCandidates(injectedAdapter);
+    equal(injectedListed.complete, true);
+    equal(injectedListed.candidates.length, 1);
+    equal(injectedListed.candidates[0].fileId, injectedFile.id);
+    assertNoWrites(injectedCalls);
+  });
+
+  test('inherited and nonenumerable completion fields stay incomplete on later pages', async () => {
+    const first = fileRecord('hidden-later', 8);
+    const hidden = { files: [fileRecord('hidden-own', 8)] };
+    Object.defineProperty(hidden, 'nextPageToken', {
+      enumerable: false,
+      value: 'hidden-later-token',
+    });
+    let page = 0;
+    const { adapter, calls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'hidden-next' } };
+      }
+      return { status: 200, data: hidden };
+    });
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.candidates.length, 1);
+    equal(listed.candidates[0].fileId, first.id);
+    equal(page, 2);
+    assertNoWrites(calls);
+
+    const proto = { nextPageToken: 'from-proto-later', incompleteSearch: true };
+    const inherited = Object.create(proto);
+    inherited.files = [fileRecord('inherited-late', 8)];
+    let inheritedPage = 0;
+    const { adapter: protoAdapter, calls: protoCalls } = authClientAdapter(async () => {
+      inheritedPage += 1;
+      if (inheritedPage === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'inherited-next' } };
+      }
+      return { status: 200, data: inherited };
+    });
+    const protoListed = await listCiphertextCandidates(protoAdapter);
+    equal(protoListed.complete, false);
+    equal(protoListed.candidates.length, 1);
+    equal(protoListed.candidates[0].fileId, first.id);
+    assertNoWrites(protoCalls);
+  });
+
+  test('oversized string values and keys are rejected without a huge serialized allocation', async () => {
+    const hugeValue = 'x'.repeat(DRIVE_LIST_JSON_MAX_BYTES + 1);
+    const valueProbe = await withStringifyProbe(async () => {
+      const { adapter, calls } = authClientAdapter(async () => ({
+        status: 200,
+        data: { files: [], pad: hugeValue },
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      assertNoWrites(calls);
+      return listed;
+    });
+    equal(valueProbe.result.complete, false);
+    equal(valueProbe.result.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(valueProbe.result.candidates.length, 0);
+    ok(
+      valueProbe.largest < hugeValue.length,
+      `value serialized allocation ${valueProbe.largest}`,
+    );
+
+    const hugeKey = 'k'.repeat(DRIVE_LIST_JSON_MAX_BYTES + 1);
+    const keyProbe = await withStringifyProbe(async () => {
+      const { adapter, calls } = authClientAdapter(async () => ({
+        status: 200,
+        data: { files: [], [hugeKey]: 1 },
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      assertNoWrites(calls);
+      return listed;
+    });
+    equal(keyProbe.result.complete, false);
+    equal(keyProbe.result.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(keyProbe.result.candidates.length, 0);
+    ok(keyProbe.largest < hugeKey.length, `key serialized allocation ${keyProbe.largest}`);
+
+    const first = fileRecord('oversize-kept', 8);
+    const laterProbe = await withStringifyProbe(async () => {
+      let page = 0;
+      const { adapter, calls } = authClientAdapter(async () => {
+        page += 1;
+        if (page === 1) {
+          return { status: 200, data: { files: [first], nextPageToken: 'oversize-next' } };
+        }
+        return { status: 200, data: { files: [fileRecord('oversize-late', 8)], pad: hugeValue } };
+      });
+      const listed = await listCiphertextCandidates(adapter);
+      assertNoWrites(calls);
+      return listed;
+    });
+    equal(laterProbe.result.complete, false);
+    equal(laterProbe.result.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(laterProbe.result.candidates.length, 1);
+    equal(laterProbe.result.candidates[0].fileId, first.id);
+    ok(
+      laterProbe.largest < hugeValue.length,
+      `later serialized allocation ${laterProbe.largest}`,
+    );
+  });
+
+  test('listing byte accounting matches JSON.stringify at the 1 MiB boundary for escaped Unicode', async () => {
+    const units = [
+      ['ascii', 'x'],
+      ['quote', '"'],
+      ['backslash', '\\'],
+      ['newline', '\n'],
+      ['control', '\u0001'],
+      ['bmp-2', 'é'],
+      ['bmp-3', '中'],
+      ['surrogate-pair', '😀'],
+      ['lone-high', '\uD800'],
+      ['lone-low', '\uDFFF'],
+    ];
+    for (const [name, unit] of units) {
+      const n = padRepeatsForBudget(unit, DRIVE_LIST_JSON_MAX_BYTES);
+      const exactPage = { files: [], pad: unit.repeat(n) };
+      const overPage = { files: [], pad: unit.repeat(n + 1) };
+      const exactSize = jsonUtf8Size(exactPage);
+      const overSize = jsonUtf8Size(overPage);
+      ok(exactSize <= DRIVE_LIST_JSON_MAX_BYTES, `${name} exact ${exactSize}`);
+      ok(overSize > DRIVE_LIST_JSON_MAX_BYTES, `${name} over ${overSize}`);
+
+      const { adapter: exactAdapter, calls: exactCalls } = authClientAdapter(async () => ({
+        status: 200,
+        data: exactPage,
+      }));
+      const exactListed = await listCiphertextCandidates(exactAdapter);
+      equal(exactListed.complete, true, name);
+      equal(exactListed.candidates.length, 0, name);
+      assertNoWrites(exactCalls);
+
+      const { adapter: overAdapter, calls: overCalls } = authClientAdapter(async () => ({
+        status: 200,
+        data: overPage,
+      }));
+      const overListed = await listCiphertextCandidates(overAdapter);
+      equal(overListed.complete, false, name);
+      equal(overListed.reason, 'GOOGLE_DRIVE_JSON_BOUND', name);
+      equal(overListed.candidates.length, 0, name);
+      assertNoWrites(overCalls);
+    }
   });
 
   test('queryBoundPermissionId requires a finite integer 2xx status', async () => {

@@ -111,17 +111,28 @@ agree. Conflicting metadata makes the listing incomplete.
 Pagination is complete only when `nextPageToken` is absent. A null token, an
 empty string, a function, a symbol, or any other type is incomplete.
 
-The transport captures one owned JSON-shaped object. That same object is the
-byte-budget source and the consumed page. It does not serialize the original
-caller value after capture. It inspects own data descriptors and does not
-execute accessors. It does not call caller `toJSON` or other serializers.
-Accessors, functions, symbols, BigInt, cycles, custom `toJSON`, hostile
-Proxy traps, and other non-JSON objects make the page incomplete.
+The transport captures one owned null-prototype JSON object. That same object
+is the byte-budget source and the consumed page. It does not serialize the
+original caller value. It does not parse a second representation.
+
+It rejects every Proxy, including a revoked Proxy, with the non-trapping
+native `util.types.isProxy` check before it inspects the value. For ordinary
+objects it captures each property descriptor once, validates that descriptor,
+and uses the captured value. It does not execute accessors. It does not call
+caller `toJSON` or other serializers. Accessors, functions, symbols, BigInt,
+cycles, custom `toJSON`, proxies, and other non-JSON objects make the page
+incomplete.
 
 A non-enumerable or inherited `files`, `incompleteSearch`, or
-`nextPageToken` field is a rejection. It is not a silent omission. Unknown
-JSON fields may remain for sizing. The exact UTF-8 size of the owned JSON
-must stay at or under 1 MiB.
+`nextPageToken` field is a rejection. It is not a silent omission. An own
+`__proto__` data property stays an ordinary member. It does not become the
+clone prototype and it does not supply inherited completion fields.
+
+Unknown JSON fields may remain for sizing. String and key sizes use
+incremental escaped UTF-8 JSON accounting and stop at the remaining budget.
+The transport does not allocate a full escaped string to learn that a value
+exceeds 1 MiB. The exact UTF-8 size of the owned JSON must stay at or under
+1 MiB.
 
 The transport never follows an arbitrary URL from the response. It detects
 repeated `nextPageToken` values as cycles. `incompleteSearch: true`, a page
