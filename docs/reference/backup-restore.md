@@ -31,7 +31,20 @@ It does not implement a second encryption path.
 The locator is the catalog-v2 Google locator.
 The checkpoint stores no root key, no recovery key, no token, and no plaintext
 catalog.
-`parseBackupCheckpoint` copies and freezes the record.
+`parseBackupCheckpoint` rejects a Proxy before any inspection.
+It accepts only an ordinary object or a null-prototype object.
+It reads own data descriptors for the closed key set once.
+It does not execute accessors, caller methods, or unknown-property clones.
+It builds a fresh frozen record from checked primitive fields.
+A digest is exactly 64 lowercase hex characters.
+Permission, object, and revision strings are at most 128 characters.
+Those strings must match their alphabets through the true end of the value.
+`wireByteLength` is an integer from 1 through `rootWireBytes`.
+`readBackupCheckpointFile` opens a nonblocking descriptor.
+It rejects a non-regular file before it reads.
+It reads at most 16 KiB plus one byte, then closes the descriptor.
+Empty and oversized files fail as integrity errors.
+Filesystem errors stay redacted.
 `writeBackupCheckpointFile` writes canonical JSON with mode `0600` and an
 atomic rename.
 Do not store checkpoint JSON in `CiphertextJournal`.

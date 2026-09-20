@@ -1,6 +1,17 @@
 import { randomBytes } from "node:crypto";
-import { closeSync, fsyncSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  fsyncSync,
+  openSync,
+  readSync,
+  renameSync,
+  unlinkSync,
+  writeSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
+import { isProxy } from "node:util/types";
 
 import {
   CATALOG_V2_LIMITS,
@@ -23,38 +34,112 @@ import {
   type GoogleDriveLocator,
 } from "./types.js";
 
-const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
-const PERMISSION_RE = /^[A-Za-z0-9_.-]{1,128}$/;
-const OBJECT_RE = /^[A-Za-z0-9_-]{1,128}$/;
+const SHA256_HEX_BODY = /^[0-9a-f]{64}/;
+const PERMISSION_BODY = /^[A-Za-z0-9_.-]{1,128}/;
+const OBJECT_BODY = /^[A-Za-z0-9_-]{1,128}/;
 const FILE_MODE = 0o600;
 const CHECKPOINT_MAX_BYTES = 16 * 1024;
+const CHECKPOINT_READ_CEILING = CHECKPOINT_MAX_BYTES + 1;
 
 const ROOT_KEYS = Object.freeze(["wireSha256", "wireByteLength", "locator"]);
 const CHECKPOINT_KEYS = Object.freeze(["format", "version", "root"]);
 const LOCATOR_KEYS = Object.freeze(["provider", "accountBinding", "objectId", "revisionId"]);
 const BINDING_KEYS = Object.freeze(["scheme", "value"]);
 
-function isPlainObject(value: unknown): value is { [key: string]: unknown } {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+function schemaFail(): never {
+  throw new BackupError(ERR_BACKUP_SCHEMA);
 }
 
-function assertExactKeys(value: object, keys: readonly string[]): void {
-  const actual = Object.keys(value);
-  if (actual.length !== keys.length) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+function isAccessorDescriptor(desc: PropertyDescriptor): boolean {
+  return desc.get !== undefined || desc.set !== undefined;
+}
+
+function ownExactObject(value: unknown, keys: readonly string[]): { [key: string]: unknown } {
+  if (isProxy(value)) {
+    schemaFail();
   }
-  for (const key of keys) {
-    if (!Object.prototype.hasOwnProperty.call(value, key)) {
-      throw new BackupError(ERR_BACKUP_SCHEMA);
+  if (value === null || typeof value !== "object") {
+    schemaFail();
+  }
+  if (Array.isArray(value)) {
+    schemaFail();
+  }
+  let proto: object | null;
+  try {
+    proto = Object.getPrototypeOf(value);
+  } catch {
+    schemaFail();
+  }
+  if (proto !== Object.prototype && proto !== null) {
+    schemaFail();
+  }
+  let symbols: symbol[];
+  let names: string[];
+  try {
+    symbols = Object.getOwnPropertySymbols(value);
+    names = Object.getOwnPropertyNames(value);
+  } catch {
+    schemaFail();
+  }
+  if (symbols.length !== 0 || names.length !== keys.length) {
+    schemaFail();
+  }
+  const expected = new Set(keys);
+  for (const name of names) {
+    if (!expected.has(name)) {
+      schemaFail();
     }
   }
+  const owned = Object.create(null) as { [key: string]: unknown };
+  for (const key of keys) {
+    let desc: PropertyDescriptor | undefined;
+    try {
+      desc = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      schemaFail();
+    }
+    if (
+      desc === undefined ||
+      desc.enumerable !== true ||
+      isAccessorDescriptor(desc) ||
+      !Object.prototype.hasOwnProperty.call(desc, "value")
+    ) {
+      schemaFail();
+    }
+    owned[key] = desc.value;
+  }
+  return owned;
+}
+
+function assertBoundedToken(
+  value: unknown,
+  body: RegExp,
+  minLength: number,
+  maxLength: number,
+): string {
+  if (typeof value !== "string") {
+    schemaFail();
+  }
+  if (value.length < minLength || value.length > maxLength) {
+    schemaFail();
+  }
+  const matched = body.exec(value);
+  if (matched === null || matched.index !== 0 || matched[0].length !== value.length) {
+    schemaFail();
+  }
+  return value;
 }
 
 function assertHexDigest(value: unknown): string {
-  if (typeof value !== "string" || !SHA256_HEX_RE.test(value)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  return value;
+  return assertBoundedToken(value, SHA256_HEX_BODY, 64, 64);
+}
+
+function assertPermissionId(value: unknown): string {
+  return assertBoundedToken(value, PERMISSION_BODY, 1, 128);
+}
+
+function assertObjectId(value: unknown): string {
+  return assertBoundedToken(value, OBJECT_BODY, 1, 128);
 }
 
 function assertWireLength(value: unknown): number {
@@ -64,74 +149,48 @@ function assertWireLength(value: unknown): number {
     value < 1 ||
     value > CATALOG_V2_LIMITS.rootWireBytes
   ) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+    schemaFail();
   }
   return value;
 }
 
 function parseLocator(value: unknown): GoogleDriveLocator {
-  if (!isPlainObject(value)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+  const locator = ownExactObject(value, LOCATOR_KEYS);
+  if (locator.provider !== "google-drive") {
+    schemaFail();
   }
-  assertExactKeys(value, LOCATOR_KEYS);
-  if (value.provider !== "google-drive") {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+  const binding = ownExactObject(locator.accountBinding, BINDING_KEYS);
+  if (binding.scheme !== "google-drive-permission-id") {
+    schemaFail();
   }
-  if (!isPlainObject(value.accountBinding)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  assertExactKeys(value.accountBinding, BINDING_KEYS);
-  if (value.accountBinding.scheme !== "google-drive-permission-id") {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  if (typeof value.accountBinding.value !== "string" || !PERMISSION_RE.test(value.accountBinding.value)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  if (typeof value.objectId !== "string" || !OBJECT_RE.test(value.objectId)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  if (value.revisionId !== null && (typeof value.revisionId !== "string" || !OBJECT_RE.test(value.revisionId))) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
+  const revisionId = locator.revisionId === null ? null : assertObjectId(locator.revisionId);
   return {
     provider: "google-drive",
     accountBinding: {
       scheme: "google-drive-permission-id",
-      value: value.accountBinding.value,
+      value: assertPermissionId(binding.value),
     },
-    objectId: value.objectId,
-    revisionId: value.revisionId,
+    objectId: assertObjectId(locator.objectId),
+    revisionId,
   };
 }
 
 export function parseBackupCheckpoint(value: unknown): BackupCheckpoint {
-  let owned: JsonValue;
-  try {
-    owned = isolatedJsonView(value as JsonValue);
-  } catch {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  if (!isPlainObject(owned)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  assertExactKeys(owned, CHECKPOINT_KEYS);
+  const owned = ownExactObject(value, CHECKPOINT_KEYS);
   if (owned.format !== BACKUP_CHECKPOINT_FORMAT) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+    schemaFail();
   }
   if (owned.version !== BACKUP_CHECKPOINT_VERSION) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
+    schemaFail();
   }
-  if (!isPlainObject(owned.root)) {
-    throw new BackupError(ERR_BACKUP_SCHEMA);
-  }
-  assertExactKeys(owned.root, ROOT_KEYS);
+  const root = ownExactObject(owned.root, ROOT_KEYS);
   const checkpoint: BackupCheckpoint = {
     format: BACKUP_CHECKPOINT_FORMAT,
     version: BACKUP_CHECKPOINT_VERSION,
     root: {
-      wireSha256: assertHexDigest(owned.root.wireSha256),
-      wireByteLength: assertWireLength(owned.root.wireByteLength),
-      locator: parseLocator(owned.root.locator),
+      wireSha256: assertHexDigest(root.wireSha256),
+      wireByteLength: assertWireLength(root.wireByteLength),
+      locator: parseLocator(root.locator),
     },
   };
   return isolatedJsonView(checkpoint as unknown as JsonValue) as unknown as BackupCheckpoint;
@@ -175,19 +234,65 @@ function mapFs(err: unknown, integrity: boolean): never {
   throw new BackupError(integrity ? ERR_BACKUP_INTEGRITY : ERR_BACKUP_IO);
 }
 
+function closeQuiet(fd: number | undefined): void {
+  if (fd === undefined) {
+    return;
+  }
+  try {
+    closeSync(fd);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readCheckpointBytes(path: string): Buffer {
+  let fd: number | undefined;
+  let buf: Buffer | undefined;
+  try {
+    const readFlag = fsConstants.O_RDONLY;
+    const nonblockFlag = fsConstants.O_NONBLOCK;
+    if (typeof readFlag !== "number" || typeof nonblockFlag !== "number") {
+      throw new BackupError(ERR_BACKUP_IO);
+    }
+    fd = openSync(path, readFlag | nonblockFlag);
+    const st = fstatSync(fd);
+    if (typeof st.isFile !== "function" || st.isFile() !== true) {
+      throw new BackupError(ERR_BACKUP_INTEGRITY);
+    }
+    buf = Buffer.alloc(CHECKPOINT_READ_CEILING);
+    let offset = 0;
+    while (offset < CHECKPOINT_READ_CEILING) {
+      const n = readSync(fd, buf, offset, CHECKPOINT_READ_CEILING - offset, offset);
+      if (typeof n !== "number" || !Number.isSafeInteger(n) || n < 0) {
+        throw new BackupError(ERR_BACKUP_IO);
+      }
+      if (n === 0) {
+        break;
+      }
+      offset += n;
+    }
+    if (offset === 0 || offset > CHECKPOINT_MAX_BYTES) {
+      throw new BackupError(ERR_BACKUP_INTEGRITY);
+    }
+    const owned = Buffer.from(buf.subarray(0, offset));
+    wipeBytes(buf);
+    buf = undefined;
+    return owned;
+  } catch (err) {
+    return mapFs(err, false);
+  } finally {
+    closeQuiet(fd);
+    if (buf !== undefined) {
+      wipeBytes(buf);
+    }
+  }
+}
+
 export function readBackupCheckpointFile(path: string): BackupCheckpoint {
   if (typeof path !== "string" || path.length === 0) {
     throw new BackupError(ERR_BACKUP_SCHEMA);
   }
-  let bytes: Buffer;
-  try {
-    bytes = readFileSync(path);
-  } catch (err) {
-    mapFs(err, false);
-  }
-  if (bytes.byteLength === 0 || bytes.byteLength > CHECKPOINT_MAX_BYTES) {
-    throw new BackupError(ERR_BACKUP_INTEGRITY);
-  }
+  const bytes = readCheckpointBytes(path);
   try {
     const parsed = parseJsonBytes(bytes, CHECKPOINT_MAX_BYTES);
     return parseBackupCheckpoint(parsed);
@@ -196,6 +301,8 @@ export function readBackupCheckpointFile(path: string): BackupCheckpoint {
       throw err;
     }
     throw new BackupError(ERR_BACKUP_INTEGRITY);
+  } finally {
+    wipeBytes(bytes);
   }
 }
 
@@ -232,20 +339,8 @@ export function writeBackupCheckpointFile(path: string, checkpoint: BackupCheckp
     closeSync(dirFd);
     dirFd = undefined;
   } catch (err) {
-    try {
-      if (fd !== undefined) {
-        closeSync(fd);
-      }
-    } catch {
-      /* ignore */
-    }
-    try {
-      if (dirFd !== undefined) {
-        closeSync(dirFd);
-      }
-    } catch {
-      /* ignore */
-    }
+    closeQuiet(fd);
+    closeQuiet(dirFd);
     try {
       unlinkSync(tmp);
     } catch {
