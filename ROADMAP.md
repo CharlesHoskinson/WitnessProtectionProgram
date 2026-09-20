@@ -30,11 +30,13 @@ Build and test results are candidate-specific evidence, not production security 
 
 Catalog reconciliation was integrated in `95b3a0f` after host verification and Astra medium/Fable low approval of source `b338bb9`. It preserves concurrent heads, reports missing ancestry and compares snapshot claims with trusted kernel results; comparison itself is not authentication. Catalog-v1 seal/open was integrated in `f15e9b2` after the same review process for source `a15f107`, including independent Python decryption, retired-epoch opening, authenticated malformed-input rejection and fresh-process recovery tests. These bounded acceptances do not establish sharded storage or remote durability.
 
+Catalog-v2 shard planning and whole-revision validation were integrated in `e8ecd97` after host verification and Astra medium/Fable low approval of source `07aecba`. Encrypted root/shard seal and open were integrated in `c1d4dbe` after the same review process for source `358f231`, including independent Python decryption and fresh-process recovery. These modules enforce bounded manifests and authenticated child references. Ordinary backup publication, unchanged ciphertext reuse, and live Google cold restore still require coordinator integration and acceptance.
+
 Remaining M1 work is still required:
 
 - integrate the accepted reconciliation runtime with authenticated immutable revision heads and a rebuildable local index
-- bounded encrypted catalog shards with byte-based splitting and exact reuse of unchanged encrypted nodes
-- authenticated root-to-shard references, missing/corrupt child rejection, cold reconstruction and malformed-manifest tests
+- integrate the accepted shard planner and encrypted node kernel into ordinary backup, with exact reuse of unchanged encrypted nodes
+- verify missing/corrupt child rejection and cold reconstruction through the integrated provider path
 - encrypted upload-observation queue and remote verification
 - isolated native staging, capture, and provider locks
 - BigInt/bytes preservation through a real native adapter
