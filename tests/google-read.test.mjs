@@ -17,11 +17,13 @@ import {
   DRIVE_LIST_MAX_PAGES,
   DRIVE_LIST_PAGE_SIZE,
   DRIVE_LIST_QUERY,
+  GoogleDriveSession,
   GoogleError,
   createGoogleDriveAdapter,
   createGoogleDriveAdapterFromAuthClient,
   getOwnedCiphertext,
   listCiphertextCandidates,
+  queryBoundPermissionId,
 } from '../dist/google/index.js';
 
 const TOKEN_SENTINEL = 'ya29.TOKEN_SENTINEL_DO_NOT_LEAK';
@@ -141,6 +143,75 @@ function listingAdapter(handler) {
   };
   const adapter = createGoogleDriveAdapter({ permissionId: PERMISSION_ID, request });
   return { adapter, calls };
+}
+
+function ownedArrayBuffer(bytes) {
+  const copy = Buffer.from(bytes);
+  return copy.buffer.slice(copy.byteOffset, copy.byteOffset + copy.byteLength);
+}
+
+function authClientAdapter(request) {
+  const calls = [];
+  const adapter = new GoogleDriveSession(PERMISSION_ID, {
+    authClient: {
+      async request(opts) {
+        const method = String(opts.method ?? 'GET').toUpperCase();
+        const url = String(opts.url);
+        calls.push({ method, url, headers: opts.headers ?? {}, body: opts.body });
+        return request({ method, url, opts, calls });
+      },
+    },
+  });
+  return { adapter, calls };
+}
+
+function assertNoWrites(calls) {
+  equal(
+    calls.some((call) => call.method !== 'GET'),
+    false,
+  );
+  equal(
+    calls.some((call) => String(call.url).startsWith(UPLOAD_URL)),
+    false,
+  );
+}
+
+function lyingFourByteBody() {
+  class LyingBytes extends Uint8Array {
+    get byteLength() {
+      return 3;
+    }
+  }
+  return new LyingBytes(Uint8Array.from([9, 8, 7, 6]));
+}
+
+function flippingLengthBody(bytes) {
+  class FlipBytes extends Uint8Array {
+    constructor(source) {
+      super(source);
+      this._reads = 0;
+    }
+    get byteLength() {
+      this._reads += 1;
+      if (this._reads >= 2) {
+        throw new Error(TOKEN_SENTINEL);
+      }
+      return super.byteLength;
+    }
+  }
+  return new FlipBytes(bytes);
+}
+
+function hostileListData(field, base) {
+  const data = { ...base };
+  Object.defineProperty(data, field, {
+    configurable: true,
+    enumerable: true,
+    get() {
+      throw new Error(TOKEN_SENTINEL);
+    },
+  });
+  return data;
 }
 
 describe('getOwnedCiphertext', () => {
@@ -1208,5 +1279,355 @@ describe('listCiphertextCandidates', () => {
     match(DRIVE_LIST_FIELDS, /nextPageToken/);
     match(DRIVE_LIST_FIELDS, /incompleteSearch/);
     match(DRIVE_LIST_FIELDS, /files\(id,name,size\)/);
+  });
+});
+
+describe('owned media copies on AuthClient and injected transports', () => {
+  function expectedLocator(fileId, bytes, digest) {
+    return {
+      permissionId: PERMISSION_ID,
+      fileId,
+      sha256: digest,
+      byteCount: bytes.byteLength,
+    };
+  }
+
+  function assertOwnedReceipt(receipt, fileId, bytes, digest) {
+    equal(receipt.fileId, fileId);
+    equal(receipt.sha256, digest);
+    equal(receipt.byteCount, bytes.byteLength);
+    equal(receipt.ownedReadback.byteLength, bytes.byteLength);
+    equal(receipt.byteCount, receipt.ownedReadback.byteLength);
+    equal(sha256Hex(receipt.ownedReadback), digest);
+    equal(Buffer.compare(Buffer.from(receipt.ownedReadback), Buffer.from(bytes)), 0);
+    equal(receipt.ownedReadback.constructor, Buffer);
+  }
+
+  test('ordinary ArrayBuffer Buffer and Uint8Array media match on both transports', async () => {
+    const sealed = sealSyntheticBlob();
+    const digest = sealed.sha256;
+    const forms = [
+      { label: 'uint8', value: new Uint8Array(sealed.wire) },
+      { label: 'buffer', value: Buffer.from(sealed.wire) },
+      { label: 'arraybuffer', value: ownedArrayBuffer(sealed.wire) },
+    ];
+
+    for (const form of forms) {
+      const { adapter: injected } = listingAdapter(async () => ({
+        status: 200,
+        headers: {},
+        body: form.label === 'arraybuffer' ? Buffer.from(form.value) : form.value,
+      }));
+      if (form.label !== 'arraybuffer') {
+        const injectedReceipt = await getOwnedCiphertext(
+          injected,
+          expectedLocator(`file-injected-${form.label}`, sealed.wire, digest),
+        );
+        assertOwnedReceipt(injectedReceipt, `file-injected-${form.label}`, sealed.wire, digest);
+        equal(injectedReceipt.ownedReadback === form.value, false);
+      }
+
+      const { adapter: auth } = authClientAdapter(async () => ({
+        status: 200,
+        headers: {},
+        data: form.value,
+      }));
+      const authReceipt = await getOwnedCiphertext(
+        auth,
+        expectedLocator(`file-auth-${form.label}`, sealed.wire, digest),
+      );
+      assertOwnedReceipt(authReceipt, `file-auth-${form.label}`, sealed.wire, digest);
+      equal(authReceipt.ownedReadback === form.value, false);
+    }
+
+    const { adapter: injectedAb } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: ownedArrayBuffer(sealed.wire),
+    }));
+    const injectedAbReceipt = await getOwnedCiphertext(
+      injectedAb,
+      expectedLocator('file-injected-arraybuffer', sealed.wire, digest),
+    );
+    assertOwnedReceipt(injectedAbReceipt, 'file-injected-arraybuffer', sealed.wire, digest);
+  });
+
+  test('subclass that lies about byteLength is rejected on both transports', async () => {
+    const lying = lyingFourByteBody();
+    equal(lying.byteLength, 3);
+    equal(lying.length, 4);
+    const digestFour = sha256Hex(Buffer.from([9, 8, 7, 6]));
+    const digestThree = sha256Hex(lying);
+    const locator = {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-lie',
+      sha256: digestThree,
+      byteCount: 3,
+    };
+
+    const { adapter: injected } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: lying,
+    }));
+    await rejects(getOwnedCiphertext(injected, locator), assertGoogleCode('GOOGLE_DRIVE_READBACK'));
+
+    const { adapter: auth } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: lying,
+    }));
+    await rejects(getOwnedCiphertext(auth, locator), (err) => {
+      assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const { adapter: authFour } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: lyingFourByteBody(),
+    }));
+    const honest = await getOwnedCiphertext(authFour, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-lie-real',
+      sha256: digestFour,
+      byteCount: 4,
+    });
+    assertOwnedReceipt(honest, 'file-lie-real', Buffer.from([9, 8, 7, 6]), digestFour);
+  });
+
+  test('second length access cannot leak a raw sentinel on either transport', async () => {
+    const sealed = sealSyntheticBlob();
+    const locator = expectedLocator('file-flip', sealed.wire, sealed.sha256);
+
+    const { adapter: injected } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: flippingLengthBody(sealed.wire),
+    }));
+    const injectedReceipt = await getOwnedCiphertext(injected, locator);
+    assertOwnedReceipt(injectedReceipt, 'file-flip', sealed.wire, sealed.sha256);
+
+    const { adapter: auth } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: flippingLengthBody(sealed.wire),
+    }));
+    const authReceipt = await getOwnedCiphertext(auth, locator);
+    assertOwnedReceipt(authReceipt, 'file-flip', sealed.wire, sealed.sha256);
+    equal(inspect(authReceipt, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+  });
+
+  test('detached and revoked proxy media fail closed on both transports', async () => {
+    const sealed = sealSyntheticBlob();
+    const locator = expectedLocator('file-hostile-media', sealed.wire, sealed.sha256);
+
+    const detachedBytes = new Uint8Array(sealed.wire);
+    structuredClone(detachedBytes.buffer, { transfer: [detachedBytes.buffer] });
+    const { adapter: injectedDetached } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: detachedBytes,
+    }));
+    await rejects(getOwnedCiphertext(injectedDetached, locator), assertGoogleCode('GOOGLE_DRIVE_READBACK'));
+
+    const detachedAuth = new Uint8Array(sealed.wire);
+    structuredClone(detachedAuth.buffer, { transfer: [detachedAuth.buffer] });
+    const { adapter: authDetached } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: detachedAuth,
+    }));
+    await rejects(getOwnedCiphertext(authDetached, locator), assertGoogleCode('GOOGLE_DRIVE_READBACK'));
+
+    const detachedBuffer = ownedArrayBuffer(sealed.wire);
+    structuredClone(detachedBuffer, { transfer: [detachedBuffer] });
+    const { adapter: authDetachedAb } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: detachedBuffer,
+    }));
+    await rejects(getOwnedCiphertext(authDetachedAb, locator), assertGoogleCode('GOOGLE_DRIVE_READBACK'));
+
+    const { proxy, revoke } = Proxy.revocable(new Uint8Array(sealed.wire), {});
+    revoke();
+    const { adapter: injectedProxy } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: proxy,
+    }));
+    await rejects(getOwnedCiphertext(injectedProxy, locator), (err) => {
+      assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const revokedAuth = Proxy.revocable(new Uint8Array(sealed.wire), {});
+    revokedAuth.revoke();
+    const { adapter: authProxy } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: revokedAuth.proxy,
+    }));
+    await rejects(getOwnedCiphertext(authProxy, locator), (err) => {
+      assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+  });
+});
+
+describe('owned listing JSON on AuthClient and injected transports', () => {
+  const LIST_FIELDS = ['files', 'incompleteSearch', 'nextPageToken'];
+
+  test('throwing list field getters are incomplete on the first AuthClient page', async () => {
+    for (const field of LIST_FIELDS) {
+      const { adapter, calls } = authClientAdapter(async () => ({
+        status: 200,
+        data: hostileListData(field, { files: [fileRecord(`throw-${field}`, 16)] }),
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.reason, 'GOOGLE_DRIVE_PAGE_FAILURE', field);
+      equal(listed.candidates.length, 0, field);
+      assertNoWrites(calls);
+      equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+    }
+  });
+
+  test('throwing list field getters keep prior candidates on a later AuthClient page', async () => {
+    const first = fileRecord('kept-auth', 20);
+    for (const field of LIST_FIELDS) {
+      let page = 0;
+      const { adapter, calls } = authClientAdapter(async () => {
+        page += 1;
+        if (page === 1) {
+          return { status: 200, data: { files: [first], nextPageToken: `next-${field}` } };
+        }
+        return {
+          status: 200,
+          data: hostileListData(field, { files: [fileRecord(`late-${field}`, 12)] }),
+        };
+      });
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, field);
+      equal(listed.reason, 'GOOGLE_DRIVE_PAGE_FAILURE', field);
+      equal(listed.candidates.length, 1, field);
+      equal(listed.candidates[0].fileId, first.id, field);
+      equal(page, 2, field);
+      assertNoWrites(calls);
+    }
+  });
+
+  test('injected later-page field failures keep prior candidates and do not write', async () => {
+    const first = fileRecord('kept-injected', 22);
+    const laterBodies = [
+      {
+        field: 'files',
+        body: { files: { id: 'x', name: wppName('x'), size: '1' } },
+        reason: 'GOOGLE_DRIVE_PAGE_FAILURE',
+        candidates: 1,
+      },
+      {
+        field: 'incompleteSearch',
+        body: { files: [fileRecord('late-search', 8)], incompleteSearch: 'true' },
+        reason: 'GOOGLE_DRIVE_PAGE_FAILURE',
+        candidates: 2,
+      },
+      {
+        field: 'nextPageToken',
+        body: { files: [fileRecord('late-token', 8)], nextPageToken: null },
+        reason: 'GOOGLE_DRIVE_PAGE_TOKEN',
+        candidates: 2,
+      },
+    ];
+    for (const later of laterBodies) {
+      let page = 0;
+      const { adapter, calls } = listingAdapter(async () => {
+        page += 1;
+        if (page === 1) {
+          return {
+            status: 200,
+            headers: {},
+            body: jsonBody({ files: [first], nextPageToken: `next-${later.field}` }),
+          };
+        }
+        return { status: 200, headers: {}, body: jsonBody(later.body) };
+      });
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, later.field);
+      equal(listed.reason, later.reason, later.field);
+      equal(listed.candidates.length, later.candidates, later.field);
+      equal(listed.candidates[0].fileId, first.id, later.field);
+      assertNoWrites(calls);
+    }
+  });
+
+  test('circular and undefined AuthClient JSON cannot complete a listing', async () => {
+    const first = fileRecord('circ', 10);
+    const circular = { files: [first] };
+    circular.extra = circular;
+    const { adapter: circAdapter, calls: circCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: circular,
+    }));
+    const circularListed = await listCiphertextCandidates(circAdapter);
+    equal(circularListed.complete, false);
+    equal(circularListed.reason, 'GOOGLE_DRIVE_PAGE_FAILURE');
+    equal(circularListed.candidates.length, 0);
+    assertNoWrites(circCalls);
+
+    let page = 0;
+    const { adapter: laterCirc, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'circ-next' } };
+      }
+      const late = { files: [fileRecord('circ-2', 10)] };
+      late.extra = late;
+      return { status: 200, data: late };
+    });
+    const laterListed = await listCiphertextCandidates(laterCirc);
+    equal(laterListed.complete, false);
+    equal(laterListed.reason, 'GOOGLE_DRIVE_PAGE_FAILURE');
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    assertNoWrites(laterCalls);
+
+    const { adapter: undefAdapter } = authClientAdapter(async () => ({
+      status: 200,
+      data: undefined,
+    }));
+    const undefListed = await listCiphertextCandidates(undefAdapter);
+    equal(undefListed.complete, false);
+    equal(undefListed.complete, false);
+    equal(undefListed.candidates.length, 0);
+  });
+
+  test('queryBoundPermissionId requires a finite integer 2xx status', async () => {
+    const validUser = { user: { permissionId: PERMISSION_ID } };
+    await rejects(
+      queryBoundPermissionId({
+        request: async () => ({ data: validUser }),
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    await rejects(
+      queryBoundPermissionId({
+        request: async () => ({ status: Number.NaN, data: validUser }),
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    await rejects(
+      queryBoundPermissionId({
+        request: async () => ({ status: 199, data: validUser }),
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    const permissionId = await queryBoundPermissionId({
+      request: async () => ({ status: 200, data: validUser }),
+    });
+    equal(permissionId, PERMISSION_ID);
   });
 });

@@ -11,6 +11,17 @@ complete Google Drive beta restore. It does not prove remote durability.
 These APIs reuse an owned `GoogleDriveSession` and the existing bounded HTTP
 machinery. They add no OAuth flow and no new runtime dependency.
 
+Public direct session construction is a trusted injection seam.
+`new GoogleDriveSession`, `bindGoogleDriveSession`, and
+`createGoogleDriveAdapter` take a caller-supplied identity and transport.
+They do not query Drive About. An arbitrary supplied client does not have
+provider-verified identity.
+
+`createGoogleDriveAdapterFromAuthClient` and `authorizeInstalledApp` bind a
+session only after About returns a matching `permissionId`.
+`queryBoundPermissionId` is that About check. It requires a finite integer
+2xx status.
+
 Injected request tests are fixtures. They are not live Google evidence.
 
 ## getOwnedCiphertext
@@ -59,11 +70,14 @@ entire public boundary maps throwing getters, revoked proxies, and other
 caller exceptions to a fresh static code. Original exception identity is not
 preserved.
 
-Injected response bodies are copied only after an intrinsic typed-array
-byte-length check against the request ceiling. Oversize bodies are rejected
-before allocation. The copy uses a new bounded buffer. It does not use
-`Symbol.species` or a caller constructor. Detached, proxy, and non-byte bodies
-are rejected.
+AuthClient media and injected response bodies share one bounded copy
+contract. The transport reads intrinsic `ArrayBuffer` or typed-array length
+before it allocates. It then copies into a new ordinary `Buffer`. It does
+not use caller `byteLength` getters, `Symbol.species`, or caller
+constructors. Default Gaxios bodies are `ArrayBuffer` or
+`Uint8Array`/`Buffer`. Subclass lies, changing getters, detached buffers,
+and revoked proxies are rejected. Hash checks, expected-byte checks, and the
+returned receipt describe those owned bytes only.
 
 ## listCiphertextCandidates
 
@@ -95,12 +109,16 @@ listing incomplete. Repeated `fileId` values collapse only when name and size
 agree. Conflicting metadata makes the listing incomplete.
 
 Pagination is complete only when `nextPageToken` is absent. A null token, an
-empty string, or any other type is incomplete. The transport never follows an
-arbitrary URL from the response. It detects repeated `nextPageToken` values as
-cycles. `incompleteSearch: true`, a page or request failure, a later-page 3xx,
-a missing next page, and a count, byte, or page ceiling all return
-`{ complete: false, reason, candidates }`. Already collected candidates are
-preserved.
+empty string, or any other type is incomplete. Successful list JSON is copied
+into an owned object once. Throwing `files`, `incompleteSearch`, or
+`nextPageToken` getters make the listing incomplete. They do not count as
+absent fields. Malformed serialization, circular data, and undefined data
+fail closed. They do not use a size sentinel below the 1 MiB page ceiling.
+The transport never follows an arbitrary URL from the response. It detects
+repeated `nextPageToken` values as cycles. `incompleteSearch: true`, a page
+or request failure, a later-page 3xx, a missing next page, and a count, byte,
+or page ceiling all return `{ complete: false, reason, candidates }`. Already
+collected candidates are preserved on every later-page failure.
 
 The transport identifies the first page by page index, not by candidate count.
 A first-page 3xx still fails as `GOOGLE_DRIVE_REDIRECT`. An empty first page

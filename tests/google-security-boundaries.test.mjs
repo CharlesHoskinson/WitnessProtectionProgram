@@ -14,6 +14,7 @@ import {
   DRIVE_FILE_SCOPE,
   DRIVE_LIST_JSON_MAX_BYTES,
   GOOGLE_JSON_MAX_BYTES,
+  GoogleDriveSession,
   GoogleError,
   authorizeInstalledApp,
   createGoogleDriveAdapter,
@@ -1252,6 +1253,88 @@ describe('public identity query and injected body copy bounds', () => {
     equal(receipt.byteCount, sealed.wire.byteLength);
     equal(speciesReads, 0);
     equal(sliceCalls, 0);
+  });
+
+  test('AuthClient media copies use the same intrinsic bound as injected bodies', async () => {
+    const sealed = sealSyntheticBlob();
+    let speciesReads = 0;
+    class HostileBytes extends Uint8Array {
+      static get [Symbol.species]() {
+        speciesReads += 1;
+        return Uint8Array;
+      }
+      get byteLength() {
+        return 3;
+      }
+    }
+    const raw = Uint8Array.from([9, 8, 7, 6]);
+    const lying = new HostileBytes(raw);
+    const adapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, headers: {}, data: lying };
+        },
+      },
+    });
+    await rejects(
+      getOwnedCiphertext(adapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-auth-lie',
+        sha256: sha256Hex(Buffer.from(raw)),
+        byteCount: 3,
+      }),
+      assertGoogleCode('GOOGLE_DRIVE_READBACK'),
+    );
+    equal(speciesReads, 0);
+
+    let reads = 0;
+    class FlipBytes extends Uint8Array {
+      get byteLength() {
+        reads += 1;
+        if (reads >= 2) {
+          throw new Error(TOKEN_SENTINEL);
+        }
+        return super.byteLength;
+      }
+    }
+    const flipAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, headers: {}, data: new FlipBytes(sealed.wire) };
+        },
+      },
+    });
+    const receipt = await getOwnedCiphertext(flipAdapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-auth-flip',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.byteCount, sealed.wire.byteLength);
+    equal(receipt.ownedReadback.byteLength, sealed.wire.byteLength);
+    equal(sha256Hex(receipt.ownedReadback), sealed.sha256);
+    equal(speciesReads, 0);
+    equal(inspect(receipt, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+  });
+
+  test('queryBoundPermissionId rejects absent and NaN status on a custom AuthClient', async () => {
+    const data = { user: { permissionId: PERMISSION_ID } };
+    await rejects(
+      queryBoundPermissionId({
+        request: async () => ({ data }),
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    await rejects(
+      queryBoundPermissionId({
+        request: async () => ({ status: Number.NaN, data }),
+      }),
+      assertGoogleCode('GOOGLE_BIND_IDENTITY'),
+    );
+    const permissionId = await queryBoundPermissionId({
+      request: async () => ({ status: 200, data }),
+    });
+    equal(permissionId, PERMISSION_ID);
   });
 
   test('detached injected bodies are rejected without leaking caller data', async () => {

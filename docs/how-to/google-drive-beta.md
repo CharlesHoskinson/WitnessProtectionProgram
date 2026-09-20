@@ -36,10 +36,17 @@ That command compiles TypeScript and runs `node --test tests/*.test.mjs`.
 - empty first page plus continuation then 302 as incomplete, not a throw
 - hostile locator getters and static redacted transport errors
 - kernel-sealed synthetic read-back opened by the real kernel in the same test
+- AuthClient and injected media copies for ArrayBuffer, Uint8Array, Buffer,
+  subclass length lies, changing getters, detached buffers, and revoked proxies
+- throwing `files`, `incompleteSearch`, and `nextPageToken` getters on first
+  and later pages, with prior candidates preserved and no writes
+- `queryBoundPermissionId` rejection of absent and NaN status
 
 `tests/google-security-boundaries.test.mjs` also covers hostile `bind`
-getters, revoked identity-query proxies, and injected oversize copies that
-must not run `Symbol.species`.
+getters, revoked identity-query proxies, AuthClient intrinsic copies, and
+injected oversize copies that must not run `Symbol.species`. Direct session
+construction in those tests is a trusted injection seam. It is not an
+About-verified identity.
 
 Existing Google tests under `tests/google-drive.test.mjs` and
 `tests/google-security-boundaries.test.mjs` remain injected fixtures as well.
