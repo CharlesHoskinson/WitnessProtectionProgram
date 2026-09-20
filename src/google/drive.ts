@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 import {
   copyOwnedBytes,
+  LIMIT_JSON_DEPTH,
   LIMIT_PACKAGE_BYTES,
   LIMIT_PLAINTEXT_BYTES,
   parseJsonBytes,
@@ -421,64 +422,337 @@ function captureOwnedJsonValue(value: unknown, ceiling: number): JsonCapture {
   }
 }
 
+type ListPageResult = { ok: true; json: unknown } | { ok: false; reason: string };
+
+type JsonCloneState = {
+  ceiling: number;
+  bytes: number;
+  seen: WeakSet<object>;
+};
+
+type JsonCloneResult = { ok: true; value: unknown } | { ok: false; reason: string };
+
+const LIST_COMPLETION_KEYS = ["files", "incompleteSearch", "nextPageToken"] as const;
+
+function listJsonFail(reason: string): { ok: false; reason: string } {
+  return { ok: false, reason };
+}
+
+function isAccessorDescriptor(desc: PropertyDescriptor): boolean {
+  return desc.get !== undefined || desc.set !== undefined;
+}
+
+function addExactJsonBytes(state: JsonCloneState, n: number): boolean {
+  if (typeof n !== "number" || !Number.isSafeInteger(n) || n < 0) {
+    return false;
+  }
+  if (state.bytes > state.ceiling - n) {
+    return false;
+  }
+  state.bytes += n;
+  return true;
+}
+
+function isPlainJsonObject(value: object): boolean {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function hasCustomToJSON(value: object): boolean {
+  let current: object | null = value;
+  const seen = new Set<object>();
+  while (current !== null) {
+    if (seen.has(current)) {
+      return true;
+    }
+    seen.add(current);
+    const desc = Object.getOwnPropertyDescriptor(current, "toJSON");
+    if (desc !== undefined) {
+      if (isAccessorDescriptor(desc) || typeof desc.value === "function") {
+        return true;
+      }
+    }
+    current = Object.getPrototypeOf(current);
+  }
+  return false;
+}
+
+function hasMalformedCompletion(record: object): boolean {
+  for (const key of LIST_COMPLETION_KEYS) {
+    let current: object | null = record;
+    const seen = new Set<object>();
+    let found: PropertyDescriptor | undefined;
+    let owner: object | undefined;
+    while (current !== null) {
+      if (seen.has(current)) {
+        return true;
+      }
+      seen.add(current);
+      const desc = Object.getOwnPropertyDescriptor(current, key);
+      if (desc !== undefined) {
+        found = desc;
+        owner = current;
+        break;
+      }
+      current = Object.getPrototypeOf(current);
+    }
+    if (found === undefined || owner === undefined) {
+      continue;
+    }
+    if (owner !== record) {
+      return true;
+    }
+    if (isAccessorDescriptor(found) || found.enumerable !== true) {
+      return true;
+    }
+    const value = found.value;
+    if (
+      typeof value === "function" ||
+      typeof value === "symbol" ||
+      typeof value === "bigint" ||
+      typeof value === "undefined"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function clonePlainJson(value: unknown, depth: number, state: JsonCloneState): JsonCloneResult {
+  if (depth > LIMIT_JSON_DEPTH) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (value === null) {
+    if (!addExactJsonBytes(state, 4)) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
+    }
+    return { ok: true, value: null };
+  }
+  switch (typeof value) {
+    case "boolean": {
+      if (!addExactJsonBytes(state, value ? 4 : 5)) {
+        return listJsonFail(LIST_REASON_JSON_BOUND);
+      }
+      return { ok: true, value };
+    }
+    case "number": {
+      if (!Number.isFinite(value)) {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+      const encoded = JSON.stringify(value);
+      if (typeof encoded !== "string") {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+      if (!addExactJsonBytes(state, Buffer.byteLength(encoded))) {
+        return listJsonFail(LIST_REASON_JSON_BOUND);
+      }
+      return { ok: true, value };
+    }
+    case "string": {
+      const encoded = JSON.stringify(value);
+      if (typeof encoded !== "string") {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+      if (!addExactJsonBytes(state, Buffer.byteLength(encoded))) {
+        return listJsonFail(LIST_REASON_JSON_BOUND);
+      }
+      return { ok: true, value };
+    }
+    case "bigint":
+    case "function":
+    case "symbol":
+    case "undefined":
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    case "object":
+      break;
+    default:
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (state.seen.has(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (hasCustomToJSON(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (Array.isArray(value)) {
+    return clonePlainArray(value, depth, state);
+  }
+  if (!isPlainJsonObject(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  return clonePlainObject(value, depth, state, depth === 0);
+}
+
+function clonePlainArray(value: unknown[], depth: number, state: JsonCloneState): JsonCloneResult {
+  state.seen.add(value);
+  const lengthDesc = Object.getOwnPropertyDescriptor(value, "length");
+  if (
+    lengthDesc === undefined ||
+    isAccessorDescriptor(lengthDesc) ||
+    typeof lengthDesc.value !== "number" ||
+    !Number.isSafeInteger(lengthDesc.value) ||
+    lengthDesc.value < 0
+  ) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  const length = lengthDesc.value;
+  if (length > state.ceiling || length > state.ceiling - state.bytes) {
+    return listJsonFail(LIST_REASON_JSON_BOUND);
+  }
+  if (!addExactJsonBytes(state, 2)) {
+    return listJsonFail(LIST_REASON_JSON_BOUND);
+  }
+  const items: unknown[] = [];
+  for (let i = 0; i < length; i += 1) {
+    if (i > 0 && !addExactJsonBytes(state, 1)) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
+    }
+    const desc = Object.getOwnPropertyDescriptor(value, String(i));
+    if (desc === undefined || isAccessorDescriptor(desc) || desc.enumerable !== true) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    const cloned = clonePlainJson(desc.value, depth + 1, state);
+    if (!cloned.ok) {
+      return cloned;
+    }
+    items.push(cloned.value);
+  }
+  const names = Object.getOwnPropertyNames(value);
+  if (names.length > state.ceiling) {
+    return listJsonFail(LIST_REASON_JSON_BOUND);
+  }
+  for (const name of names) {
+    if (name === "length") {
+      continue;
+    }
+    if (/^(0|[1-9][0-9]*)$/.test(name) && Number(name) < length) {
+      continue;
+    }
+    const extra = Object.getOwnPropertyDescriptor(value, name);
+    if (extra === undefined || isAccessorDescriptor(extra)) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+  }
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  return { ok: true, value: items };
+}
+
+function clonePlainObject(
+  value: object,
+  depth: number,
+  state: JsonCloneState,
+  isListRoot: boolean,
+): JsonCloneResult {
+  state.seen.add(value);
+  if (isListRoot && hasMalformedCompletion(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (Object.getOwnPropertySymbols(value).length > 0) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  const names = Object.getOwnPropertyNames(value);
+  if (names.length > state.ceiling) {
+    return listJsonFail(LIST_REASON_JSON_BOUND);
+  }
+  if (!addExactJsonBytes(state, 2)) {
+    return listJsonFail(LIST_REASON_JSON_BOUND);
+  }
+  const owned: Record<string, unknown> = {};
+  let first = true;
+  for (const key of names) {
+    const desc = Object.getOwnPropertyDescriptor(value, key);
+    if (desc === undefined) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    if (isAccessorDescriptor(desc)) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    if (desc.enumerable !== true) {
+      continue;
+    }
+    if (!first && !addExactJsonBytes(state, 1)) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
+    }
+    const keyEncoded = JSON.stringify(key);
+    if (typeof keyEncoded !== "string") {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    if (!addExactJsonBytes(state, Buffer.byteLength(keyEncoded) + 1)) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
+    }
+    const cloned = clonePlainJson(desc.value, depth + 1, state);
+    if (!cloned.ok) {
+      return cloned;
+    }
+    owned[key] = cloned.value;
+    first = false;
+  }
+  return { ok: true, value: owned };
+}
+
 function captureListJson(data: unknown, ceiling: number): ListPageResult {
   try {
-    if (data === undefined || data === null || !isRecord(data)) {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    if (typeof ceiling !== "number" || !Number.isSafeInteger(ceiling) || ceiling < 0) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    const record = data;
-    let files: unknown;
-    let incompleteSearch: unknown;
-    let nextPageToken: unknown;
-    try {
-      files = record.files;
-    } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    if (data === undefined || data === null || typeof data !== "object") {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    try {
-      incompleteSearch = record.incompleteSearch;
-    } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    if (Array.isArray(data)) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    try {
-      nextPageToken = record.nextPageToken;
-    } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    const state: JsonCloneState = {
+      ceiling,
+      bytes: 0,
+      seen: new WeakSet<object>(),
+    };
+    const cloned = clonePlainJson(data, 0, state);
+    if (!cloned.ok) {
+      return cloned;
     }
-    const owned: Record<string, unknown> = {};
-    if (files !== undefined) {
-      owned.files = files;
+    if (cloned.value === null || typeof cloned.value !== "object" || Array.isArray(cloned.value)) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    if (incompleteSearch !== undefined) {
-      owned.incompleteSearch = incompleteSearch;
+    const owned = cloned.value as Record<string, unknown>;
+    const files = owned.files;
+    const incompleteSearch = owned.incompleteSearch;
+    const nextPageToken = owned.nextPageToken;
+    if (
+      typeof files === "function" ||
+      typeof files === "symbol" ||
+      typeof files === "bigint" ||
+      typeof incompleteSearch === "function" ||
+      typeof incompleteSearch === "symbol" ||
+      typeof incompleteSearch === "bigint" ||
+      typeof nextPageToken === "function" ||
+      typeof nextPageToken === "symbol" ||
+      typeof nextPageToken === "bigint"
+    ) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    if (nextPageToken !== undefined) {
-      owned.nextPageToken = nextPageToken;
+    if (files !== undefined && !Array.isArray(files)) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    let serializedAll: string;
-    try {
-      serializedAll = JSON.stringify(data);
-    } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-    }
-    if (typeof serializedAll !== "string") {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-    }
-    if (Buffer.byteLength(serializedAll) > ceiling) {
-      return { ok: false, reason: LIST_REASON_JSON_BOUND };
+    if (Array.isArray(files) && files.length > DRIVE_LIST_PAGE_SIZE) {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
     let serialized: string;
     try {
       serialized = JSON.stringify(owned);
     } catch {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
     if (typeof serialized !== "string") {
-      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    if (Buffer.byteLength(serialized) > ceiling) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
     }
     return { ok: true, json: JSON.parse(serialized) as unknown };
   } catch {
-    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
 }
 
@@ -1103,8 +1377,6 @@ function inspectIncompleteSearch(value: unknown): { ok: true } | { reason: strin
 function incompleteList(reason: string, candidates: CiphertextCandidate[]): CiphertextCandidateList {
   return { complete: false, reason, candidates: candidates.slice() };
 }
-
-type ListPageResult = { ok: true; json: unknown } | { ok: false; reason: string };
 
 function injectedListFailure(res: unknown): ListPageResult {
   let status: number | undefined;

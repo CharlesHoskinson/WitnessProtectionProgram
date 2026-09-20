@@ -1337,6 +1337,108 @@ describe('public identity query and injected body copy bounds', () => {
     equal(permissionId, PERMISSION_ID);
   });
 
+  test('AuthClient listing rejects accessors, proxies, and custom toJSON without executing them', async () => {
+    const wppName = (seed) => `${sha256Hex(utf8(String(seed)))}.wpp`;
+    const file = {
+      id: 'file_security_list',
+      name: wppName('security-list'),
+      size: '8',
+    };
+    const first = {
+      id: 'file_security_kept',
+      name: wppName('security-kept'),
+      size: '10',
+    };
+
+    let getterReads = 0;
+    const getterData = { files: [file] };
+    Object.defineProperty(getterData, 'nextPageToken', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        getterReads += 1;
+        throw new Error(TOKEN_SENTINEL);
+      },
+    });
+    const getterAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data: getterData };
+        },
+      },
+    });
+    const getterListed = await listCiphertextCandidates(getterAdapter);
+    equal(getterListed.complete, false);
+    equal(getterListed.candidates.length, 0);
+    equal(getterReads, 0);
+
+    let toJsonCalls = 0;
+    const toJsonData = { files: [file], nextPageToken: 'secret' };
+    Object.defineProperty(toJsonData, 'toJSON', {
+      value() {
+        toJsonCalls += 1;
+        return { files: [file] };
+      },
+    });
+    const toJsonAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data: toJsonData };
+        },
+      },
+    });
+    const toJsonListed = await listCiphertextCandidates(toJsonAdapter);
+    equal(toJsonListed.complete, false);
+    equal(toJsonListed.candidates.length, 0);
+    equal(toJsonCalls, 0);
+
+    const throwing = new Proxy(
+      { files: [file] },
+      {
+        get() {
+          throw new Error(TOKEN_SENTINEL);
+        },
+        getOwnPropertyDescriptor() {
+          throw new Error(TOKEN_SENTINEL);
+        },
+        ownKeys() {
+          throw new Error(TOKEN_SENTINEL);
+        },
+      },
+    );
+    const proxyAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data: throwing };
+        },
+      },
+    });
+    const proxyListed = await listCiphertextCandidates(proxyAdapter);
+    equal(proxyListed.complete, false);
+    equal(proxyListed.candidates.length, 0);
+    equal(inspect(proxyListed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+
+    const nested = Proxy.revocable(file, {});
+    nested.revoke();
+    let page = 0;
+    const laterAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          page += 1;
+          if (page === 1) {
+            return { status: 200, data: { files: [first], nextPageToken: 'sec-next' } };
+          }
+          return { status: 200, data: { files: [nested.proxy] } };
+        },
+      },
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(page, 2);
+  });
+
   test('detached injected bodies are rejected without leaking caller data', async () => {
     const sealed = sealSyntheticBlob();
     const body = new Uint8Array(sealed.wire);
