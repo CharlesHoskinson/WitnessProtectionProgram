@@ -857,6 +857,51 @@ describe('listCiphertextCandidates', () => {
     equal(upperListed.candidates.length, 0);
   });
 
+  test('missing and non-string candidate names are malformed page data', async () => {
+    const { adapter: missingAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [{ id: 'x', size: '1' }] }),
+    }));
+    const missing = await listCiphertextCandidates(missingAdapter);
+    equal(missing.complete, false);
+    equal(missing.reason, 'GOOGLE_DRIVE_MALFORMED_CANDIDATE');
+    equal(missing.candidates.length, 0);
+
+    const { adapter: numberAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [{ id: 'x', name: 42, size: '1' }] }),
+    }));
+    const numbered = await listCiphertextCandidates(numberAdapter);
+    equal(numbered.complete, false);
+    equal(numbered.reason, 'GOOGLE_DRIVE_MALFORMED_CANDIDATE');
+    equal(numbered.candidates.length, 0);
+
+    const { adapter: nullAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [{ id: 'x', name: null, size: '1' }] }),
+    }));
+    const nulled = await listCiphertextCandidates(nullAdapter);
+    equal(nulled.complete, false);
+    equal(nulled.reason, 'GOOGLE_DRIVE_MALFORMED_CANDIDATE');
+    equal(nulled.candidates.length, 0);
+
+    const kept = fileRecord('keep-unrelated', 16);
+    const { adapter: unrelatedAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({
+        files: [kept, { id: 'readme1', name: 'notes.txt', size: '4' }],
+      }),
+    }));
+    const unrelated = await listCiphertextCandidates(unrelatedAdapter);
+    equal(unrelated.complete, true);
+    equal(unrelated.candidates.length, 1);
+    equal(unrelated.candidates[0].fileId, kept.id);
+  });
+
   test('overlong JSON stream is incomplete and keeps prior candidates', async () => {
     const first = fileRecord('kept', 18);
     let page = 0;
@@ -993,6 +1038,59 @@ describe('listCiphertextCandidates', () => {
     equal(listed.candidates[0].fileId, first.id);
     equal(followed, 1);
     equal(inspect(listed).includes('evil.example'), false);
+  });
+
+  test('empty first page plus continuation then 302 is incomplete, not a static redirect throw', async () => {
+    let pages = 0;
+    const { adapter } = listingAdapter(async ({ url }) => {
+      pages += 1;
+      const parsed = new URL(url);
+      if (!parsed.searchParams.has('pageToken')) {
+        return {
+          status: 200,
+          headers: {},
+          body: jsonBody({ files: [], nextPageToken: 'next' }),
+        };
+      }
+      equal(parsed.searchParams.get('pageToken'), 'next');
+      return {
+        status: 302,
+        headers: { location: 'https://evil.example/list-next' },
+        body: utf8(''),
+      };
+    });
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.reason, 'GOOGLE_DRIVE_REDIRECT');
+    equal(listed.candidates.length, 0);
+    equal(pages, 2);
+    equal(inspect(listed).includes('evil.example'), false);
+  });
+
+  test('only an absent nextPageToken completes pagination', async () => {
+    const first = fileRecord('token-absent', 11);
+    const { adapter: absentAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: jsonBody({ files: [first] }),
+    }));
+    const absent = await listCiphertextCandidates(absentAdapter);
+    equal(absent.complete, true);
+    equal(absent.reason, undefined);
+    equal(absent.candidates.length, 1);
+
+    const malformedTokens = [null, '', 123, false, 0, true, [], {}, { token: 'x' }];
+    for (const token of malformedTokens) {
+      const { adapter } = listingAdapter(async () => ({
+        status: 200,
+        headers: {},
+        body: jsonBody({ files: [first], nextPageToken: token }),
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, `token=${inspect(token)}`);
+      equal(listed.reason, 'GOOGLE_DRIVE_PAGE_TOKEN', `token=${inspect(token)}`);
+      equal(listed.candidates.length, 1);
+    }
   });
 
   test('invalid completion fields and oversized pages cannot claim complete', async () => {

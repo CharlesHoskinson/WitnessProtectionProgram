@@ -63,6 +63,13 @@ const FILE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 const WPP_NAME_RE = /^[0-9a-f]{64}\.wpp$/;
 const MATCHING_WPP_NAME_RE = /\.wpp$/i;
+const INTRINSIC_BIND = Function.prototype.bind;
+const INTRINSIC_CALL = Function.prototype.call;
+const INTRINSIC_SET = Uint8Array.prototype.set;
+const TYPED_ARRAY_BYTE_LENGTH = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),
+  "byteLength",
+)?.get;
 const STATIC_DRIVE_CODES = new Set<string>([
   ERR_BIND_IDENTITY,
   ERR_DRIVE_AUTH,
@@ -131,29 +138,68 @@ function throwFresh(code: string): never {
   throw freshError(code);
 }
 
-function copyInjectedBody(body: unknown): Buffer | undefined {
-  if (!(body instanceof Uint8Array)) {
+type InjectedBodyCopy =
+  | { kind: "ok"; bytes: Buffer }
+  | { kind: "oversize" }
+  | { kind: "invalid" };
+
+function intrinsicTypedArrayByteLength(value: Uint8Array): number | undefined {
+  if (typeof TYPED_ARRAY_BYTE_LENGTH !== "function") {
     return undefined;
   }
   try {
-    return Buffer.from(Uint8Array.prototype.slice.call(body) as Uint8Array);
+    const length = TYPED_ARRAY_BYTE_LENGTH.call(value);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) {
+      return undefined;
+    }
+    return length;
   } catch {
     return undefined;
+  }
+}
+
+function copyInjectedBody(body: unknown, ceiling: number): InjectedBodyCopy {
+  try {
+    if (!(body instanceof Uint8Array)) {
+      return { kind: "invalid" };
+    }
+    if (typeof ceiling !== "number" || !Number.isSafeInteger(ceiling) || ceiling < 0) {
+      return { kind: "invalid" };
+    }
+    const length = intrinsicTypedArrayByteLength(body);
+    if (length === undefined) {
+      return { kind: "invalid" };
+    }
+    if (length > ceiling) {
+      return { kind: "oversize" };
+    }
+    const owned = Buffer.alloc(length);
+    INTRINSIC_CALL.call(INTRINSIC_SET, owned, body);
+    return { kind: "ok", bytes: owned };
+  } catch {
+    return { kind: "invalid" };
   }
 }
 
 function captureAuthClient(
   authClient: unknown,
 ): Pick<AuthClientLike, "request"> | undefined {
-  if (authClient === null || (typeof authClient !== "object" && typeof authClient !== "function")) {
+  try {
+    if (authClient === null || (typeof authClient !== "object" && typeof authClient !== "function")) {
+      return undefined;
+    }
+    const method = safeGet(authClient, "request");
+    if (typeof method !== "function") {
+      return undefined;
+    }
+    const bound = INTRINSIC_CALL.call(INTRINSIC_BIND, method, authClient);
+    if (typeof bound !== "function") {
+      return undefined;
+    }
+    return { request: bound as AuthClientLike["request"] };
+  } catch {
     return undefined;
   }
-  const method = safeGet(authClient, "request");
-  if (typeof method !== "function") {
-    return undefined;
-  }
-  const bound = (method as AuthClientLike["request"]).bind(authClient);
-  return { request: bound };
 }
 
 function normalizeHeaders(headers: unknown): Record<string, string> {
@@ -351,20 +397,18 @@ async function sessionRequest(
     }
     let status: number | undefined;
     let headers: Record<string, string> = {};
-    let bytes: Buffer | undefined;
+    let copied: InjectedBodyCopy = { kind: "invalid" };
     try {
       status = asFiniteInteger(safeGet(res, "status"));
       headers = normalizeHeaders(safeGet(res, "headers"));
-      bytes = copyInjectedBody(safeGet(res, "body"));
+      copied = copyInjectedBody(safeGet(res, "body"), ceiling);
     } catch {
       throwFresh(fallback);
     }
-    if (status === undefined || bytes === undefined) {
+    if (status === undefined || copied.kind !== "ok") {
       throwFresh(fallback);
     }
-    if (bytes.byteLength > ceiling) {
-      throwFresh(fallback);
-    }
+    const bytes = copied.bytes;
     if (status < 200 || status >= 300) {
       classifyDriveError(
         status,
@@ -573,13 +617,12 @@ export function createGoogleDriveAdapter(options: {
 }
 
 export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "request">): Promise<string> {
-  const captured = captureAuthClient(authClient);
-  if (captured === undefined) {
-    throwFresh(ERR_BIND_IDENTITY);
-  }
-  let res: unknown;
   try {
-    res = await captured.request({
+    const captured = captureAuthClient(authClient);
+    if (captured === undefined) {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    const res = await captured.request({
       method: "GET",
       url: `${DRIVE_ABOUT_URL}?fields=user(permissionId)`,
       retry: false,
@@ -590,14 +633,6 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
       maxContentLength: GOOGLE_JSON_MAX_BYTES,
       responseType: "json",
     });
-  } catch (err) {
-    const code = staticCode(safeGet(err, "code"), "");
-    if (code === ERR_OAUTH_SCOPE || code === ERR_DRIVE_REDIRECT || code === ERR_DRIVE_AUTH) {
-      throwFresh(code);
-    }
-    throwFresh(ERR_BIND_IDENTITY);
-  }
-  try {
     const status = asFiniteInteger(safeGet(res, "status"));
     if (status !== undefined && (status < 200 || status >= 300)) {
       throwFresh(ERR_BIND_IDENTITY);
@@ -619,7 +654,11 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
     }
     return permissionId;
   } catch (err) {
-    throw remapError(err, ERR_BIND_IDENTITY);
+    const code = staticCode(safeGet(err, "code"), "");
+    if (code === ERR_OAUTH_SCOPE || code === ERR_DRIVE_REDIRECT || code === ERR_DRIVE_AUTH) {
+      throwFresh(code);
+    }
+    throwFresh(ERR_BIND_IDENTITY);
   }
 }
 
@@ -892,14 +931,14 @@ function tokenLooksLikeUrl(token: string): boolean {
 }
 
 function inspectNextPageToken(value: unknown): { done: true } | { token: string } | { reason: string } {
-  if (value === undefined || value === null) {
+  if (value === undefined) {
     return { done: true };
   }
   if (typeof value !== "string") {
     return { reason: LIST_REASON_PAGE_TOKEN };
   }
   if (value.length === 0) {
-    return { done: true };
+    return { reason: LIST_REASON_PAGE_TOKEN };
   }
   if (value.length > DRIVE_LIST_MAX_PAGE_TOKEN_CHARS || tokenLooksLikeUrl(value)) {
     return { reason: LIST_REASON_PAGE_TOKEN };
@@ -926,15 +965,14 @@ type ListPageResult = { ok: true; json: unknown } | { ok: false; reason: string 
 function injectedListFailure(res: unknown): ListPageResult {
   let status: number | undefined;
   let headers: Record<string, string> = {};
-  let bytes: Buffer | undefined;
+  let copied: InjectedBodyCopy = { kind: "invalid" };
   try {
     status = asFiniteInteger(safeGet(res, "status"));
     headers = normalizeHeaders(safeGet(res, "headers"));
-    bytes = copyInjectedBody(safeGet(res, "body"));
   } catch {
     return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
-  if (status === undefined || bytes === undefined) {
+  if (status === undefined) {
     return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
   const contentLength = headers["content-length"];
@@ -944,9 +982,18 @@ function injectedListFailure(res: unknown): ListPageResult {
       return { ok: false, reason: LIST_REASON_JSON_BOUND };
     }
   }
-  if (bytes.byteLength > DRIVE_LIST_JSON_MAX_BYTES) {
+  try {
+    copied = copyInjectedBody(safeGet(res, "body"), DRIVE_LIST_JSON_MAX_BYTES);
+  } catch {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  if (copied.kind === "oversize") {
     return { ok: false, reason: LIST_REASON_JSON_BOUND };
   }
+  if (copied.kind !== "ok") {
+    return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+  }
+  const bytes = copied.bytes;
   if (status >= 300 && status < 400) {
     return { ok: false, reason: ERR_DRIVE_REDIRECT };
   }
@@ -1064,7 +1111,10 @@ function absorbCandidate(
       return LIST_REASON_PAGE_FAILURE;
     }
     const name = safeGet(item, "name");
-    if (typeof name !== "string" || !MATCHING_WPP_NAME_RE.test(name)) {
+    if (typeof name !== "string") {
+      return LIST_REASON_MALFORMED_CANDIDATE;
+    }
+    if (!MATCHING_WPP_NAME_RE.test(name)) {
       return undefined;
     }
     if (!WPP_NAME_RE.test(name)) {
@@ -1124,7 +1174,7 @@ export async function listCiphertextCandidates(
     }
     const page = await fetchListPage(internals, buildListUrl(pageToken));
     if (!page.ok) {
-      if (page.reason === ERR_DRIVE_REDIRECT && candidates.length === 0) {
+      if (page.reason === ERR_DRIVE_REDIRECT && pageIndex === 0) {
         throwFresh(ERR_DRIVE_REDIRECT);
       }
       return incompleteList(page.reason, candidates);
