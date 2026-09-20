@@ -1,0 +1,9 @@
+export const NATIVE_CODEC_ID = "midnight-js-private-state-export";
+export const NATIVE_CODEC_VERSION = 1;
+export const NATIVE_EXPORT_FORMAT = "midnight-private-state-export";
+export const NATIVE_PRODUCER_PACKAGE = "@midnight-ntwrk/midnight-js-level-private-state-provider";
+export const NATIVE_PRODUCER_VERSION = "5.0.0-beta.8";
+export const NATIVE_SOURCE_COMMIT = "98ab4ba7537f0a69b2188ebbe7f40aa2f4d6953f";
+export const NATIVE_PASSWORD_MAX_ATTEMPTS = 16;
+export const NATIVE_MAX_STATE_IDS = 256;
+export const NATIVE_MAX_STATE_ID_CHARS = 256;

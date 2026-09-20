@@ -20,7 +20,9 @@ import {
   type JsonValue,
 } from "./json.js";
 
-export const NATIVE_CODEC_ID = "midnight-js-private-state-export";
+import { NATIVE_CODEC_ID as NATIVE_CODEC_PIN } from "../native/pins.js";
+
+export const NATIVE_CODEC_ID = NATIVE_CODEC_PIN;
 
 export interface NetworkBinding {
   id: string;
@@ -339,6 +341,15 @@ export function validateSnapshotPayload(value: unknown): SnapshotPayload {
   const payload = value as SnapshotPayload;
   assertCanonicalObjectSize(payload.metadata as unknown as JsonValue, LIMIT_METADATA_CANONICAL_BYTES);
   return payload;
+}
+
+const validateMetadataSchema = compileRef("urn:wpp:catalog-v1#/$defs/metadata");
+
+export function validateSnapshotMetadata(value: unknown): SnapshotMetadata {
+  runSchema(validateMetadataSchema, value);
+  const metadata = value as SnapshotMetadata;
+  assertCanonicalObjectSize(metadata as unknown as JsonValue, LIMIT_METADATA_CANONICAL_BYTES);
+  return isolatedJsonView(metadata as unknown as JsonValue) as unknown as SnapshotMetadata;
 }
 
 function assertPlainObject(value: unknown): asserts value is Record<string, unknown> {

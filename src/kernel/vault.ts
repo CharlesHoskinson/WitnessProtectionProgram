@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { join } from "node:path";
 import { types } from "node:util";
 import {
   ERR_AUTH,
@@ -31,6 +32,7 @@ import {
   ERR_UTF8,
   KernelError,
   LIMIT_HEADER_CANONICAL_BYTES,
+  LIMIT_METADATA_CANONICAL_BYTES,
   LIMIT_PACKAGE_BYTES,
   LIMIT_PLAINTEXT_BYTES,
   LIMIT_RECOVERY_WIRE_BYTES,
@@ -88,6 +90,7 @@ import {
   validatePackageWire,
   validateRecoveryWire,
   validateRootRecord,
+  validateSnapshotMetadata,
   validateSnapshotPayload,
   type CodecPolicy,
   type ExpectedSnapshot,
@@ -97,6 +100,30 @@ import {
   type SnapshotMetadata,
   type SnapshotPayload,
 } from "./validation.js";
+import { throwIfAborted } from "./native-errors.js";
+import { selectNativePassword, type NativePasswordSelection } from "./native-password.js";
+import {
+  assertExactStateIds,
+  assertNativeCodec,
+  assertProviderBinding,
+  copyExpectedStateIds,
+  copyNativeExportContent,
+  nativePayloadJson,
+  type NativeExportContent,
+} from "./native-payload.js";
+import {
+  destroyStaging,
+  importExactStates,
+  makeStagingRoot,
+  stagingProvider,
+  wrapStagedHandle,
+} from "./native-stage.js";
+import {
+  OwnedNativeProvider,
+  requireOwnedNativeProvider,
+  type NativeStoragePasswordProvider,
+} from "../native/owned-provider.js";
+import { StagedNativeSnapshot } from "../native/staged.js";
 
 export type { CodecPolicy, ExpectedSnapshot, SnapshotHeader, SnapshotMetadata } from "./validation.js";
 
@@ -138,6 +165,26 @@ export interface RecoveryPack {
   wire: Uint8Array;
   recoveryKey: Uint8Array;
 }
+
+export interface CaptureNativeSnapshotInput {
+  provider: OwnedNativeProvider;
+  scopeId: string;
+  recordId: string;
+  metadataUtf8: Uint8Array;
+  expectedStateIds: readonly string[];
+  signal?: AbortSignal;
+}
+
+export interface StageNativeSnapshotOptions {
+  accountId: string;
+  contractAddress: string;
+  privateStoragePasswordProvider: NativeStoragePasswordProvider;
+  expectedStateIds: readonly string[];
+  validateState?: (stateId: string, state: unknown) => undefined;
+  signal?: AbortSignal;
+}
+
+export type { StagedNativeSnapshot, OwnedNativeProvider };
 
 interface OwnedEpoch {
   rootEpoch: string;
@@ -732,6 +779,8 @@ function requiredEpochsInclude(epochs: readonly string[], rootEpoch: string): bo
 
 export class UnlockedVault {
   #locked = false;
+  #lockGeneration = 0;
+  #ops = new Set<Promise<unknown>>();
   #codecs: Map<string, CodecPolicy> | undefined;
   #vaultId: string | undefined;
   #vaultSalt: string | undefined;
@@ -1083,6 +1132,7 @@ export class UnlockedVault {
   }
 
   lock(): void {
+    this.#lockGeneration += 1;
     if (this.#locked) {
       return;
     }
@@ -1102,6 +1152,268 @@ export class UnlockedVault {
     this.#vaultSalt = undefined;
     this.#catalogScopeId = undefined;
     this.#catalogRecordId = undefined;
+  }
+
+  async drain(): Promise<void> {
+    const pending = [...this.#ops];
+    await Promise.allSettled(pending);
+  }
+
+  async captureNativeSnapshot(input: CaptureNativeSnapshotInput): Promise<SealResult> {
+    return this.#track(async () => {
+      const op = this.#beginNativeOp(input.signal);
+      const provider = requireOwnedNativeProvider(input.provider);
+      const scopeId = input.scopeId;
+      const recordId = input.recordId;
+      decodeId32(scopeId);
+      decodeId32(recordId);
+      const expectedStateIds = copyExpectedStateIds(input.expectedStateIds);
+      const metadataBytes = copyOwnedBytes(input.metadataUtf8, LIMIT_METADATA_CANONICAL_BYTES);
+      let selection: NativePasswordSelection | undefined;
+      let staging: OwnedNativeProvider | undefined;
+      let stagingRoot: string | undefined;
+      try {
+        this.#checkNativeOp(op, input.signal);
+        const metadata = validateSnapshotMetadata(parseJsonBytes(metadataBytes, LIMIT_METADATA_CANONICAL_BYTES));
+        assertNativeCodec(metadata.codec);
+        assertProviderBinding(metadata, provider.accountId, provider.contractAddress);
+        assertExactStateIds(expectedStateIds, metadata.privateStateIds);
+        return await provider.runSerialized(async () => {
+          this.#checkNativeOp(op, input.signal);
+          const epoch = activeEpoch(this.#requireEpochs());
+          const vaultId = this.#vaultId;
+          const vaultSalt = this.#vaultSalt;
+          if (vaultId === undefined || vaultSalt === undefined) {
+            throw new KernelError(ERR_LOCKED);
+          }
+          selection = selectNativePassword(epoch.secretRoot, {
+            format: "wpp-witness-package",
+            version: 1,
+            suite: "HKDF-SHA256+A256GCM",
+            vaultId,
+            vaultSalt,
+            rootEpoch: epoch.rootEpoch,
+            scopeId,
+            recordId,
+            kind: "snapshot",
+          });
+          try {
+            this.#checkNativeOp(op, input.signal);
+            const exported = await provider.exportPrivateStates({
+              password: selection.keys.nativeExportPassword,
+              maxStates: expectedStateIds.length,
+            });
+            this.#checkNativeOp(op, input.signal);
+            const content = copyNativeExportContent(exported);
+            stagingRoot = await makeStagingRoot("wpp-native-capture-");
+            staging = provider.createIsolatedClone(join(stagingRoot, "db"));
+            this.#checkNativeOp(op, input.signal);
+            await importExactStates(staging, content, selection.keys.nativeExportPassword, expectedStateIds);
+            this.#checkNativeOp(op, input.signal);
+            const sealed = this.#sealSelected(nativePayloadJson(metadata, content), selection);
+            this.#checkNativeOp(op, input.signal);
+            return sealed;
+          } finally {
+            if (selection !== undefined) {
+              wipeBytes(selection.generation);
+              wipeBytes(selection.nonce);
+              wipeDerivedKeys(selection.keys);
+              selection = undefined;
+            }
+          }
+        });
+      } finally {
+        wipeBytes(metadataBytes);
+        await destroyStaging(staging, stagingRoot);
+        try {
+          await provider.invalidateEncryptionCache();
+        } catch {
+          undefined;
+        }
+      }
+    });
+  }
+
+  async stageNativeSnapshot(
+    wire: Uint8Array,
+    expected: ExpectedSnapshot,
+    options: StageNativeSnapshotOptions,
+  ): Promise<StagedNativeSnapshot> {
+    return this.#track(async () => {
+      const op = this.#beginNativeOp(options.signal);
+      const expectedBinding = validateExpectedSnapshot(expected);
+      assertNativeCodec(expectedBinding.codec);
+      if (typeof options.accountId !== "string" || options.accountId.length < 1) {
+        throw new KernelError(ERR_SCHEMA);
+      }
+      if (typeof options.contractAddress !== "string" || options.contractAddress.length < 1) {
+        throw new KernelError(ERR_SCHEMA);
+      }
+      if (typeof options.privateStoragePasswordProvider !== "function") {
+        throw new KernelError(ERR_SCHEMA);
+      }
+      if (options.accountId !== expectedBinding.accountBinding.value) {
+        throw new KernelError(ERR_BINDING);
+      }
+      if (options.contractAddress !== expectedBinding.contract.address) {
+        throw new KernelError(ERR_BINDING);
+      }
+      const expectedStateIds = copyExpectedStateIds(options.expectedStateIds);
+      let staging: OwnedNativeProvider | undefined;
+      let stagingRoot: string | undefined;
+      let keys: DerivedKeys | undefined;
+      let nativePassword: string | undefined;
+      try {
+        this.#checkNativeOp(op, options.signal);
+        const opened = this.#openNativeSnapshot(wire, expectedBinding);
+        assertExactStateIds(expectedStateIds, opened.metadata.privateStateIds);
+        assertProviderBinding(opened.metadata, options.accountId, options.contractAddress);
+        keys = deriveKeys(epochById(this.#requireEpochs(), opened.header.rootEpoch).secretRoot, opened.header);
+        nativePassword = keys.nativeExportPassword;
+        this.#checkNativeOp(op, options.signal);
+        stagingRoot = await makeStagingRoot("wpp-native-restore-");
+        staging = stagingProvider(
+          options.accountId,
+          options.contractAddress,
+          options.privateStoragePasswordProvider,
+          stagingRoot,
+        );
+        this.#checkNativeOp(op, options.signal);
+        await importExactStates(staging, opened.content, nativePassword, expectedStateIds);
+        if (options.validateState !== undefined) {
+          if (typeof options.validateState !== "function") {
+            throw new KernelError(ERR_SCHEMA);
+          }
+          for (const id of expectedStateIds) {
+            this.#checkNativeOp(op, options.signal);
+            const state = await staging.get(id);
+            let result: unknown;
+            try {
+              result = options.validateState(id, state);
+            } catch {
+              throw new KernelError(ERR_CODEC);
+            }
+            if (result !== undefined) {
+              absorbThenable(result);
+              throw new KernelError(ERR_CODEC);
+            }
+          }
+        }
+        this.#checkNativeOp(op, options.signal);
+        const handle = wrapStagedHandle(staging, stagingRoot);
+        staging = undefined;
+        stagingRoot = undefined;
+        return handle;
+      } finally {
+        if (keys !== undefined) {
+          wipeDerivedKeys(keys);
+        }
+        nativePassword = undefined;
+        await destroyStaging(staging, stagingRoot);
+      }
+    });
+  }
+
+  #track<T>(work: () => Promise<T>): Promise<T> {
+    const run = (async () => work())();
+    this.#ops.add(run);
+    void run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run.finally(() => {
+      this.#ops.delete(run);
+    });
+  }
+
+  #beginNativeOp(signal: AbortSignal | undefined): { token: number; rootEpoch: string } {
+    this.#requireUnlocked();
+    throwIfAborted(signal);
+    const epoch = activeEpoch(this.#requireEpochs());
+    return { token: this.#lockGeneration, rootEpoch: epoch.rootEpoch };
+  }
+
+  #checkNativeOp(op: { token: number; rootEpoch: string }, signal: AbortSignal | undefined): void {
+    throwIfAborted(signal);
+    if (this.#locked || this.#lockGeneration !== op.token) {
+      throw new KernelError(ERR_LOCKED);
+    }
+    this.#requireUnlocked();
+    const epoch = activeEpoch(this.#requireEpochs());
+    if (epoch.rootEpoch !== op.rootEpoch) {
+      throw new KernelError(ERR_EPOCH);
+    }
+  }
+
+  #sealSelected(value: JsonValue, selection: NativePasswordSelection): SealResult {
+    this.#requireUnlocked();
+    let plaintext: Uint8Array | undefined;
+    let nonce: Buffer | undefined;
+    try {
+      nonce = decodeNonce12(selection.header.nonce);
+      plaintext = canonicalizeJsonBytes(value);
+      if (plaintext.byteLength > LIMIT_PLAINTEXT_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      const aad = canonicalAad(selection.header as unknown as JsonValue);
+      if (aad.byteLength > LIMIT_HEADER_CANONICAL_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      const sealed = aeadEncrypt(selection.keys.objectKey, nonce, aad, plaintext);
+      const wireObject = {
+        header: selection.header,
+        ciphertext: encodeBase64Url(sealed.ciphertext),
+        tag: encodeBase64Url(sealed.tag),
+      };
+      const wire = canonicalizeJsonBytes(wireObject as unknown as JsonValue);
+      if (wire.byteLength > LIMIT_PACKAGE_BYTES) {
+        throw new KernelError(ERR_INPUT_TOO_LARGE);
+      }
+      this.#requireUnlocked();
+      return { wire: copyBytes(wire), sha256: sha256Hex(wire) };
+    } finally {
+      if (nonce !== undefined) {
+        wipeBytes(nonce);
+      }
+      if (plaintext !== undefined) {
+        wipeBytes(plaintext);
+      }
+    }
+  }
+
+  #openNativeSnapshot(
+    wire: Uint8Array,
+    expected: ExpectedSnapshot,
+  ): { header: SnapshotHeader; metadata: SnapshotMetadata; content: NativeExportContent } {
+    this.#requireUnlocked();
+    const packageBytes = copyOwnedBytes(wire, LIMIT_PACKAGE_BYTES);
+    const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);
+    const pack = validatePackageWire(parsed);
+    if (pack.header.kind !== "snapshot") {
+      throw new KernelError(ERR_UNSUPPORTED);
+    }
+    let plaintext: Buffer | undefined;
+    try {
+      plaintext = this.#decryptPack(pack.header, pack.ciphertext, pack.tag);
+      const payload = parsePayload(plaintext);
+      assertCanonicalPayloadBytes(plaintext, payload as unknown as JsonValue);
+      if (payload.metadata.codec.id !== NATIVE_CODEC_ID) {
+        throw new KernelError(ERR_UNSUPPORTED);
+      }
+      assertNativeCodec(payload.metadata.codec);
+      assertExpectedBinding(expected, pack.header, payload.metadata);
+      const content = copyNativeExportContent(payload.content);
+      this.#requireUnlocked();
+      return {
+        header: pack.header,
+        metadata: payload.metadata,
+        content,
+      };
+    } finally {
+      if (plaintext !== undefined) {
+        wipeBytes(plaintext);
+      }
+    }
   }
 
   #runCodec(codecId: string, content: JsonValue, metadata: SnapshotMetadata): void {

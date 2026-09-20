@@ -14,4 +14,5 @@ validate-local-package
 validate-catalog
 seal-catalog
 reopen-local-journal
+native-capture
 ```

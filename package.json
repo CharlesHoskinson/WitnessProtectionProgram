@@ -11,6 +11,8 @@
     "test": "npm run build && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@midnight-ntwrk/midnight-js-level-private-state-provider": "5.0.0-beta.8",
+    "@midnight-ntwrk/midnight-js-utils": "5.0.0-beta.8",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "canonicalize": "5.1.0",

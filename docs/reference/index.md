@@ -12,6 +12,7 @@ encrypted-catalog
 catalog-runtime
 catalog-v2
 kernel
+native-provider
 local-journal
 ../witness-package-format
 ```
