@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { isProxy } from "node:util/types";
 
 import {
   copyOwnedBytes,
@@ -433,6 +434,8 @@ type JsonCloneState = {
 type JsonCloneResult = { ok: true; value: unknown } | { ok: false; reason: string };
 
 const LIST_COMPLETION_KEYS = ["files", "incompleteSearch", "nextPageToken"] as const;
+const LIST_COMPLETION_KEY_SET = new Set<string>(LIST_COMPLETION_KEYS);
+const JSON_TOJSON_HOPS = 4;
 
 function listJsonFail(reason: string): { ok: false; reason: string } {
   return { ok: false, reason };
@@ -453,6 +456,44 @@ function addExactJsonBytes(state: JsonCloneState, n: number): boolean {
   return true;
 }
 
+function addJsonStringBytes(state: JsonCloneState, text: string): boolean {
+  if (!addExactJsonBytes(state, 1)) {
+    return false;
+  }
+  const length = text.length;
+  for (let i = 0; i < length; i += 1) {
+    const code = text.charCodeAt(i);
+    let add: number;
+    if (code === 0x22 || code === 0x5c) {
+      add = 2;
+    } else if (code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d) {
+      add = 2;
+    } else if (code < 0x20) {
+      add = 6;
+    } else if (code < 0x80) {
+      add = 1;
+    } else if (code < 0x800) {
+      add = 2;
+    } else if (code >= 0xd800 && code <= 0xdbff) {
+      const next = i + 1 < length ? text.charCodeAt(i + 1) : 0;
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        add = 4;
+        i += 1;
+      } else {
+        add = 6;
+      }
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      add = 6;
+    } else {
+      add = 3;
+    }
+    if (!addExactJsonBytes(state, add)) {
+      return false;
+    }
+  }
+  return addExactJsonBytes(state, 1);
+}
+
 function isPlainJsonObject(value: object): boolean {
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
@@ -460,62 +501,23 @@ function isPlainJsonObject(value: object): boolean {
 
 function hasCustomToJSON(value: object): boolean {
   let current: object | null = value;
-  const seen = new Set<object>();
-  while (current !== null) {
-    if (seen.has(current)) {
-      return true;
-    }
-    seen.add(current);
+  for (let hops = 0; hops < JSON_TOJSON_HOPS && current !== null; hops += 1) {
     const desc = Object.getOwnPropertyDescriptor(current, "toJSON");
-    if (desc !== undefined) {
-      if (isAccessorDescriptor(desc) || typeof desc.value === "function") {
-        return true;
-      }
+    if (desc !== undefined && (isAccessorDescriptor(desc) || typeof desc.value === "function")) {
+      return true;
     }
     current = Object.getPrototypeOf(current);
   }
   return false;
 }
 
-function hasMalformedCompletion(record: object): boolean {
-  for (const key of LIST_COMPLETION_KEYS) {
-    let current: object | null = record;
-    const seen = new Set<object>();
-    let found: PropertyDescriptor | undefined;
-    let owner: object | undefined;
-    while (current !== null) {
-      if (seen.has(current)) {
-        return true;
-      }
-      seen.add(current);
-      const desc = Object.getOwnPropertyDescriptor(current, key);
-      if (desc !== undefined) {
-        found = desc;
-        owner = current;
-        break;
-      }
-      current = Object.getPrototypeOf(current);
-    }
-    if (found === undefined || owner === undefined) {
-      continue;
-    }
-    if (owner !== record) {
-      return true;
-    }
-    if (isAccessorDescriptor(found) || found.enumerable !== true) {
-      return true;
-    }
-    const value = found.value;
-    if (
-      typeof value === "function" ||
-      typeof value === "symbol" ||
-      typeof value === "bigint" ||
-      typeof value === "undefined"
-    ) {
-      return true;
-    }
-  }
-  return false;
+function defineOwnedJsonProperty(owned: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(owned, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
 }
 
 function clonePlainJson(value: unknown, depth: number, state: JsonCloneState): JsonCloneResult {
@@ -549,11 +551,7 @@ function clonePlainJson(value: unknown, depth: number, state: JsonCloneState): J
       return { ok: true, value };
     }
     case "string": {
-      const encoded = JSON.stringify(value);
-      if (typeof encoded !== "string") {
-        return listJsonFail(LIST_REASON_PAGE_FAILURE);
-      }
-      if (!addExactJsonBytes(state, Buffer.byteLength(encoded))) {
+      if (!addJsonStringBytes(state, value)) {
         return listJsonFail(LIST_REASON_JSON_BOUND);
       }
       return { ok: true, value };
@@ -567,6 +565,9 @@ function clonePlainJson(value: unknown, depth: number, state: JsonCloneState): J
       break;
     default:
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (isProxy(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
   if (state.seen.has(value)) {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
@@ -646,9 +647,6 @@ function clonePlainObject(
   isListRoot: boolean,
 ): JsonCloneResult {
   state.seen.add(value);
-  if (isListRoot && hasMalformedCompletion(value)) {
-    return listJsonFail(LIST_REASON_PAGE_FAILURE);
-  }
   if (Object.getOwnPropertySymbols(value).length > 0) {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
@@ -659,7 +657,8 @@ function clonePlainObject(
   if (!addExactJsonBytes(state, 2)) {
     return listJsonFail(LIST_REASON_JSON_BOUND);
   }
-  const owned: Record<string, unknown> = {};
+  const owned = Object.create(null) as Record<string, unknown>;
+  const ownCompletion = new Set<string>();
   let first = true;
   for (const key of names) {
     const desc = Object.getOwnPropertyDescriptor(value, key);
@@ -669,25 +668,49 @@ function clonePlainObject(
     if (isAccessorDescriptor(desc)) {
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
+    if (isListRoot && LIST_COMPLETION_KEY_SET.has(key)) {
+      ownCompletion.add(key);
+      if (desc.enumerable !== true) {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+      const completion = desc.value;
+      if (
+        typeof completion === "function" ||
+        typeof completion === "symbol" ||
+        typeof completion === "bigint" ||
+        typeof completion === "undefined"
+      ) {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+    }
     if (desc.enumerable !== true) {
       continue;
     }
     if (!first && !addExactJsonBytes(state, 1)) {
       return listJsonFail(LIST_REASON_JSON_BOUND);
     }
-    const keyEncoded = JSON.stringify(key);
-    if (typeof keyEncoded !== "string") {
-      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    if (!addJsonStringBytes(state, key)) {
+      return listJsonFail(LIST_REASON_JSON_BOUND);
     }
-    if (!addExactJsonBytes(state, Buffer.byteLength(keyEncoded) + 1)) {
+    if (!addExactJsonBytes(state, 1)) {
       return listJsonFail(LIST_REASON_JSON_BOUND);
     }
     const cloned = clonePlainJson(desc.value, depth + 1, state);
     if (!cloned.ok) {
       return cloned;
     }
-    owned[key] = cloned.value;
+    defineOwnedJsonProperty(owned, key, cloned.value);
     first = false;
+  }
+  if (isListRoot) {
+    for (const key of LIST_COMPLETION_KEYS) {
+      if (ownCompletion.has(key)) {
+        continue;
+      }
+      if (key in value) {
+        return listJsonFail(LIST_REASON_PAGE_FAILURE);
+      }
+    }
   }
   return { ok: true, value: owned };
 }
@@ -698,6 +721,9 @@ function captureListJson(data: unknown, ceiling: number): ListPageResult {
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
     if (data === undefined || data === null || typeof data !== "object") {
+      return listJsonFail(LIST_REASON_PAGE_FAILURE);
+    }
+    if (isProxy(data)) {
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
     if (Array.isArray(data)) {
@@ -717,40 +743,13 @@ function captureListJson(data: unknown, ceiling: number): ListPageResult {
     }
     const owned = cloned.value as Record<string, unknown>;
     const files = owned.files;
-    const incompleteSearch = owned.incompleteSearch;
-    const nextPageToken = owned.nextPageToken;
-    if (
-      typeof files === "function" ||
-      typeof files === "symbol" ||
-      typeof files === "bigint" ||
-      typeof incompleteSearch === "function" ||
-      typeof incompleteSearch === "symbol" ||
-      typeof incompleteSearch === "bigint" ||
-      typeof nextPageToken === "function" ||
-      typeof nextPageToken === "symbol" ||
-      typeof nextPageToken === "bigint"
-    ) {
-      return listJsonFail(LIST_REASON_PAGE_FAILURE);
-    }
     if (files !== undefined && !Array.isArray(files)) {
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
     if (Array.isArray(files) && files.length > DRIVE_LIST_PAGE_SIZE) {
       return listJsonFail(LIST_REASON_PAGE_FAILURE);
     }
-    let serialized: string;
-    try {
-      serialized = JSON.stringify(owned);
-    } catch {
-      return listJsonFail(LIST_REASON_PAGE_FAILURE);
-    }
-    if (typeof serialized !== "string") {
-      return listJsonFail(LIST_REASON_PAGE_FAILURE);
-    }
-    if (Buffer.byteLength(serialized) > ceiling) {
-      return listJsonFail(LIST_REASON_JSON_BOUND);
-    }
-    return { ok: true, json: JSON.parse(serialized) as unknown };
+    return { ok: true, json: owned };
   } catch {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }

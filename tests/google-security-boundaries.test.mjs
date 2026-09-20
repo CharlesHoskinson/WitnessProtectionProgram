@@ -1439,6 +1439,165 @@ describe('public identity query and injected body copy bounds', () => {
     equal(page, 2);
   });
 
+  test('AuthClient listing rejects changing continuation descriptors and preserves prior candidates', async () => {
+    const wppName = (seed) => `${sha256Hex(utf8(String(seed)))}.wpp`;
+    const first = {
+      id: 'file_security_desc_kept',
+      name: wppName('security-desc-kept'),
+      size: '10',
+    };
+    let descriptorReads = 0;
+    const target = {
+      files: [
+        {
+          id: 'file_security_desc_hide',
+          name: wppName('security-desc-hide'),
+          size: '8',
+        },
+      ],
+      nextPageToken: 'security-hidden-next',
+    };
+    const changing = new Proxy(target, {
+      getOwnPropertyDescriptor(_ignored, prop) {
+        if (prop === 'nextPageToken') {
+          descriptorReads += 1;
+          return {
+            configurable: true,
+            enumerable: descriptorReads === 1,
+            writable: true,
+            value: 'security-hidden-next',
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(target, prop);
+      },
+      ownKeys() {
+        return ['files', 'nextPageToken'];
+      },
+      getPrototypeOf() {
+        return Object.prototype;
+      },
+    });
+    const firstAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data: changing };
+        },
+      },
+    });
+    const firstListed = await listCiphertextCandidates(firstAdapter);
+    equal(firstListed.complete, false);
+    equal(firstListed.candidates.length, 0);
+
+    let page = 0;
+    let laterReads = 0;
+    const laterTarget = {
+      files: [
+        {
+          id: 'file_security_desc_late',
+          name: wppName('security-desc-late'),
+          size: '8',
+        },
+      ],
+      nextPageToken: 'security-later-hidden',
+    };
+    const laterChanging = new Proxy(laterTarget, {
+      getOwnPropertyDescriptor(_ignored, prop) {
+        if (prop === 'nextPageToken') {
+          laterReads += 1;
+          return {
+            configurable: true,
+            enumerable: laterReads === 1,
+            writable: true,
+            value: 'security-later-hidden',
+          };
+        }
+        return Reflect.getOwnPropertyDescriptor(laterTarget, prop);
+      },
+      ownKeys() {
+        return ['files', 'nextPageToken'];
+      },
+      getPrototypeOf() {
+        return Object.prototype;
+      },
+    });
+    const laterAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          page += 1;
+          if (page === 1) {
+            return { status: 200, data: { files: [first], nextPageToken: 'security-desc-next' } };
+          }
+          return { status: 200, data: laterChanging };
+        },
+      },
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(page, 2);
+  });
+
+  test('AuthClient listing preserves own __proto__ data and rejects oversized serialized allocations', async () => {
+    const wppName = (seed) => `${sha256Hex(utf8(String(seed)))}.wpp`;
+    const file = {
+      id: 'file_security_proto',
+      name: wppName('security-proto'),
+      size: '8',
+    };
+    const data = Object.create(null);
+    Object.defineProperty(data, 'files', {
+      value: [file],
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(data, '__proto__', {
+      value: { nextPageToken: 'security-proto-hidden', files: [], incompleteSearch: true },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    const protoAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data };
+        },
+      },
+    });
+    const protoListed = await listCiphertextCandidates(protoAdapter);
+    equal(protoListed.complete, true);
+    equal(protoListed.candidates.length, 1);
+    equal(protoListed.candidates[0].fileId, file.id);
+
+    const original = JSON.stringify;
+    let largest = 0;
+    JSON.stringify = (...args) => {
+      const result = original(...args);
+      if (typeof result === 'string' && result.length > largest) {
+        largest = result.length;
+      }
+      return result;
+    };
+    try {
+      const huge = 'x'.repeat(DRIVE_LIST_JSON_MAX_BYTES + 1);
+      const oversizeAdapter = new GoogleDriveSession(PERMISSION_ID, {
+        authClient: {
+          async request() {
+            return { status: 200, data: { files: [file], pad: huge } };
+          },
+        },
+      });
+      const oversizeListed = await listCiphertextCandidates(oversizeAdapter);
+      equal(oversizeListed.complete, false);
+      equal(oversizeListed.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+      equal(oversizeListed.candidates.length, 0);
+      ok(largest < huge.length, `serialized allocation ${largest}`);
+    } finally {
+      JSON.stringify = original;
+    }
+  });
+
   test('detached injected bodies are rejected without leaking caller data', async () => {
     const sealed = sealSyntheticBlob();
     const body = new Uint8Array(sealed.wire);
