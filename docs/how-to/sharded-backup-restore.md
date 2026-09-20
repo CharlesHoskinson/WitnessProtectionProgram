@@ -35,8 +35,12 @@ That command compiles TypeScript and runs `node --test tests/*.test.mjs`.
 The tests check all of these:
 
 - multiple synthetic publishes with unchanged witness ciphertext reuse
+- unchanged and second publish authenticate each retained live witness
 - five unchanged updates that do not grow observations
 - missing, swapped, truncated, and corrupted objects
+- correctly hashed ciphertext with an invalid AEAD tag
+- mismatched snapshot metadata or header claims before a root POST
+- an extra unused `requiredEpochs` value when the root epoch is already known
 - wrong account binding
 - lock during witness upload, child readback, and root readback
 - an over-budget root that performs no child GET

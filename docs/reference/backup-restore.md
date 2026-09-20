@@ -68,16 +68,42 @@ It journals each new sealed object, then calls `putOwnedCiphertext`.
 That adapter call includes POST and media readback.
 The coordinator then opens the readback with the kernel.
 It records a first-creation observation only.
-Routine readback of reused objects adds no observation.
+Routine verification of reused objects adds no observation.
+
+Every retained live witness is fetched by locator and opened with
+`UnlockedVault.openSnapshot`.
+The expected binding is reconstructed from that witness's authenticated
+catalog snapshot entry.
+Caller claims cannot replace that kernel result.
+The coordinator then compares every trusted package, header, and metadata
+claim against that entry.
+Hash-only GET readback is not authentication.
+A missing epoch, unsupported codec, corrupted AEAD, or claim mismatch
+returns `incomplete`.
+The previous checkpoint stays unchanged.
+The coordinator does not publish the next root.
 
 Root parents are the explicit selected head.
 Unresolved `liveRecordForks` block publication.
 The coordinator does not pick a timestamp winner.
 
+After the kernel authenticates the revision, `requiredEpochs` must be exact.
+The required set is the union of these values:
+
+- the authenticated root-header epoch
+- every authenticated nonempty shard-header epoch
+- every retained snapshot package epoch
+
+The storage validator may allow one extra reserved root-header epoch.
+The coordinator closes that allowance once the kernel root header is known.
+Inclusion is not enough.
+The coordinator checks this equality on load and before it commits
+publication.
+
 A publish result advances the internal checkpoint only after root
 authentication and any requested checkpoint persistence succeed.
-`publishUnchanged` authenticates current live objects and does not grow
-observations.
+`publishUnchanged` runs the same full live-witness authentication and does
+not grow observations.
 
 Preflight of the next catalog state runs before any remote upload of that
 state.
@@ -97,8 +123,12 @@ The index is discarded on lock or root change.
 
 The chosen live witness is fetched by its encrypted locator.
 The kernel `openSnapshot` return is the only plaintext result.
+The coordinator compares that opened witness with the catalog snapshot
+entry and with the caller expected binding.
 Native activation remains a separate staging gate.
 A tombstoned historical target may be absent.
+Tombstoned records stay in the catalog.
+They do not require the target bytes to exist.
 A missing live target fails.
 
 ## Budgets and lock
@@ -133,13 +163,15 @@ Reasons include `locked`, `capacity`, `wrong-account`, `missing-object`,
 `concurrent-operation`.
 Public results do not include raw Error messages.
 
-## Inherited limits
+## Package and live-witness bounds
 
-The Google adapter and local journal copy packages with the kernel 24 MiB wire
-ceiling.
-Catalog-v2 declares a 512 MiB live-witness sum.
-This coordinator cannot upload a witness above the inherited 24 MiB package
-ceiling.
+The 24 MiB ceiling is the maximum size of one witness package.
+Kernel, journal, and Google `putOwnedCiphertext` copy that package.
+The 512 MiB catalog-v2 ceiling is the sum of current live witness wire
+bytes.
+Those bounds are distinct.
+They are not an inherited incompatibility.
+This coordinator still cannot upload one witness above 24 MiB.
 Listing, create, and media timeouts stay in the Google adapter.
 This package does not change that adapter.
 

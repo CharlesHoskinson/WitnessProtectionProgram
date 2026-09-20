@@ -1,3 +1,4 @@
+import { CatalogError } from "../catalog/index.js";
 import { GoogleError } from "../google/errors.js";
 import type { GoogleDriveSession } from "../google/drive.js";
 import type { CiphertextCandidate, RemoteGetReceipt, RemotePutReceipt } from "../google/types.js";
@@ -34,12 +35,16 @@ import {
 } from "./checkpoint.js";
 import { BackupAbort, BackupError, ERR_BACKUP_SCHEMA } from "./errors.js";
 import {
+  assertExactRequiredEpochs,
+  assertOpenedMatchesSnapshotRecord,
   canonicalRecords,
   copyDigest,
   copyExpected,
   copySealInput,
   creationObservation,
   expectedFromPayload,
+  expectedFromSnapshotRecord,
+  snapshotPackageEpochs,
   snapshotRecordFromOpened,
   wipeOptional,
 } from "./records.js";
@@ -75,6 +80,8 @@ interface LiveWitnessEntry {
 interface ParentState {
   rootSha256: string;
   rootPayload: CatalogRootPayload;
+  vaultId: string;
+  rootHeaderEpoch: string;
   records: CatalogTaggedRecord[];
   shardsByPrefix: Map<string, StoredShard>;
   liveByDigest: Map<string, LiveWitnessEntry>;
@@ -157,6 +164,12 @@ function mapFailure(err: unknown, localUnsynced: boolean): BackupAbort {
       return new BackupAbort("schema", localUnsynced);
     }
     return new BackupAbort("interrupted", true);
+  }
+  if (err instanceof CatalogError) {
+    if (err.code === "CATALOG_BINDING") {
+      return new BackupAbort("binding-mismatch", localUnsynced);
+    }
+    return new BackupAbort("schema", localUnsynced);
   }
   if (err instanceof BackupError) {
     if (err.code === ERR_BACKUP_SCHEMA) {
@@ -337,10 +350,6 @@ export class GoogleBackupCoordinator {
     return this.#publish(async () => {
       const checkpoint = this.#requireCheckpoint();
       const parent = await this.#loadParent(checkpoint, false);
-      for (const live of parent.liveByDigest.values()) {
-        await this.#getByLocators(live.locators, live.digest, live.byteLength, false);
-        this.#requireUnlocked(false);
-      }
       this.#installIndex(checkpoint.root.wireSha256, parent);
       this.#assertTime();
       this.#requireUnlocked(false);
@@ -376,6 +385,13 @@ export class GoogleBackupCoordinator {
       if (opened.packageSha256 !== digest) {
         throw new BackupAbort("binding-mismatch");
       }
+      assertOpenedMatchesSnapshotRecord(
+        opened,
+        receipt.ownedReadback.byteLength,
+        live.record,
+        parent.vaultId,
+        false,
+      );
       return {
         status: "verified" as const,
         snapshot: opened,
@@ -463,18 +479,18 @@ export class GoogleBackupCoordinator {
     if (plan.liveRecordForks.length > 0) {
       throw new BackupAbort("unresolved-fork", true);
     }
-    return this.#publishPlan(parent, plan, activeEpoch, sealed.sha256);
+    return this.#publishPlan(parent, plan, records, activeEpoch, sealed.sha256);
   }
 
   async #publishPlan(
     parent: ParentState,
     plan: CatalogPlan,
+    records: readonly CatalogTaggedRecord[],
     activeEpoch: string,
     newWitnessSha: string,
   ): Promise<Extract<PublishResult, { status: "verified" }>> {
     const references: CatalogRootPayload["references"] = [];
-    const requiredEpochs = new Set<string>(plan.requiredEpochs);
-    requiredEpochs.add(activeEpoch);
+    const shardHeaderEpochs: string[] = [];
     const shardPlain: Uint8Array[] = [];
     try {
       for (const leaf of plan.leaves) {
@@ -486,9 +502,9 @@ export class GoogleBackupCoordinator {
         }
         const parentShard = parent.shardsByPrefix.get(leaf.prefix);
         if (canReuseLeaf(parentShard, leaf, activeEpoch)) {
-          await this.#getAndOpenShard(parentShard.reference, true);
+          const openedReuse = await this.#getAndOpenShard(parentShard.reference, true);
           references.push(parentShard.reference);
-          requiredEpochs.add(parentShard.reference.rootEpoch);
+          shardHeaderEpochs.push(openedReuse.header.rootEpoch);
           shardPlain.push(leaf.payloadUtf8);
           continue;
         }
@@ -514,14 +530,16 @@ export class GoogleBackupCoordinator {
           locators,
         };
         this.#requireUnlocked(true);
-        this.#vault.openCatalogNode(receipt.ownedReadback, { nodeType: "shard", reference });
+        const openedShard = this.#vault.openCatalogNode(receipt.ownedReadback, { nodeType: "shard", reference });
         references.push(reference);
-        requiredEpochs.add(header.rootEpoch);
+        shardHeaderEpochs.push(openedShard.header.rootEpoch);
         shardPlain.push(leaf.payloadUtf8);
       }
 
       await this.#readbackLiveWitnesses(parent, plan, newWitnessSha);
 
+      const epochUnion = new Set<string>([activeEpoch, ...shardHeaderEpochs, ...snapshotPackageEpochs(records, true)]);
+      const requiredEpochs = [...epochUnion].sort();
       const parents = parent.rootSha256.length === 0 ? [] : [parent.rootSha256];
       const rootPayload: CatalogRootPayload = {
         payloadVersion: 2,
@@ -530,7 +548,7 @@ export class GoogleBackupCoordinator {
         parents,
         entryCount: plan.entryCount,
         observationCount: plan.observationCount,
-        requiredEpochs: [...requiredEpochs].sort(),
+        requiredEpochs,
         references,
       };
       const rootBytes = canonicalizeJsonBytes(rootPayload as unknown as JsonValue);
@@ -557,6 +575,13 @@ export class GoogleBackupCoordinator {
       if (openedRoot.packageSha256 !== sealedRoot.sha256) {
         throw new BackupAbort("binding-mismatch", true);
       }
+      assertExactRequiredEpochs(
+        asRootPayload(openedRoot),
+        openedRoot.header.rootEpoch,
+        shardHeaderEpochs,
+        records,
+        true,
+      );
       const openedRootPlain = canonicalizeJsonBytes(openedRoot.node.payload as unknown as JsonValue);
       let revision;
       try {
@@ -582,14 +607,15 @@ export class GoogleBackupCoordinator {
         writeBackupCheckpointFile(this.#checkpointPath, checkpoint);
       }
       this.#checkpoint = checkpoint;
+      const publishedRecords = this.#collectRecords(revision.shards.map((shard) => shard.records).flat());
       this.#installIndex(checkpoint.root.wireSha256, {
         rootSha256: checkpoint.root.wireSha256,
         rootPayload: asRootPayload(openedRoot),
-        records: this.#collectRecords(revision.shards.map((shard) => shard.records).flat()),
+        vaultId: openedRoot.header.vaultId,
+        rootHeaderEpoch: openedRoot.header.rootEpoch,
+        records: publishedRecords,
         shardsByPrefix: new Map(),
-        liveByDigest: this.#liveMapFromRecords(
-          this.#collectRecords(revision.shards.map((shard) => shard.records).flat()),
-        ),
+        liveByDigest: this.#liveMapFromRecords(publishedRecords),
       });
       return {
         status: "verified",
@@ -661,6 +687,8 @@ export class GoogleBackupCoordinator {
           requiredEpochs: [],
           references: [],
         },
+        vaultId: "",
+        rootHeaderEpoch: "",
         records: [],
         shardsByPrefix: new Map(),
         liveByDigest: new Map(),
@@ -687,6 +715,7 @@ export class GoogleBackupCoordinator {
     const rootPayload = asRootPayload(openedRoot);
     this.#preflightOpenedRoot(rootPayload);
     const shardsByPrefix = new Map<string, StoredShard>();
+    const shardHeaderEpochs: string[] = [];
     const shardPlain: Uint8Array[] = [];
     try {
       for (const reference of rootPayload.references) {
@@ -706,6 +735,7 @@ export class GoogleBackupCoordinator {
         });
         this.#requireUnlocked(localUnsynced);
         const header = openedShard.header;
+        shardHeaderEpochs.push(header.rootEpoch);
         shardsByPrefix.set(reference.prefix, {
           reference,
           wire: receipt.ownedReadback,
@@ -724,14 +754,27 @@ export class GoogleBackupCoordinator {
         throw new BackupAbort("unresolved-fork", localUnsynced);
       }
       const records = this.#collectRecords(revision.shards.map((shard) => shard.records).flat());
+      assertExactRequiredEpochs(
+        rootPayload,
+        openedRoot.header.rootEpoch,
+        shardHeaderEpochs,
+        records,
+        localUnsynced,
+      );
       const liveByDigest = this.#liveMapFromRecords(records);
-      return {
+      const parent: ParentState = {
         rootSha256: checkpoint.root.wireSha256,
         rootPayload,
+        vaultId: openedRoot.header.vaultId,
+        rootHeaderEpoch: openedRoot.header.rootEpoch,
         records,
         shardsByPrefix,
         liveByDigest,
       };
+      for (const live of liveByDigest.values()) {
+        await this.#authenticateLiveWitness(parent, live, localUnsynced);
+      }
+      return parent;
     } finally {
       for (const bytes of shardPlain) {
         wipeBytes(bytes);
@@ -760,12 +803,37 @@ export class GoogleBackupCoordinator {
       if (known === undefined) {
         throw new BackupAbort("missing-object", true);
       }
-      await this.#getByLocators(known.locators, known.digest, known.byteLength, true);
-      this.#requireUnlocked(true);
+      await this.#authenticateLiveWitness(parent, known, true);
     }
   }
 
-  async #getAndOpenShard(reference: CatalogNonemptyReference, localUnsynced: boolean): Promise<void> {
+  async #authenticateLiveWitness(
+    parent: ParentState,
+    live: LiveWitnessEntry,
+    localUnsynced: boolean,
+  ): Promise<OpenResult> {
+    const receipt = await this.#getByLocators(live.locators, live.digest, live.byteLength, localUnsynced);
+    this.#requireUnlocked(localUnsynced);
+    const expected = expectedFromSnapshotRecord(live.record, localUnsynced);
+    const opened = this.#vault.openSnapshot(receipt.ownedReadback, expected);
+    this.#requireUnlocked(localUnsynced);
+    assertOpenedMatchesSnapshotRecord(
+      opened,
+      receipt.ownedReadback.byteLength,
+      live.record,
+      parent.vaultId,
+      localUnsynced,
+    );
+    if (opened.packageSha256 !== live.digest) {
+      throw new BackupAbort("binding-mismatch", localUnsynced);
+    }
+    return opened;
+  }
+
+  async #getAndOpenShard(
+    reference: CatalogNonemptyReference,
+    localUnsynced: boolean,
+  ): Promise<OpenCatalogNodeResult> {
     const receipt = await this.#getByLocators(
       reference.locators,
       reference.wireSha256,
@@ -773,8 +841,9 @@ export class GoogleBackupCoordinator {
       localUnsynced,
     );
     this.#requireUnlocked(localUnsynced);
-    this.#vault.openCatalogNode(receipt.ownedReadback, { nodeType: "shard", reference });
+    const opened = this.#vault.openCatalogNode(receipt.ownedReadback, { nodeType: "shard", reference });
     this.#requireUnlocked(localUnsynced);
+    return opened;
   }
 
   async #journalPut(wire: Uint8Array, sha256: string, localUnsynced: boolean): Promise<void> {

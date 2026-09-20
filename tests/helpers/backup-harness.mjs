@@ -2,10 +2,12 @@ import { createHash, randomBytes } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import canonicalize from 'canonicalize';
 
 import { CiphertextJournal } from '../../dist/journal/index.js';
 import { UnlockedVault } from '../../dist/kernel/index.js';
 import { createGoogleDriveAdapter } from '../../dist/google/index.js';
+import { planCatalogShards } from '../../dist/storage/index.js';
 
 export const PERMISSION_ID = 'permId-opaque-stable-001';
 export const OTHER_PERMISSION_ID = 'permId-opaque-stable-002';
@@ -218,6 +220,132 @@ export function sealInput(message) {
 
 export function expectedFromInput(input) {
   return expectedOf(input.scopeId, input.recordId);
+}
+
+export function wrapOpenSnapshot(vault) {
+  const original = vault.openSnapshot.bind(vault);
+  const byDigest = new Map();
+  vault.openSnapshot = (wire, expected) => {
+    const digest = sha256Hex(wire);
+    byDigest.set(digest, (byDigest.get(digest) ?? 0) + 1);
+    return original(wire, expected);
+  };
+  return { byDigest, original };
+}
+
+export function snapshotOpenCount(tracker, digest) {
+  return tracker.byDigest.get(digest) ?? 0;
+}
+
+export function openPublishedRecords(vault, drive, checkpoint) {
+  const root = vault.openCatalogNode(drive.files.get(checkpoint.root.locator.objectId), {
+    nodeType: 'root',
+    wireSha256: checkpoint.root.wireSha256,
+    wireByteLength: checkpoint.root.wireByteLength,
+  });
+  const records = [];
+  for (const reference of root.node.payload.references) {
+    if (reference.empty) {
+      continue;
+    }
+    const shard = vault.openCatalogNode(drive.files.get(reference.locators[0].objectId), {
+      nodeType: 'shard',
+      reference,
+    });
+    records.push(...shard.node.payload.records);
+  }
+  return { root, records };
+}
+
+export function corruptPackageTag(wire) {
+  const parsed = JSON.parse(Buffer.from(wire).toString('utf8'));
+  const tag = Buffer.from(parsed.tag, 'base64url');
+  tag[0] ^= 0xff;
+  parsed.tag = tag.toString('base64url');
+  return Buffer.from(canonicalize(parsed), 'utf8');
+}
+
+export function replaceDriveFile(drive, fileId, octets) {
+  drive.files.set(fileId, octets);
+  drive.names.set(fileId, `${sha256Hex(octets)}.wpp`);
+}
+
+export function findFileIdByName(drive, name) {
+  for (const [fileId, fileName] of drive.names.entries()) {
+    if (fileName === name) {
+      return fileId;
+    }
+  }
+  return undefined;
+}
+
+export async function resealCatalog({ vault, drive, records, parents = [], requiredEpochs }) {
+  const plan = planCatalogShards(Buffer.from(canonicalize(records), 'utf8'));
+  const references = [];
+  for (const leaf of plan.leaves) {
+    if (leaf.empty) {
+      references.push({ prefix: leaf.prefix, empty: true });
+      continue;
+    }
+    const sealedShard = vault.sealCatalogNode(leaf.payloadUtf8);
+    const receipt = await drive.adapter.putOwnedCiphertext(sealedShard.wire, sealedShard.sha256);
+    const header = JSON.parse(Buffer.from(sealedShard.wire).toString('utf8')).header;
+    references.push({
+      prefix: leaf.prefix,
+      empty: false,
+      recordId: header.recordId,
+      generationId: header.generationId,
+      rootEpoch: header.rootEpoch,
+      wireSha256: sealedShard.sha256,
+      wireByteLength: sealedShard.wire.byteLength,
+      plaintextByteLength: leaf.plaintextByteLength,
+      entryCount: leaf.entryCount,
+      observationCount: leaf.observationCount,
+      canonicalRecordsSha256: leaf.canonicalRecordsSha256,
+      locators: [
+        {
+          provider: 'google-drive',
+          accountBinding: { scheme: 'google-drive-permission-id', value: PERMISSION_ID },
+          objectId: receipt.fileId,
+          revisionId: null,
+        },
+      ],
+    });
+  }
+  const shardEpochs = references.filter((item) => item.empty === false).map((item) => item.rootEpoch);
+  const epochs =
+    requiredEpochs ??
+    [...new Set([...plan.requiredEpochs, ...shardEpochs])].sort();
+  const rootPayload = {
+    payloadVersion: 2,
+    nodeType: 'root',
+    partitionVersion: 1,
+    parents,
+    entryCount: plan.entryCount,
+    observationCount: plan.observationCount,
+    requiredEpochs: epochs,
+    references,
+  };
+  const sealedRoot = vault.sealCatalogNode(Buffer.from(canonicalize(rootPayload), 'utf8'));
+  const rootReceipt = await drive.adapter.putOwnedCiphertext(sealedRoot.wire, sealedRoot.sha256);
+  return {
+    checkpoint: {
+      format: 'wpp-backup-checkpoint',
+      version: 1,
+      root: {
+        wireSha256: sealedRoot.sha256,
+        wireByteLength: sealedRoot.wire.byteLength,
+        locator: {
+          provider: 'google-drive',
+          accountBinding: { scheme: 'google-drive-permission-id', value: PERMISSION_ID },
+          objectId: rootReceipt.fileId,
+          revisionId: null,
+        },
+      },
+    },
+    plan,
+    rootPayload,
+  };
 }
 
 export const HARNESS_DIR = fileURLToPath(new URL('.', import.meta.url));

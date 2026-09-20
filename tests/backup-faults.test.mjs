@@ -10,14 +10,19 @@ import canonicalize from 'canonicalize';
 import {
   OTHER_PERMISSION_ID,
   PERMISSION_ID,
+  corruptPackageTag,
   expectedFromInput,
+  findFileIdByName,
   id16,
   id32,
   mediaFileId,
   mediaGets,
   memoryDrive,
+  openPublishedRecords,
   payloadUtf8,
   posts,
+  replaceDriveFile,
+  resealCatalog,
   sealInput,
   sha256Hex,
   unlock,
@@ -467,6 +472,193 @@ describe('backup fault injection', () => {
         return match ? match[1] : '';
       });
       equal(new Set(names.filter(Boolean)).size, names.filter(Boolean).length);
+    });
+    vault.lock();
+  });
+
+  test('hashed ciphertext with an invalid tag fails and leaves the checkpoint unchanged', async () => {
+    const { vault } = unlock();
+    const drive = memoryDrive();
+    await withJournal(async ({ journal }) => {
+      const coordinator = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'new-vault' },
+      });
+      const published = await coordinator.publishSnapshot(sealInput('tag-target'));
+      equal(published.status, 'verified', published.reason);
+      const witnessId = findFileIdByName(drive, `${published.packageSha256}.wpp`);
+      ok(witnessId);
+      const corrupted = corruptPackageTag(drive.files.get(witnessId));
+      replaceDriveFile(drive, witnessId, corrupted);
+      const { records } = openPublishedRecords(vault, drive, published.checkpoint);
+      const corruptedDigest = sha256Hex(corrupted);
+      const mutated = records.map((record) => {
+        if (record.recordKind === 'snapshot' && record.body.package.sha256 === published.packageSha256) {
+          return {
+            ...record,
+            body: {
+              ...record.body,
+              package: {
+                ...record.body.package,
+                sha256: corruptedDigest,
+                byteLength: corrupted.byteLength,
+              },
+            },
+          };
+        }
+        if (record.recordKind === 'observation' && record.body.packageSha256 === published.packageSha256) {
+          const outcome = record.body.outcome;
+          return {
+            ...record,
+            body: {
+              ...record.body,
+              packageSha256: corruptedDigest,
+              outcome:
+                outcome.status === 'readback-authenticated'
+                  ? {
+                      ...outcome,
+                      observedSha256: corruptedDigest,
+                      byteLength: corrupted.byteLength,
+                    }
+                  : outcome,
+            },
+          };
+        }
+        return record;
+      });
+      const resealed = await resealCatalog({
+        vault,
+        drive,
+        records: mutated,
+        parents: [published.checkpoint.root.wireSha256],
+      });
+      const seeded = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'selected-checkpoint', checkpoint: resealed.checkpoint },
+      });
+      const postsBefore = posts(drive.calls).length;
+      const unchanged = await seeded.publishUnchanged();
+      equal(unchanged.status, 'incomplete');
+      equal(unchanged.reason, 'authentication-failed');
+      equal(unchanged.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
+      const next = await seeded.publishSnapshot(sealInput('after-bad-tag'));
+      equal(next.status, 'incomplete');
+      equal(next.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+    });
+    vault.lock();
+  });
+
+  test('mismatched snapshot metadata and header claims fail before a root POST', async () => {
+    const { vault } = unlock();
+    const drive = memoryDrive();
+    await withJournal(async ({ journal }) => {
+      const coordinator = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'new-vault' },
+      });
+      const published = await coordinator.publishSnapshot(sealInput('claim-target'));
+      equal(published.status, 'verified', published.reason);
+      const { records } = openPublishedRecords(vault, drive, published.checkpoint);
+      const mutated = records.map((record) => {
+        if (record.recordKind !== 'snapshot' || record.body.package.sha256 !== published.packageSha256) {
+          return record;
+        }
+        return {
+          ...record,
+          body: {
+            ...record.body,
+            package: {
+              ...record.body.package,
+              generationId: id32(),
+            },
+            metadata: {
+              ...record.body.metadata,
+              capturedAt: '2026-09-19T00:00:01Z',
+            },
+          },
+        };
+      });
+      const resealed = await resealCatalog({
+        vault,
+        drive,
+        records: mutated,
+        parents: [published.checkpoint.root.wireSha256],
+      });
+      const seeded = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'selected-checkpoint', checkpoint: resealed.checkpoint },
+      });
+      const postsBefore = posts(drive.calls).length;
+      const next = await seeded.publishSnapshot(sealInput('must-not-publish'));
+      equal(next.status, 'incomplete');
+      equal(next.reason, 'binding-mismatch');
+      equal(next.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
+      const unchanged = await seeded.publishUnchanged();
+      equal(unchanged.status, 'incomplete');
+      equal(unchanged.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
+    });
+    vault.lock();
+  });
+
+  test('extra unused requiredEpoch fails when the root epoch already occurs among children', async () => {
+    const { vault, root } = unlock();
+    const drive = memoryDrive();
+    await withJournal(async ({ journal }) => {
+      const coordinator = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'new-vault' },
+      });
+      const published = await coordinator.publishSnapshot(sealInput('epoch-cover'));
+      equal(published.status, 'verified', published.reason);
+      const openedRoot = vault.openCatalogNode(drive.files.get(published.checkpoint.root.locator.objectId), {
+        nodeType: 'root',
+        wireSha256: published.checkpoint.root.wireSha256,
+        wireByteLength: published.checkpoint.root.wireByteLength,
+      });
+      const actualEpoch = root.epochs[0].rootEpoch;
+      ok(openedRoot.node.payload.requiredEpochs.includes(actualEpoch));
+      ok(openedRoot.header.rootEpoch === actualEpoch);
+      const { records } = openPublishedRecords(vault, drive, published.checkpoint);
+      const extra = id16();
+      ok(extra !== actualEpoch);
+      const resealed = await resealCatalog({
+        vault,
+        drive,
+        records,
+        parents: [published.checkpoint.root.wireSha256],
+        requiredEpochs: [...openedRoot.node.payload.requiredEpochs, extra].sort(),
+      });
+      equal(resealed.rootPayload.requiredEpochs.includes(extra), true);
+      equal(resealed.rootPayload.requiredEpochs.includes(actualEpoch), true);
+      const seeded = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'selected-checkpoint', checkpoint: resealed.checkpoint },
+      });
+      const postsBefore = posts(drive.calls).length;
+      const unchanged = await seeded.publishUnchanged();
+      equal(unchanged.status, 'incomplete');
+      equal(unchanged.reason, 'child-preflight-failed');
+      equal(unchanged.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
+      const next = await seeded.publishSnapshot(sealInput('after-extra-epoch'));
+      equal(next.status, 'incomplete');
+      equal(next.previousCheckpoint.root.wireSha256, resealed.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
     });
     vault.lock();
   });

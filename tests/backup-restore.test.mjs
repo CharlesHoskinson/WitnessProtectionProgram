@@ -17,8 +17,10 @@ import {
   posts,
   sealInput,
   sha256Hex,
+  snapshotOpenCount,
   unlock,
   withJournal,
+  wrapOpenSnapshot,
 } from './helpers/backup-harness.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -100,6 +102,63 @@ describe('GoogleBackupCoordinator production path', () => {
       );
       equal(restored.status, 'verified', restored.reason);
       equal(restored.snapshot.content.message, 'one');
+    });
+    vault.lock();
+  });
+
+  test('publishUnchanged authenticates the retained live witness with openSnapshot', async () => {
+    const { vault } = unlock();
+    const drive = memoryDrive();
+    await withJournal(async ({ journal }) => {
+      const coordinator = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'new-vault' },
+      });
+      const published = await coordinator.publishSnapshot(sealInput('steady-auth'));
+      equal(published.status, 'verified', published.reason);
+      const tracker = wrapOpenSnapshot(vault);
+      const postsBefore = posts(drive.calls).length;
+      const unchanged = await coordinator.publishUnchanged();
+      equal(unchanged.status, 'verified', unchanged.reason);
+      equal(unchanged.checkpoint.root.wireSha256, published.checkpoint.root.wireSha256);
+      equal(posts(drive.calls).length, postsBefore);
+      ok(snapshotOpenCount(tracker, published.packageSha256) >= 1);
+    });
+    vault.lock();
+  });
+
+  test('second publish authenticates the retained first witness with openSnapshot', async () => {
+    const { vault } = unlock();
+    const drive = memoryDrive();
+    await withJournal(async ({ journal }) => {
+      const coordinator = new GoogleBackupCoordinator({
+        vault,
+        session: drive.adapter,
+        journal,
+        mode: { kind: 'new-vault' },
+      });
+      const firstInput = sealInput('retain-me');
+      const first = await coordinator.publishSnapshot(firstInput);
+      equal(first.status, 'verified', first.reason);
+      const tracker = wrapOpenSnapshot(vault);
+      const second = await coordinator.publishSnapshot(sealInput('next-live'));
+      equal(second.status, 'verified', second.reason);
+      ok(snapshotOpenCount(tracker, first.packageSha256) >= 1);
+      ok(snapshotOpenCount(tracker, second.packageSha256) >= 1);
+      const firstWitnessPosts = posts(drive.calls).filter((item) => {
+        const body = Buffer.from(item.body ?? []).toString('utf8');
+        return body.includes(`${first.packageSha256}.wpp`);
+      });
+      equal(firstWitnessPosts.length, 1);
+      const restored = await coordinator.restoreSnapshot(
+        second.checkpoint,
+        first.packageSha256,
+        expectedFromInput(firstInput),
+      );
+      equal(restored.status, 'verified', restored.reason);
+      equal(restored.snapshot.content.message, 'retain-me');
     });
     vault.lock();
   });
