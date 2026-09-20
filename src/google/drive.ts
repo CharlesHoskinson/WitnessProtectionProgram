@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { isProxy } from "node:util/types";
+import { isArrayBuffer, isProxy, isSharedArrayBuffer, isUint8Array } from "node:util/types";
 
 import {
   copyOwnedBytes,
@@ -221,10 +221,16 @@ function copyInjectedBody(body: unknown, ceiling: number): InjectedBodyCopy {
     if (typeof ceiling !== "number" || !Number.isSafeInteger(ceiling) || ceiling < 0) {
       return { kind: "invalid" };
     }
-    if (body instanceof ArrayBuffer) {
+    if (isProxy(body)) {
+      return { kind: "invalid" };
+    }
+    if (isSharedArrayBuffer(body)) {
+      return { kind: "invalid" };
+    }
+    if (isArrayBuffer(body)) {
       return copyFromArrayBuffer(body, ceiling);
     }
-    if (body instanceof Uint8Array) {
+    if (isUint8Array(body)) {
       return copyFromTypedArray(body, ceiling);
     }
     return { kind: "invalid" };
@@ -254,21 +260,59 @@ function captureAuthClient(
   }
 }
 
+type SuccessResponseFields = {
+  status: unknown;
+  headers: unknown;
+  body: unknown;
+  data: unknown;
+};
+
+function assertInspectableObject(value: unknown): asserts value is object {
+  if (value === null || (typeof value !== "object" && typeof value !== "function")) {
+    throw new TypeError("invalid object");
+  }
+}
+
+function readSuccessResponseFields(res: unknown): SuccessResponseFields {
+  assertInspectableObject(res);
+  if (isProxy(res)) {
+    throw new TypeError("proxy response");
+  }
+  const record = res as Record<string, unknown>;
+  return {
+    status: record.status,
+    headers: record.headers,
+    body: record.body,
+    data: record.data,
+  };
+}
+
 function normalizeHeaders(headers: unknown): Record<string, string> {
   const out: Record<string, string> = {};
-  if (headers instanceof Headers) {
+  if (headers === undefined || headers === null) {
+    return out;
+  }
+  assertInspectableObject(headers);
+  const proto = Object.getPrototypeOf(headers);
+  if (isProxy(proto)) {
+    throw new TypeError("proxy header prototype");
+  }
+  if (headers instanceof Headers || headers instanceof URLSearchParams) {
     for (const [key, value] of headers.entries()) {
-      out[key.toLowerCase()] = value;
+      if (typeof key === "string" && typeof value === "string") {
+        out[key.toLowerCase()] = value;
+      }
     }
     return out;
   }
-  if (headers !== null && typeof headers === "object") {
-    for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
-      if (typeof value === "string") {
-        out[key.toLowerCase()] = value;
-      } else if (Array.isArray(value) && typeof value[0] === "string") {
-        out[key.toLowerCase()] = value.join(", ");
-      }
+  if (isProxy(headers)) {
+    throw new TypeError("proxy headers");
+  }
+  for (const [key, value] of Object.entries(headers as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      out[key.toLowerCase()] = value;
+    } else if (Array.isArray(value) && typeof value[0] === "string") {
+      out[key.toLowerCase()] = value.join(", ");
     }
   }
   return out;
@@ -435,7 +479,6 @@ type JsonCloneResult = { ok: true; value: unknown } | { ok: false; reason: strin
 
 const LIST_COMPLETION_KEYS = ["files", "incompleteSearch", "nextPageToken"] as const;
 const LIST_COMPLETION_KEY_SET = new Set<string>(LIST_COMPLETION_KEYS);
-const JSON_TOJSON_HOPS = 4;
 
 function listJsonFail(reason: string): { ok: false; reason: string } {
   return { ok: false, reason };
@@ -494,21 +537,19 @@ function addJsonStringBytes(state: JsonCloneState, text: string): boolean {
   return addExactJsonBytes(state, 1);
 }
 
-function isPlainJsonObject(value: object): boolean {
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
+function hasOwnCustomToJSON(value: object): boolean {
+  const desc = Object.getOwnPropertyDescriptor(value, "toJSON");
+  return desc !== undefined && (isAccessorDescriptor(desc) || typeof desc.value === "function");
 }
 
-function hasCustomToJSON(value: object): boolean {
-  let current: object | null = value;
-  for (let hops = 0; hops < JSON_TOJSON_HOPS && current !== null; hops += 1) {
-    const desc = Object.getOwnPropertyDescriptor(current, "toJSON");
-    if (desc !== undefined && (isAccessorDescriptor(desc) || typeof desc.value === "function")) {
-      return true;
-    }
-    current = Object.getPrototypeOf(current);
+function jsonPrototypeAllowed(proto: object | null, asArray: boolean): boolean {
+  if (isProxy(proto)) {
+    return false;
   }
-  return false;
+  if (asArray) {
+    return proto === Array.prototype;
+  }
+  return proto === Object.prototype || proto === null;
 }
 
 function defineOwnedJsonProperty(owned: Record<string, unknown>, key: string, value: unknown): void {
@@ -569,17 +610,27 @@ function clonePlainJson(value: unknown, depth: number, state: JsonCloneState): J
   if (isProxy(value)) {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
+  let proto: object | null;
+  try {
+    proto = Object.getPrototypeOf(value);
+  } catch {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (isProxy(proto)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
   if (state.seen.has(value)) {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
-  if (hasCustomToJSON(value)) {
+  const asArray = Array.isArray(value);
+  if (!jsonPrototypeAllowed(proto, asArray)) {
     return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
-  if (Array.isArray(value)) {
+  if (hasOwnCustomToJSON(value)) {
+    return listJsonFail(LIST_REASON_PAGE_FAILURE);
+  }
+  if (asArray) {
     return clonePlainArray(value, depth, state);
-  }
-  if (!isPlainJsonObject(value)) {
-    return listJsonFail(LIST_REASON_PAGE_FAILURE);
   }
   return clonePlainObject(value, depth, state, depth === 0);
 }
@@ -809,9 +860,10 @@ async function sessionRequest(
     let headers: Record<string, string> = {};
     let copied: InjectedBodyCopy = { kind: "invalid" };
     try {
-      status = asFiniteInteger(safeGet(res, "status"));
-      headers = normalizeHeaders(safeGet(res, "headers"));
-      copied = copyInjectedBody(safeGet(res, "body"), ceiling);
+      const fields = readSuccessResponseFields(res);
+      status = asFiniteInteger(fields.status);
+      headers = normalizeHeaders(fields.headers);
+      copied = copyInjectedBody(fields.body, ceiling);
     } catch {
       throwFresh(fallback);
     }
@@ -854,16 +906,24 @@ async function sessionRequest(
     }
     try {
       const res = await internals.authClient.request(gaxiosOpts);
-      const status = asFiniteInteger(safeGet(res, "status"));
+      let fields: SuccessResponseFields;
+      let status: number | undefined;
+      let headers: Record<string, string>;
+      try {
+        fields = readSuccessResponseFields(res);
+        status = asFiniteInteger(fields.status);
+        headers = normalizeHeaders(fields.headers);
+      } catch {
+        throwFresh(fallback);
+      }
       if (status === undefined) {
         throwFresh(fallback);
       }
-      const headers = normalizeHeaders(safeGet(res, "headers"));
       if (status < 200 || status >= 300) {
-        classifyDriveError(status, safeGet(res, "data"), opts.phase);
+        classifyDriveError(status, fields.data, opts.phase);
       }
       if (opts.asJson) {
-        const captured = captureOwnedJsonValue(safeGet(res, "data"), ceiling);
+        const captured = captureOwnedJsonValue(fields.data, ceiling);
         if (captured.kind === "oversize") {
           throwFresh(ERR_DRIVE_INCOMPLETE);
         }
@@ -872,7 +932,7 @@ async function sessionRequest(
         }
         return { status, headers, json: captured.json };
       }
-      const copiedBytes = copyInjectedBody(safeGet(res, "data"), ceiling);
+      const copiedBytes = copyInjectedBody(fields.data, ceiling);
       if (copiedBytes.kind === "oversize") {
         throwFresh(ERR_DRIVE_READBACK);
       }
@@ -1049,11 +1109,18 @@ export async function queryBoundPermissionId(authClient: Pick<AuthClientLike, "r
       maxContentLength: GOOGLE_JSON_MAX_BYTES,
       responseType: "json",
     });
-    const status = asFiniteInteger(safeGet(res, "status"));
+    let fields: SuccessResponseFields;
+    try {
+      fields = readSuccessResponseFields(res);
+      normalizeHeaders(fields.headers);
+    } catch {
+      throwFresh(ERR_BIND_IDENTITY);
+    }
+    const status = asFiniteInteger(fields.status);
     if (status === undefined || status < 200 || status >= 300) {
       throwFresh(ERR_BIND_IDENTITY);
     }
-    const ownedJson = captureOwnedJsonValue(safeGet(res, "data"), GOOGLE_JSON_MAX_BYTES);
+    const ownedJson = captureOwnedJsonValue(fields.data, GOOGLE_JSON_MAX_BYTES);
     if (ownedJson.kind !== "ok") {
       throwFresh(ERR_BIND_IDENTITY);
     }
@@ -1381,9 +1448,11 @@ function injectedListFailure(res: unknown): ListPageResult {
   let status: number | undefined;
   let headers: Record<string, string> = {};
   let copied: InjectedBodyCopy = { kind: "invalid" };
+  let fields: SuccessResponseFields;
   try {
-    status = asFiniteInteger(safeGet(res, "status"));
-    headers = normalizeHeaders(safeGet(res, "headers"));
+    fields = readSuccessResponseFields(res);
+    status = asFiniteInteger(fields.status);
+    headers = normalizeHeaders(fields.headers);
   } catch {
     return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
@@ -1398,7 +1467,7 @@ function injectedListFailure(res: unknown): ListPageResult {
     }
   }
   try {
-    copied = copyInjectedBody(safeGet(res, "body"), DRIVE_LIST_JSON_MAX_BYTES);
+    copied = copyInjectedBody(fields.body, DRIVE_LIST_JSON_MAX_BYTES);
   } catch {
     return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
   }
@@ -1457,8 +1526,9 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
   }
 
   if (internals.authClient !== undefined) {
+    let res: unknown;
     try {
-      const res = await internals.authClient.request({
+      res = await internals.authClient.request({
         method: "GET",
         url,
         retry: false,
@@ -1469,20 +1539,28 @@ async function fetchListPage(internals: SessionInternals, url: string): Promise<
         maxContentLength: DRIVE_LIST_JSON_MAX_BYTES,
         responseType: "json",
       });
-      const status = asFiniteInteger(safeGet(res, "status"));
-      if (status === undefined) {
-        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-      }
-      if (status >= 300 && status < 400) {
-        return { ok: false, reason: ERR_DRIVE_REDIRECT };
-      }
-      if (status < 200 || status >= 300) {
-        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
-      }
-      return captureListJson(safeGet(res, "data"), DRIVE_LIST_JSON_MAX_BYTES);
     } catch (err) {
       return mapListTransportError(err);
     }
+    let fields: SuccessResponseFields;
+    let status: number | undefined;
+    try {
+      fields = readSuccessResponseFields(res);
+      status = asFiniteInteger(fields.status);
+      normalizeHeaders(fields.headers);
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (status === undefined) {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    if (status >= 300 && status < 400) {
+      return { ok: false, reason: ERR_DRIVE_REDIRECT };
+    }
+    if (status < 200 || status >= 300) {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    return captureListJson(fields.data, DRIVE_LIST_JSON_MAX_BYTES);
   }
 
   throwFresh(ERR_DRIVE_INPUT);

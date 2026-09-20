@@ -1598,6 +1598,247 @@ describe('public identity query and injected body copy bounds', () => {
     }
   });
 
+  test('AuthClient listing rejects proxy prototypes that delete continuation', async () => {
+    const wppName = (seed) => `${sha256Hex(utf8(String(seed)))}.wpp`;
+    const first = {
+      id: 'file_security_proto_kept',
+      name: wppName('security-proto-kept'),
+      size: '10',
+    };
+    let trapCalls = 0;
+    const target = {
+      files: [
+        {
+          id: 'file_security_proto_hide',
+          name: wppName('security-proto-hide'),
+          size: '8',
+        },
+      ],
+      nextPageToken: 'security-proto-hidden',
+    };
+    const proto = new Proxy(
+      {},
+      {
+        getOwnPropertyDescriptor() {
+          trapCalls += 1;
+          delete target.nextPageToken;
+          Object.setPrototypeOf(target, Object.prototype);
+          return undefined;
+        },
+        get() {
+          trapCalls += 1;
+          delete target.nextPageToken;
+          Object.setPrototypeOf(target, Object.prototype);
+          return undefined;
+        },
+        ownKeys() {
+          trapCalls += 1;
+          delete target.nextPageToken;
+          Object.setPrototypeOf(target, Object.prototype);
+          return [];
+        },
+        getPrototypeOf() {
+          trapCalls += 1;
+          delete target.nextPageToken;
+          Object.setPrototypeOf(target, Object.prototype);
+          return Object.prototype;
+        },
+        has() {
+          trapCalls += 1;
+          delete target.nextPageToken;
+          Object.setPrototypeOf(target, Object.prototype);
+          return false;
+        },
+      },
+    );
+    Object.setPrototypeOf(target, proto);
+    const firstAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, data: target };
+        },
+      },
+    });
+    const firstListed = await listCiphertextCandidates(firstAdapter);
+    equal(firstListed.complete, false);
+    equal(firstListed.candidates.length, 0);
+    equal(trapCalls, 0);
+    equal(Object.prototype.hasOwnProperty.call(target, 'nextPageToken'), true);
+
+    let page = 0;
+    let laterTraps = 0;
+    const laterTarget = {
+      files: [
+        {
+          id: 'file_security_proto_late',
+          name: wppName('security-proto-late'),
+          size: '8',
+        },
+      ],
+      nextPageToken: 'security-proto-later',
+    };
+    const laterProto = new Proxy(
+      {},
+      {
+        getOwnPropertyDescriptor() {
+          laterTraps += 1;
+          delete laterTarget.nextPageToken;
+          Object.setPrototypeOf(laterTarget, Object.prototype);
+          return undefined;
+        },
+        get() {
+          laterTraps += 1;
+          delete laterTarget.nextPageToken;
+          Object.setPrototypeOf(laterTarget, Object.prototype);
+          return undefined;
+        },
+        getPrototypeOf() {
+          laterTraps += 1;
+          delete laterTarget.nextPageToken;
+          Object.setPrototypeOf(laterTarget, Object.prototype);
+          return Object.prototype;
+        },
+      },
+    );
+    Object.setPrototypeOf(laterTarget, laterProto);
+    const laterAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          page += 1;
+          if (page === 1) {
+            return { status: 200, data: { files: [first], nextPageToken: 'security-proto-next' } };
+          }
+          return { status: 200, data: laterTarget };
+        },
+      },
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterTraps, 0);
+    equal(page, 2);
+  });
+
+  test('AuthClient media copies ignore typed-array prototype traps and fail closed on throwing success fields', async () => {
+    const sealed = sealSyntheticBlob();
+    let trapCalls = 0;
+    const view = new Uint8Array(sealed.wire);
+    Object.setPrototypeOf(
+      view,
+      new Proxy(Uint8Array.prototype, {
+        get(target, prop, receiver) {
+          trapCalls += 1;
+          return Reflect.get(target, prop, receiver);
+        },
+        getPrototypeOf(target) {
+          trapCalls += 1;
+          return Reflect.getPrototypeOf(target);
+        },
+        getOwnPropertyDescriptor(target, prop) {
+          trapCalls += 1;
+          return Reflect.getOwnPropertyDescriptor(target, prop);
+        },
+        has(target, prop) {
+          trapCalls += 1;
+          return Reflect.has(target, prop);
+        },
+      }),
+    );
+    const protoAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return { status: 200, headers: {}, data: view };
+        },
+      },
+    });
+    const receipt = await getOwnedCiphertext(protoAdapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-security-proto-bytes',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.byteCount, sealed.wire.byteLength);
+    equal(sha256Hex(receipt.ownedReadback), sealed.sha256);
+    equal(trapCalls, 0);
+
+    const throws = [
+      new Error(TOKEN_SENTINEL),
+      new GoogleError(TOKEN_SENTINEL),
+      new GoogleError('GOOGLE_DRIVE_AUTH'),
+    ];
+    const revoked = Proxy.revocable({ secret: TOKEN_SENTINEL }, {});
+    revoked.revoke();
+    throws.push(revoked.proxy);
+    for (const field of ['headers', 'status', 'data', 'body']) {
+      for (const thrown of throws) {
+        const response = {
+          status: 200,
+          headers: { 'content-length': String(sealed.wire.byteLength) },
+          data: Buffer.from(sealed.wire),
+        };
+        Object.defineProperty(response, field, {
+          enumerable: true,
+          configurable: true,
+          get() {
+            throw thrown;
+          },
+        });
+        const adapter = new GoogleDriveSession(PERMISSION_ID, {
+          authClient: {
+            async request() {
+              return response;
+            },
+          },
+        });
+        await rejects(
+          getOwnedCiphertext(adapter, {
+            permissionId: PERMISSION_ID,
+            fileId: 'file-security-throw-fields',
+            sha256: sealed.sha256,
+            byteCount: sealed.wire.byteLength,
+          }),
+          (err) => {
+            assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+            equal(err.code, 'GOOGLE_DRIVE_READBACK');
+            equal(inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL), false);
+            return true;
+          },
+        );
+      }
+    }
+
+    const nestedHeaders = {
+      get 'content-length'() {
+        throw new Error(TOKEN_SENTINEL);
+      },
+    };
+    const nestedAdapter = new GoogleDriveSession(PERMISSION_ID, {
+      authClient: {
+        async request() {
+          return {
+            status: 200,
+            headers: nestedHeaders,
+            data: Buffer.from(sealed.wire),
+          };
+        },
+      },
+    });
+    await rejects(
+      getOwnedCiphertext(nestedAdapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-security-throw-header',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      (err) => {
+        assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+        equal(inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL), false);
+        return true;
+      },
+    );
+  });
+
   test('detached injected bodies are rejected without leaking caller data', async () => {
     const sealed = sealSyntheticBlob();
     const body = new Uint8Array(sealed.wire);

@@ -71,13 +71,24 @@ caller exceptions to a fresh static code. Original exception identity is not
 preserved.
 
 AuthClient media and injected response bodies share one bounded copy
-contract. The transport reads intrinsic `ArrayBuffer` or typed-array length
-before it allocates. It then copies into a new ordinary `Buffer`. It does
-not use caller `byteLength` getters, `Symbol.species`, or caller
-constructors. Default Gaxios bodies are `ArrayBuffer` or
-`Uint8Array`/`Buffer`. Subclass lies, changing getters, detached buffers,
-and revoked proxies are rejected. Hash checks, expected-byte checks, and the
-returned receipt describe those owned bytes only.
+contract. The transport brands `ArrayBuffer` and `Uint8Array` with
+non-trapping `util.types` checks. It does not use `instanceof`. It then
+reads intrinsic length and copies into a new ordinary `Buffer`. It does not
+use caller `byteLength` getters, `Symbol.species`, or caller constructors.
+A typed array with a Proxy prototype is copied without executing those
+traps, or it is rejected without inspecting them. Proxy-wrapped and revoked
+typed arrays are rejected. `SharedArrayBuffer` is not accepted. Default
+Gaxios bodies are `ArrayBuffer` or `Uint8Array`/`Buffer`. Subclass lies,
+changing getters, detached buffers, and revoked proxies are rejected. Hash
+checks, expected-byte checks, and the returned receipt describe those owned
+bytes only.
+
+Successful responses are read once under a fail-closed boundary. The
+transport reads `status`, `headers`, `body`, and `data` with ordinary field
+access. Missing optional headers may be absent. A throwing field or a
+throwing header inspection is a static failure. It is never treated as a
+missing field and never treated as success. Native `Headers` and Gaxios `URLSearchParams`-based headers remain
+supported. Diagnostic `safeGet` stays on explicit error paths only.
 
 ## listCiphertextCandidates
 
@@ -116,17 +127,28 @@ is the byte-budget source and the consumed page. It does not serialize the
 original caller value. It does not parse a second representation.
 
 It rejects every Proxy, including a revoked Proxy, with the non-trapping
-native `util.types.isProxy` check before it inspects the value. For ordinary
-objects it captures each property descriptor once, validates that descriptor,
-and uses the captured value. It does not execute accessors. It does not call
-caller `toJSON` or other serializers. Accessors, functions, symbols, BigInt,
-cycles, custom `toJSON`, proxies, and other non-JSON objects make the page
-incomplete.
+native `util.types.isProxy` check before it inspects the value. It captures
+the value prototype next and rejects a Proxy prototype without executing
+traps. It does not walk a caller-supplied prototype chain. Plain objects
+must use `Object.prototype` or `null`. Arrays must use `Array.prototype`.
+Other prototypes are rejected. Only after that kind and prototype check does
+it inspect own `toJSON`. Custom `toJSON` is rejected with zero execution.
+For ordinary objects it captures each property descriptor once, validates
+that descriptor, and uses the captured value. It does not execute accessors.
+It does not call caller `toJSON` or other serializers. Accessors, functions,
+symbols, BigInt, cycles, custom `toJSON`, proxies, and other non-JSON
+objects make the page incomplete. Prototype callbacks cannot mutate original
+fields during the owned clone.
 
 A non-enumerable or inherited `files`, `incompleteSearch`, or
 `nextPageToken` field is a rejection. It is not a silent omission. An own
 `__proto__` data property stays an ordinary member. It does not become the
 clone prototype and it does not supply inherited completion fields.
+
+Successful list pages use the same fail-closed field capture as media GET.
+A throwing `status`, `headers`, `body`, or `data` field is a page failure.
+A throwing nested header inspection is a page failure. It is not a silent
+omission and it is not `complete: true`.
 
 Unknown JSON fields may remain for sizing. String and key sizes use
 incremental escaped UTF-8 JSON accounting and stop at the remaining budget.

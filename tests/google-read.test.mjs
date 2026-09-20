@@ -328,6 +328,102 @@ function ownProtoListing(fields, protoValue) {
   return data;
 }
 
+function countingProxyTraps(target, onTrap) {
+  const trap = (fn) =>
+    (...args) => {
+      onTrap();
+      return fn(...args);
+    };
+  return new Proxy(target, {
+    get: trap(Reflect.get),
+    getOwnPropertyDescriptor: trap(Reflect.getOwnPropertyDescriptor),
+    ownKeys: trap(Reflect.ownKeys),
+    getPrototypeOf: trap(Reflect.getPrototypeOf),
+    has: trap(Reflect.has),
+    set: trap(Reflect.set),
+    defineProperty: trap(Reflect.defineProperty),
+    deleteProperty: trap(Reflect.deleteProperty),
+    setPrototypeOf: trap(Reflect.setPrototypeOf),
+  });
+}
+
+function deletingContinuationPrototype(files, token) {
+  let trapCalls = 0;
+  const target = { files, nextPageToken: token };
+  const proto = countingProxyTraps({}, () => {
+    trapCalls += 1;
+    delete target.nextPageToken;
+    Object.setPrototypeOf(target, Object.prototype);
+  });
+  Object.setPrototypeOf(target, proto);
+  return { data: target, getTrapCalls: () => trapCalls };
+}
+
+function prototypeProxyValue(base) {
+  let trapCalls = 0;
+  const value = Array.isArray(base) ? base.slice() : { ...base };
+  const proto = countingProxyTraps(Array.isArray(base) ? Array.prototype : {}, () => {
+    trapCalls += 1;
+  });
+  Object.setPrototypeOf(value, proto);
+  return { value, getTrapCalls: () => trapCalls };
+}
+
+function trappingTypedArrayPrototype(bytes) {
+  let trapCalls = 0;
+  const view = new Uint8Array(bytes);
+  const proto = countingProxyTraps(Uint8Array.prototype, () => {
+    trapCalls += 1;
+  });
+  Object.setPrototypeOf(view, proto);
+  return { view, getTrapCalls: () => trapCalls };
+}
+
+function trappingArrayBufferPrototype(bytes) {
+  let trapCalls = 0;
+  const buffer = ownedArrayBuffer(bytes);
+  const proto = countingProxyTraps(ArrayBuffer.prototype, () => {
+    trapCalls += 1;
+  });
+  Object.setPrototypeOf(buffer, proto);
+  return { buffer, getTrapCalls: () => trapCalls };
+}
+
+function throwingFieldResponse(field, thrown, base) {
+  const res = { ...base };
+  Object.defineProperty(res, field, {
+    enumerable: true,
+    configurable: true,
+    get() {
+      throw thrown;
+    },
+  });
+  return res;
+}
+
+function throwingNestedHeaders(thrown, extra = {}) {
+  const headers = { ...extra };
+  Object.defineProperty(headers, 'content-length', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      throw thrown;
+    },
+  });
+  return headers;
+}
+
+function secretBearingThrows() {
+  const revoked = Proxy.revocable({ secret: TOKEN_SENTINEL }, {});
+  revoked.revoke();
+  return [
+    ['error', new Error(TOKEN_SENTINEL)],
+    ['google-error', new GoogleError(TOKEN_SENTINEL)],
+    ['allowlisted-google-error', new GoogleError('GOOGLE_DRIVE_AUTH')],
+    ['revoked-proxy', revoked.proxy],
+  ];
+}
+
 function jsonUtf8Size(value) {
   return Buffer.byteLength(JSON.stringify(value));
 }
@@ -1630,6 +1726,147 @@ describe('owned media copies on AuthClient and injected transports', () => {
       return true;
     });
   });
+
+  test('typed array prototype traps are not executed on either media transport', async () => {
+    const sealed = sealSyntheticBlob();
+    const locator = expectedLocator('file-proto-bytes', sealed.wire, sealed.sha256);
+    const injectedHostile = trappingTypedArrayPrototype(sealed.wire);
+    const { adapter: injected } = listingAdapter(async () => ({
+      status: 200,
+      headers: { 'content-length': String(sealed.wire.byteLength) },
+      body: injectedHostile.view,
+    }));
+    const injectedReceipt = await getOwnedCiphertext(injected, locator);
+    assertOwnedReceipt(injectedReceipt, 'file-proto-bytes', sealed.wire, sealed.sha256);
+    equal(injectedHostile.getTrapCalls(), 0);
+
+    const authHostile = trappingTypedArrayPrototype(sealed.wire);
+    const { adapter: auth } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: authHostile.view,
+    }));
+    const authReceipt = await getOwnedCiphertext(auth, locator);
+    assertOwnedReceipt(authReceipt, 'file-proto-bytes', sealed.wire, sealed.sha256);
+    equal(authHostile.getTrapCalls(), 0);
+
+    const injectedAb = trappingArrayBufferPrototype(sealed.wire);
+    const { adapter: injectedAbAdapter } = listingAdapter(async () => ({
+      status: 200,
+      headers: {},
+      body: injectedAb.buffer,
+    }));
+    const injectedAbReceipt = await getOwnedCiphertext(
+      injectedAbAdapter,
+      expectedLocator('file-proto-ab', sealed.wire, sealed.sha256),
+    );
+    assertOwnedReceipt(injectedAbReceipt, 'file-proto-ab', sealed.wire, sealed.sha256);
+    equal(injectedAb.getTrapCalls(), 0);
+
+    const authAb = trappingArrayBufferPrototype(sealed.wire);
+    const { adapter: authAbAdapter } = authClientAdapter(async () => ({
+      status: 200,
+      headers: {},
+      data: authAb.buffer,
+    }));
+    const authAbReceipt = await getOwnedCiphertext(
+      authAbAdapter,
+      expectedLocator('file-proto-ab-auth', sealed.wire, sealed.sha256),
+    );
+    assertOwnedReceipt(authAbReceipt, 'file-proto-ab-auth', sealed.wire, sealed.sha256);
+    equal(authAb.getTrapCalls(), 0);
+  });
+
+  test('throwing successful media fields fail closed on both transports', async () => {
+    const sealed = sealSyntheticBlob();
+    const locator = expectedLocator('file-throw-fields', sealed.wire, sealed.sha256);
+    const nativeHeaders = new Headers({ 'content-length': String(sealed.wire.byteLength) });
+    const { adapter: nativeInjected } = listingAdapter(async () => ({
+      status: 200,
+      headers: nativeHeaders,
+      body: Buffer.from(sealed.wire),
+    }));
+    const nativeReceipt = await getOwnedCiphertext(nativeInjected, locator);
+    assertOwnedReceipt(nativeReceipt, 'file-throw-fields', sealed.wire, sealed.sha256);
+
+    const { adapter: nativeAuth } = authClientAdapter(async () => ({
+      status: 200,
+      headers: new Headers({ 'content-length': String(sealed.wire.byteLength) }),
+      data: Buffer.from(sealed.wire),
+    }));
+    const nativeAuthReceipt = await getOwnedCiphertext(nativeAuth, locator);
+    assertOwnedReceipt(nativeAuthReceipt, 'file-throw-fields', sealed.wire, sealed.sha256);
+
+    const injectedBase = {
+      status: 200,
+      headers: { 'content-length': String(sealed.wire.byteLength) },
+      body: Buffer.from(sealed.wire),
+    };
+    const authBase = {
+      status: 200,
+      headers: { 'content-length': String(sealed.wire.byteLength) },
+      data: Buffer.from(sealed.wire),
+    };
+    const fieldCases = [
+      ['headers', 'injected'],
+      ['status', 'injected'],
+      ['body', 'injected'],
+      ['data', 'injected'],
+      ['headers', 'auth'],
+      ['status', 'auth'],
+      ['body', 'auth'],
+      ['data', 'auth'],
+    ];
+    for (const [field, transport] of fieldCases) {
+      for (const [label, thrown] of secretBearingThrows()) {
+        const base = transport === 'injected' ? injectedBase : authBase;
+        const response = throwingFieldResponse(field, thrown, base);
+        const adapter =
+          transport === 'injected'
+            ? listingAdapter(async () => response).adapter
+            : authClientAdapter(async () => response).adapter;
+        await rejects(
+          getOwnedCiphertext(adapter, locator),
+          (err) => {
+            assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+            equal(err.code, 'GOOGLE_DRIVE_READBACK', `${transport} ${field} ${label}`);
+            const text = inspect(err, { depth: 8, showHidden: true });
+            equal(text.includes(TOKEN_SENTINEL), false, `${transport} ${field} ${label}`);
+            return true;
+          },
+        );
+      }
+    }
+
+    for (const transport of ['injected', 'auth']) {
+      for (const [label, thrown] of secretBearingThrows()) {
+        const headers = throwingNestedHeaders(thrown, {
+          'content-type': 'application/octet-stream',
+        });
+        const response =
+          transport === 'injected'
+            ? { status: 200, headers, body: Buffer.from(sealed.wire) }
+            : { status: 200, headers, data: Buffer.from(sealed.wire) };
+        const adapter =
+          transport === 'injected'
+            ? listingAdapter(async () => response).adapter
+            : authClientAdapter(async () => response).adapter;
+        await rejects(
+          getOwnedCiphertext(adapter, locator),
+          (err) => {
+            assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+            equal(err.code, 'GOOGLE_DRIVE_READBACK', `${transport} nested ${label}`);
+            equal(
+              inspect(err, { depth: 8, showHidden: true }).includes(TOKEN_SENTINEL),
+              false,
+              `${transport} nested ${label}`,
+            );
+            return true;
+          },
+        );
+      }
+    }
+  });
 });
 
 describe('owned listing JSON on AuthClient and injected transports', () => {
@@ -2304,6 +2541,167 @@ describe('owned listing JSON on AuthClient and injected transports', () => {
       equal(overListed.reason, 'GOOGLE_DRIVE_JSON_BOUND', name);
       equal(overListed.candidates.length, 0, name);
       assertNoWrites(overCalls);
+    }
+  });
+
+  test('proxy prototype continuation cannot complete first or later listing pages', async () => {
+    const hidden = fileRecord('proto-trap-hide', 8);
+    const firstHostile = deletingContinuationPrototype([hidden], 'still-next');
+    const { adapter, calls } = authClientAdapter(async () => ({
+      status: 200,
+      data: firstHostile.data,
+    }));
+    const listed = await listCiphertextCandidates(adapter);
+    equal(listed.complete, false);
+    equal(listed.candidates.length, 0);
+    equal(firstHostile.getTrapCalls(), 0);
+    equal(Object.prototype.hasOwnProperty.call(firstHostile.data, 'nextPageToken'), true);
+    equal(inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+    assertNoWrites(calls);
+
+    const first = fileRecord('proto-trap-kept', 9);
+    const laterHostile = deletingContinuationPrototype(
+      [fileRecord('proto-trap-late', 8)],
+      'later-hidden',
+    );
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'proto-trap-next' } };
+      }
+      return { status: 200, data: laterHostile.data };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterHostile.getTrapCalls(), 0);
+    equal(Object.prototype.hasOwnProperty.call(laterHostile.data, 'nextPageToken'), true);
+    equal(page, 2);
+    assertNoWrites(laterCalls);
+  });
+
+  test('nested object and array prototype proxies cannot complete a listing', async () => {
+    const nestedObject = prototypeProxyValue(fileRecord('nested-obj-proto', 8));
+    const { adapter: objectAdapter, calls: objectCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: [nestedObject.value] },
+    }));
+    const objectListed = await listCiphertextCandidates(objectAdapter);
+    equal(objectListed.complete, false);
+    equal(objectListed.candidates.length, 0);
+    equal(nestedObject.getTrapCalls(), 0);
+    assertNoWrites(objectCalls);
+
+    const nestedArray = prototypeProxyValue([fileRecord('nested-arr-proto', 8)]);
+    const { adapter: arrayAdapter, calls: arrayCalls } = authClientAdapter(async () => ({
+      status: 200,
+      data: { files: nestedArray.value },
+    }));
+    const arrayListed = await listCiphertextCandidates(arrayAdapter);
+    equal(arrayListed.complete, false);
+    equal(arrayListed.candidates.length, 0);
+    equal(nestedArray.getTrapCalls(), 0);
+    assertNoWrites(arrayCalls);
+
+    const first = fileRecord('nested-proto-kept', 11);
+    const laterObject = prototypeProxyValue(fileRecord('nested-obj-late', 8));
+    const laterArray = prototypeProxyValue([fileRecord('nested-arr-late', 8)]);
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'nested-proto-next' } };
+      }
+      if (page === 2) {
+        return { status: 200, data: { files: [laterObject.value], nextPageToken: 'nested-proto-more' } };
+      }
+      return { status: 200, data: { files: laterArray.value } };
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterObject.getTrapCalls(), 0);
+    equal(laterArray.getTrapCalls(), 0);
+    equal(page, 2);
+    assertNoWrites(laterCalls);
+  });
+
+  test('throwing successful list fields fail closed and keep prior candidates', async () => {
+    const first = fileRecord('list-throw-kept', 8);
+    const listBody = jsonBody({ files: [fileRecord('list-throw-hide', 8)] });
+    const injectedBase = { status: 200, headers: {}, body: listBody };
+    const authBase = { status: 200, headers: {}, data: { files: [fileRecord('list-throw-hide', 8)] } };
+    for (const field of ['headers', 'status', 'body', 'data']) {
+      for (const [label, thrown] of secretBearingThrows()) {
+        const { adapter, calls } = listingAdapter(async () =>
+          throwingFieldResponse(field, thrown, injectedBase),
+        );
+        const listed = await listCiphertextCandidates(adapter);
+        equal(listed.complete, false, `injected ${field} ${label}`);
+        equal(listed.candidates.length, 0, `injected ${field} ${label}`);
+        equal(listed.reason === 'GOOGLE_DRIVE_AUTH', false, `injected ${field} ${label}`);
+        equal(
+          inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL),
+          false,
+          `injected ${field} ${label}`,
+        );
+        assertNoWrites(calls);
+
+        const { adapter: authAdapter, calls: authCalls } = authClientAdapter(async () =>
+          throwingFieldResponse(field, thrown, authBase),
+        );
+        const authListed = await listCiphertextCandidates(authAdapter);
+        equal(authListed.complete, false, `auth ${field} ${label}`);
+        equal(authListed.candidates.length, 0, `auth ${field} ${label}`);
+        equal(authListed.reason === 'GOOGLE_DRIVE_AUTH', false, `auth ${field} ${label}`);
+        equal(
+          inspect(authListed, { showHidden: true }).includes(TOKEN_SENTINEL),
+          false,
+          `auth ${field} ${label}`,
+        );
+        assertNoWrites(authCalls);
+      }
+    }
+
+    let page = 0;
+    const { adapter: laterAdapter, calls: laterCalls } = authClientAdapter(async () => {
+      page += 1;
+      if (page === 1) {
+        return { status: 200, data: { files: [first], nextPageToken: 'list-throw-next' } };
+      }
+      return throwingFieldResponse(
+        'headers',
+        new GoogleError('GOOGLE_DRIVE_AUTH'),
+        { status: 200, data: { files: [fileRecord('list-throw-late', 8)] } },
+      );
+    });
+    const laterListed = await listCiphertextCandidates(laterAdapter);
+    equal(laterListed.complete, false);
+    equal(laterListed.candidates.length, 1);
+    equal(laterListed.candidates[0].fileId, first.id);
+    equal(laterListed.reason === 'GOOGLE_DRIVE_AUTH', false);
+    equal(page, 2);
+    assertNoWrites(laterCalls);
+
+    for (const [label, thrown] of secretBearingThrows()) {
+      const headers = throwingNestedHeaders(thrown);
+      const { adapter, calls } = listingAdapter(async () => ({
+        status: 200,
+        headers,
+        body: listBody,
+      }));
+      const listed = await listCiphertextCandidates(adapter);
+      equal(listed.complete, false, `nested ${label}`);
+      equal(listed.candidates.length, 0, `nested ${label}`);
+      equal(
+        inspect(listed, { showHidden: true }).includes(TOKEN_SENTINEL),
+        false,
+        `nested ${label}`,
+      );
+      assertNoWrites(calls);
     }
   });
 
