@@ -1,0 +1,51 @@
+{
+  "notice": "PUBLIC SYNTHETIC TEST DATA",
+  "routeDomain": "WPP/catalog-route/v2",
+  "routeVectors": [
+    {
+      "recordKind": "snapshot",
+      "identity": "b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c",
+      "canonical": "[\"WPP/catalog-route/v2\",\"snapshot\",\"b2447323ddb7161657fe9051dd9d4021a1187ca00d39e04124e52bb41651092c\"]",
+      "sha256": "d5fc1e15203319ecf723405f137d09349b090e8c4f01509e8b028689ac4b5634"
+    },
+    {
+      "recordKind": "tombstone",
+      "identity": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "canonical": "[\"WPP/catalog-route/v2\",\"tombstone\",\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"]",
+      "sha256": "663b2d48058e26b5df90b418c9efe48282da16c13b9c9beddd7ce29c751f089f"
+    },
+    {
+      "recordKind": "root-update-receipt",
+      "identity": "gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8",
+      "canonical": "[\"WPP/catalog-route/v2\",\"root-update-receipt\",\"gIGCg4SFhoeIiYqLjI2Oj5CRkpOUlZaXmJmam5ydnp8\"]",
+      "sha256": "a36aba0429d835e54d481881ff3f95853fc219cb38271fe174acfe89dfc65725"
+    },
+    {
+      "recordKind": "observation",
+      "identity": "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY",
+      "canonical": "[\"WPP/catalog-route/v2\",\"observation\",\"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFY\"]",
+      "sha256": "fd755c92333fe9f7f94a0275e8fc3c3caa109664e8d3de26249b4de065428c81"
+    }
+  ],
+  "emptyRoot": {
+    "payloadVersion": 2,
+    "nodeType": "root",
+    "partitionVersion": 1,
+    "parents": [],
+    "entryCount": 0,
+    "observationCount": 0,
+    "requiredEpochs": [],
+    "references": [
+      {
+        "prefix": "",
+        "empty": true
+      }
+    ]
+  },
+  "v1Catalog": {
+    "payloadVersion": 1,
+    "parents": [],
+    "entries": [],
+    "observations": []
+  }
+}

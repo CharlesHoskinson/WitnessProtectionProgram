@@ -10,6 +10,7 @@ google-drive
 format-vectors
 encrypted-catalog
 catalog-runtime
+catalog-v2
 kernel
 local-journal
 ../witness-package-format

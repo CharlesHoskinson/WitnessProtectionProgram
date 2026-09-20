@@ -1,6 +1,16 @@
 # Encrypted catalog shards and optional packs
 
-This is an experimental design explanation, not a production wire specification. The runnable prototype is in `experiments/storage-layout/`; its carriers use the existing application-codec snapshot envelope, not a production `kind=catalog` implementation.
+This page explains why WPP splits an encrypted catalog and what the local
+experiment measured. It is not a claim that read latency improved, and it is not
+complete M1 or M3 work.
+
+The production catalog-v2 plaintext grammar and adaptive planner live in
+`src/storage/` and [`catalog-v2`](../reference/catalog-v2.md). Those functions
+parse and partition canonical JSON only. Call `preflightCatalogRoot` before any
+later coordinator starts child downloads. Catalog nodes are not encrypted until
+a later kernel `kind=catalog` integration. The runnable prototype in
+`experiments/storage-layout/` still uses application-codec snapshot envelopes
+as test carriers. Do not treat that prototype as the production format.
 
 ## Why separate catalog structure from storage layout?
 
@@ -41,7 +51,7 @@ At 10,000 records, the flat catalog initially occupies 2,994,837 bytes in one ob
 | Packed selected shard, cold | 2 | 75,039 |
 | Packed selected shard, cached authenticated manifest | 1 range read | 49,416 |
 
-The cold packed lookup includes the manifest fetch. The warm lookup excludes that previous fetch but reauthenticates the cached encrypted manifest locally. Packing uses a 4 MiB target and measures packing a selected revision. It does not establish incremental repacking cost or a production-optimal pack size. These are deterministic byte counts and local logical reads, not statistical claims about cloud latency or throughput.
+The cold packed lookup includes the manifest fetch. The warm lookup excludes that previous fetch but reauthenticates the cached encrypted manifest locally. Packing uses a 4 MiB target and measures packing a selected revision. It does not establish incremental repacking cost or a production-optimal pack size. These are deterministic byte counts and local logical reads, not statistical claims about cloud latency or throughput. Write-amplification reduction in this experiment does not prove a read or end-to-end latency benefit.
 
 ## Integrity, cached metadata and freshness
 
@@ -67,6 +77,11 @@ node experiments/storage-layout/benchmark.mjs --quick
 
 ## Roadmap decision
 
-M1 adds encrypted byte-bounded catalog shards, exact reuse of unchanged ciphertext, immutable revision heads and a rebuildable local index. Production must split by encoded byte size rather than assume 64 buckets always fit. Missing children, concurrent heads and malformed authenticated manifests need explicit tests.
+The catalog-v2 planner now splits by encoded UTF-8 canonical shard size with a
+256 KiB target, a 1 MiB leaf ceiling, and at most 1024 prefix references. A
+complete cover has at most 1021 references. Kernel seal/open of catalog nodes,
+journal persistence, and Drive publication remain later work. Missing children,
+concurrent heads, and malformed authenticated manifests still need those later
+tests. This grammar core does not complete M1.
 
 M3 keeps one-click Google Drive backup first. Packs remain a conditional pilot after real provider measurements. Native exports remain opaque whole records. This experiment does not justify convergent deduplication, plaintext content-defined chunking, searchable server indexes, ORAM, erasure coding or automated garbage collection. Those need separate threat models and recovery evidence.
