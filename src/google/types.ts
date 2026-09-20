@@ -11,6 +11,22 @@ export const GOOGLE_JSON_MAX_BYTES = 64 * 1024;
 export const GOOGLE_REQUEST_TIMEOUT_MS = 30_000;
 export const GOOGLE_MEDIA_TIMEOUT_MS = 120_000;
 export const GOOGLE_BROWSER_LAUNCH_WAIT_MS = 400;
+export const DRIVE_LIST_PAGE_SIZE = 100;
+export const DRIVE_LIST_MAX_PAGES = 100;
+export const DRIVE_LIST_MAX_ITEMS = 10_000;
+export const DRIVE_LIST_JSON_MAX_BYTES = 1024 * 1024;
+export const DRIVE_LIST_MAX_PAGE_TOKEN_CHARS = 4096;
+export const DRIVE_LIST_QUERY = "trashed = false and name contains '.wpp'";
+export const DRIVE_LIST_FIELDS = "nextPageToken,incompleteSearch,files(id,name,size)";
+export const LIST_REASON_INCOMPLETE_SEARCH = "GOOGLE_DRIVE_INCOMPLETE_SEARCH";
+export const LIST_REASON_PAGE_FAILURE = "GOOGLE_DRIVE_PAGE_FAILURE";
+export const LIST_REASON_MALFORMED_CANDIDATE = "GOOGLE_DRIVE_MALFORMED_CANDIDATE";
+export const LIST_REASON_DUPLICATE_CONFLICT = "GOOGLE_DRIVE_DUPLICATE_CONFLICT";
+export const LIST_REASON_PAGE_TOKEN_CYCLE = "GOOGLE_DRIVE_PAGE_TOKEN_CYCLE";
+export const LIST_REASON_PAGE_TOKEN = "GOOGLE_DRIVE_PAGE_TOKEN";
+export const LIST_REASON_PAGE_CEILING = "GOOGLE_DRIVE_PAGE_CEILING";
+export const LIST_REASON_ITEM_CEILING = "GOOGLE_DRIVE_ITEM_CEILING";
+export const LIST_REASON_JSON_BOUND = "GOOGLE_DRIVE_JSON_BOUND";
 
 export interface InstalledAppClient {
   clientId: string;
@@ -90,6 +106,32 @@ export interface RemotePutReceipt {
   byteCount: number;
   remoteReadbackVerified: true;
   readonly ownedReadback: Uint8Array;
+}
+
+export interface RemoteGetExpected {
+  permissionId: string;
+  fileId: string;
+  sha256: string;
+  byteCount: number;
+}
+
+export interface RemoteGetReceipt {
+  fileId: string;
+  sha256: string;
+  byteCount: number;
+  readonly ownedReadback: Uint8Array;
+}
+
+export interface CiphertextCandidate {
+  fileId: string;
+  name: string;
+  byteCount: number;
+}
+
+export interface CiphertextCandidateList {
+  complete: boolean;
+  reason?: string;
+  candidates: CiphertextCandidate[];
 }
 
 export interface GcloudResult {

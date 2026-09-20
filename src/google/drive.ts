@@ -22,12 +22,32 @@ import {
 import {
   DRIVE_ABOUT_URL,
   DRIVE_FILES_URL,
+  DRIVE_LIST_FIELDS,
+  DRIVE_LIST_JSON_MAX_BYTES,
+  DRIVE_LIST_MAX_ITEMS,
+  DRIVE_LIST_MAX_PAGE_TOKEN_CHARS,
+  DRIVE_LIST_MAX_PAGES,
+  DRIVE_LIST_PAGE_SIZE,
+  DRIVE_LIST_QUERY,
   DRIVE_UPLOAD_URL,
   GOOGLE_JSON_MAX_BYTES,
   GOOGLE_MEDIA_TIMEOUT_MS,
   GOOGLE_REQUEST_TIMEOUT_MS,
+  LIST_REASON_DUPLICATE_CONFLICT,
+  LIST_REASON_INCOMPLETE_SEARCH,
+  LIST_REASON_ITEM_CEILING,
+  LIST_REASON_JSON_BOUND,
+  LIST_REASON_MALFORMED_CANDIDATE,
+  LIST_REASON_PAGE_CEILING,
+  LIST_REASON_PAGE_FAILURE,
+  LIST_REASON_PAGE_TOKEN,
+  LIST_REASON_PAGE_TOKEN_CYCLE,
   type AuthClientLike,
+  type CiphertextCandidate,
+  type CiphertextCandidateList,
   type InjectedRequest,
+  type RemoteGetExpected,
+  type RemoteGetReceipt,
   type RemotePutReceipt,
 } from "./types.js";
 
@@ -39,6 +59,8 @@ interface SessionInternals {
 const SESSION_INTERNALS = new WeakMap<GoogleDriveSession, SessionInternals>();
 const FILE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+const WPP_NAME_RE = /^[0-9a-f]{64}\.wpp$/;
+const MATCHING_WPP_NAME_RE = /\.wpp$/i;
 
 export function isOpaquePermissionId(value: unknown): value is string {
   return typeof value === "string" && /^[A-Za-z0-9_.-]{1,128}$/.test(value);
@@ -356,6 +378,14 @@ export class GoogleDriveSession {
   async putOwnedCiphertext(ciphertext: Uint8Array, sha256: string): Promise<RemotePutReceipt> {
     return putOwnedCiphertext(this, ciphertext, sha256);
   }
+
+  async getOwnedCiphertext(expected: RemoteGetExpected): Promise<RemoteGetReceipt> {
+    return getOwnedCiphertext(this, expected);
+  }
+
+  async listCiphertextCandidates(): Promise<CiphertextCandidateList> {
+    return listCiphertextCandidates(this);
+  }
 }
 
 export function bindGoogleDriveSession(
@@ -514,4 +544,351 @@ export async function putOwnedCiphertext(
     configurable: false,
   });
   return receipt;
+}
+
+function equalOpaqueId(actual: string, expected: string): boolean {
+  if (actual.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(actual, "utf8"), Buffer.from(expected, "utf8"));
+}
+
+function snapshotInternals(session: GoogleDriveSession): SessionInternals {
+  const internals = SESSION_INTERNALS.get(session);
+  if (internals === undefined) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  const request = internals.request;
+  const authClient = internals.authClient;
+  if (request === undefined && authClient === undefined) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  return { request, authClient };
+}
+
+function copyExpectedLocator(expected: unknown): {
+  permissionId: string;
+  fileId: string;
+  sha256: string;
+  byteCount: number;
+} {
+  if (expected === null || typeof expected !== "object" || Array.isArray(expected)) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  const record = expected as Record<string, unknown>;
+  const permissionId = record.permissionId;
+  const fileId = record.fileId;
+  const sha256 = record.sha256;
+  const byteCount = record.byteCount;
+  if (typeof permissionId !== "string" || !isOpaquePermissionId(permissionId)) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  if (typeof fileId !== "string" || !FILE_ID_RE.test(fileId)) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  if (typeof sha256 !== "string" || !SHA256_HEX_RE.test(sha256)) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  if (
+    typeof byteCount !== "number" ||
+    !Number.isSafeInteger(byteCount) ||
+    byteCount <= 0 ||
+    byteCount > LIMIT_PACKAGE_BYTES
+  ) {
+    throw new GoogleError(ERR_DRIVE_INPUT);
+  }
+  return {
+    permissionId,
+    fileId,
+    sha256,
+    byteCount,
+  };
+}
+
+function bindOwnedReadback(
+  receipt: RemoteGetReceipt,
+  ownedReadback: Uint8Array,
+): RemoteGetReceipt {
+  Object.defineProperty(receipt, "ownedReadback", {
+    value: ownedReadback,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  return receipt;
+}
+
+export async function getOwnedCiphertext(
+  session: GoogleDriveSession,
+  expected: RemoteGetExpected,
+): Promise<RemoteGetReceipt> {
+  const internals = snapshotInternals(session);
+  const boundPermissionId = session.permissionId;
+  if (!isOpaquePermissionId(boundPermissionId)) {
+    throw new GoogleError(ERR_BIND_IDENTITY);
+  }
+  const locator = copyExpectedLocator(expected);
+  if (!equalOpaqueId(locator.permissionId, boundPermissionId)) {
+    throw new GoogleError(ERR_BIND_IDENTITY);
+  }
+  const getUrl = `${DRIVE_FILES_URL}/${encodeURIComponent(locator.fileId)}?alt=media`;
+  const read = await sessionRequest(internals, {
+    method: "GET",
+    url: getUrl,
+    phase: "read",
+    asJson: false,
+    maxBytes: locator.byteCount,
+  });
+  const body = read.bytes;
+  if (body === undefined) {
+    throw new GoogleError(ERR_DRIVE_READBACK);
+  }
+  const contentLength = read.headers["content-length"];
+  if (contentLength !== undefined && contentLength !== String(locator.byteCount)) {
+    throw new GoogleError(ERR_DRIVE_READBACK);
+  }
+  if (body.byteLength !== locator.byteCount) {
+    throw new GoogleError(ERR_DRIVE_READBACK);
+  }
+  const remoteHash = sha256Hex(body);
+  if (!equalHex(remoteHash, locator.sha256)) {
+    throw new GoogleError(ERR_DRIVE_READBACK);
+  }
+  const ownedReadback = Buffer.from(body);
+  const receipt: RemoteGetReceipt = {
+    fileId: locator.fileId,
+    sha256: locator.sha256,
+    byteCount: locator.byteCount,
+    ownedReadback,
+  };
+  return bindOwnedReadback(receipt, ownedReadback);
+}
+
+function parsePositiveBoundedSize(value: unknown): number | undefined {
+  let parsed: number;
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    parsed = value;
+  } else if (typeof value === "string" && /^(0|[1-9][0-9]{0,15})$/.test(value)) {
+    parsed = Number(value);
+  } else {
+    return undefined;
+  }
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > LIMIT_PACKAGE_BYTES) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function buildListUrl(pageToken: string | undefined): string {
+  const url = new URL(DRIVE_FILES_URL);
+  url.searchParams.set("q", DRIVE_LIST_QUERY);
+  url.searchParams.set("fields", DRIVE_LIST_FIELDS);
+  url.searchParams.set("pageSize", String(DRIVE_LIST_PAGE_SIZE));
+  if (pageToken !== undefined) {
+    url.searchParams.set("pageToken", pageToken);
+  }
+  return url.toString();
+}
+
+function tokenLooksLikeUrl(token: string): boolean {
+  return /:\/\//.test(token) || /^[a-z][a-z0-9+.-]*:/i.test(token);
+}
+
+function inspectNextPageToken(value: unknown): { done: true } | { token: string } | { reason: string } {
+  if (value === undefined || value === null) {
+    return { done: true };
+  }
+  if (typeof value !== "string") {
+    return { reason: LIST_REASON_PAGE_TOKEN };
+  }
+  if (value.length === 0) {
+    return { done: true };
+  }
+  if (value.length > DRIVE_LIST_MAX_PAGE_TOKEN_CHARS || tokenLooksLikeUrl(value)) {
+    return { reason: LIST_REASON_PAGE_TOKEN };
+  }
+  return { token: value };
+}
+
+function incompleteList(reason: string, candidates: CiphertextCandidate[]): CiphertextCandidateList {
+  return { complete: false, reason, candidates: candidates.slice() };
+}
+
+type ListPageResult = { ok: true; json: unknown } | { ok: false; reason: string };
+
+async function fetchListPage(internals: SessionInternals, url: string): Promise<ListPageResult> {
+  if (internals.request !== undefined) {
+    let res: { status: number; headers?: Record<string, string> | Headers; body: Uint8Array };
+    try {
+      res = await internals.request({
+        method: "GET",
+        url,
+      });
+    } catch {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    const headers = normalizeHeaders(res.headers);
+    const contentLength = headers["content-length"];
+    if (contentLength !== undefined) {
+      const declared = Number.parseInt(contentLength, 10);
+      if (!Number.isSafeInteger(declared) || declared < 0 || declared > DRIVE_LIST_JSON_MAX_BYTES) {
+        return { ok: false, reason: LIST_REASON_JSON_BOUND };
+      }
+    }
+    const bytes = Buffer.from(res.body ?? []);
+    if (bytes.byteLength > DRIVE_LIST_JSON_MAX_BYTES) {
+      return { ok: false, reason: LIST_REASON_JSON_BOUND };
+    }
+    if (res.status >= 300 && res.status < 400) {
+      throw new GoogleError(ERR_DRIVE_REDIRECT);
+    }
+    if (res.status < 200 || res.status >= 300) {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    const json = parseJsonResponse(bytes);
+    if (json === undefined) {
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+    return { ok: true, json };
+  }
+
+  if (internals.authClient !== undefined) {
+    try {
+      const res = await internals.authClient.request({
+        method: "GET",
+        url,
+        retry: false,
+        redirect: "manual",
+        follow: 0,
+        maxRedirects: 0,
+        timeout: GOOGLE_REQUEST_TIMEOUT_MS,
+        maxContentLength: DRIVE_LIST_JSON_MAX_BYTES,
+        responseType: "json",
+      });
+      const status = typeof res.status === "number" ? res.status : 0;
+      if (status >= 300 && status < 400) {
+        throw new GoogleError(ERR_DRIVE_REDIRECT);
+      }
+      if (status < 200 || status >= 300) {
+        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      }
+      if (jsonByteLength(res.data) > DRIVE_LIST_JSON_MAX_BYTES) {
+        return { ok: false, reason: LIST_REASON_JSON_BOUND };
+      }
+      if (res.data === undefined) {
+        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      }
+      return { ok: true, json: res.data };
+    } catch (err) {
+      if (err instanceof GoogleError) {
+        if (err.code === ERR_DRIVE_REDIRECT) {
+          throw err;
+        }
+        return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+      }
+      if (isAbortOrSize(err)) {
+        return { ok: false, reason: LIST_REASON_JSON_BOUND };
+      }
+      const response = (err as { response?: { status?: number } }).response;
+      if (typeof response?.status === "number" && response.status >= 300 && response.status < 400) {
+        throw new GoogleError(ERR_DRIVE_REDIRECT);
+      }
+      return { ok: false, reason: LIST_REASON_PAGE_FAILURE };
+    }
+  }
+
+  throw new GoogleError(ERR_DRIVE_INPUT);
+}
+
+export async function listCiphertextCandidates(
+  session: GoogleDriveSession,
+): Promise<CiphertextCandidateList> {
+  const internals = snapshotInternals(session);
+  const boundPermissionId = session.permissionId;
+  if (!isOpaquePermissionId(boundPermissionId)) {
+    throw new GoogleError(ERR_BIND_IDENTITY);
+  }
+  const candidates: CiphertextCandidate[] = [];
+  const byId = new Map<string, CiphertextCandidate>();
+  const seenTokens = new Set<string>();
+  let pageToken: string | undefined;
+
+  for (let pageIndex = 0; pageIndex < DRIVE_LIST_MAX_PAGES; pageIndex += 1) {
+    if (pageToken !== undefined) {
+      if (seenTokens.has(pageToken)) {
+        return incompleteList(LIST_REASON_PAGE_TOKEN_CYCLE, candidates);
+      }
+      seenTokens.add(pageToken);
+    }
+    const page = await fetchListPage(internals, buildListUrl(pageToken));
+    if (!page.ok) {
+      return incompleteList(page.reason, candidates);
+    }
+    if (!isRecord(page.json)) {
+      return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
+    }
+    const files = page.json.files;
+    if (files !== undefined && !Array.isArray(files)) {
+      return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
+    }
+    if (Array.isArray(files)) {
+      for (const item of files) {
+        if (!isRecord(item)) {
+          return incompleteList(LIST_REASON_PAGE_FAILURE, candidates);
+        }
+        const name = item.name;
+        if (typeof name !== "string" || !MATCHING_WPP_NAME_RE.test(name)) {
+          continue;
+        }
+        if (!WPP_NAME_RE.test(name)) {
+          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
+        }
+        if (typeof item.id !== "string" || !FILE_ID_RE.test(item.id)) {
+          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
+        }
+        const byteCount = parsePositiveBoundedSize(item.size);
+        if (byteCount === undefined) {
+          return incompleteList(LIST_REASON_MALFORMED_CANDIDATE, candidates);
+        }
+        const existing = byId.get(item.id);
+        if (existing !== undefined) {
+          if (existing.name === name && existing.byteCount === byteCount) {
+            continue;
+          }
+          return incompleteList(LIST_REASON_DUPLICATE_CONFLICT, candidates);
+        }
+        if (byId.size >= DRIVE_LIST_MAX_ITEMS) {
+          return incompleteList(LIST_REASON_ITEM_CEILING, candidates);
+        }
+        const candidate: CiphertextCandidate = {
+          fileId: item.id,
+          name,
+          byteCount,
+        };
+        byId.set(item.id, candidate);
+        candidates.push(candidate);
+      }
+    }
+    if (page.json.incompleteSearch === true) {
+      return incompleteList(LIST_REASON_INCOMPLETE_SEARCH, candidates);
+    }
+    const next = inspectNextPageToken(page.json.nextPageToken);
+    if ("reason" in next) {
+      return incompleteList(next.reason, candidates);
+    }
+    if ("done" in next) {
+      return { complete: true, candidates: candidates.slice() };
+    }
+    if (seenTokens.has(next.token) || (pageToken !== undefined && next.token === pageToken)) {
+      return incompleteList(LIST_REASON_PAGE_TOKEN_CYCLE, candidates);
+    }
+    if (byId.size >= DRIVE_LIST_MAX_ITEMS) {
+      return incompleteList(LIST_REASON_ITEM_CEILING, candidates);
+    }
+    if (pageIndex + 1 >= DRIVE_LIST_MAX_PAGES) {
+      return incompleteList(LIST_REASON_PAGE_CEILING, candidates);
+    }
+    pageToken = next.token;
+  }
+  return incompleteList(LIST_REASON_PAGE_CEILING, candidates);
 }
