@@ -12,13 +12,17 @@ import { inspect } from 'node:util';
 import { UnlockedVault } from '../dist/kernel/index.js';
 import {
   DRIVE_FILE_SCOPE,
+  DRIVE_LIST_JSON_MAX_BYTES,
   GOOGLE_JSON_MAX_BYTES,
   GoogleError,
   authorizeInstalledApp,
   createGoogleDriveAdapter,
   createGoogleDriveAdapterFromAuthClient,
   createOwnedOAuth2Client,
+  getOwnedCiphertext,
   launchSystemBrowser,
+  listCiphertextCandidates,
+  queryBoundPermissionId,
   runGoogleProjectSetup,
 } from '../dist/google/index.js';
 
@@ -1087,6 +1091,194 @@ describe('real Gaxios error objects map quota and auth without leaking bodies', 
     } finally {
       await closeServer(local.server);
     }
+  });
+});
+
+describe('public identity query and injected body copy bounds', () => {
+  test('queryBoundPermissionId uses intrinsic bind and never leaks caller exceptions', async () => {
+    let aboutCalls = 0;
+    function request(opts) {
+      aboutCalls += 1;
+      equal(String(opts.url ?? '').startsWith(ABOUT_URL), true);
+      return { status: 200, data: { user: { permissionId: PERMISSION_ID } } };
+    }
+    Object.defineProperty(request, 'bind', {
+      get() {
+        throw new Error(TOKEN_SENTINEL);
+      },
+    });
+    const permissionId = await queryBoundPermissionId({ request });
+    equal(permissionId, PERMISSION_ID);
+    equal(aboutCalls, 1);
+
+    const { proxy, revoke } = Proxy.revocable(
+      {
+        request() {
+          throw new Error(TOKEN_SENTINEL);
+        },
+      },
+      {},
+    );
+    revoke();
+    await rejects(queryBoundPermissionId(proxy), (err) => {
+      assertGoogleCode('GOOGLE_BIND_IDENTITY')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const revokedFn = Proxy.revocable(request, {});
+    revokedFn.revoke();
+    await rejects(queryBoundPermissionId({ request: revokedFn.proxy }), (err) => {
+      assertGoogleCode('GOOGLE_BIND_IDENTITY')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const throwingCode = {
+      async request() {
+        const err = new Error('about failed');
+        Object.defineProperty(err, 'code', {
+          get() {
+            throw new Error(TOKEN_SENTINEL);
+          },
+        });
+        throw err;
+      },
+    };
+    await rejects(queryBoundPermissionId(throwingCode), (err) => {
+      assertGoogleCode('GOOGLE_BIND_IDENTITY')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+
+    const throwingProto = {
+      async request() {
+        const err = new Error('about failed');
+        Object.setPrototypeOf(
+          err,
+          new Proxy(Object.create(Error.prototype), {
+            get(target, prop, receiver) {
+              if (prop === 'code' || prop === 'message' || prop === 'name') {
+                throw new Error(TOKEN_SENTINEL);
+              }
+              return Reflect.get(target, prop, receiver);
+            },
+          }),
+        );
+        throw err;
+      },
+    };
+    await rejects(queryBoundPermissionId(throwingProto), (err) => {
+      assertGoogleCode('GOOGLE_BIND_IDENTITY')(err);
+      equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+      return true;
+    });
+  });
+
+  test('injected body copy rejects oversize before species construction', async () => {
+    const sealed = sealSyntheticBlob();
+    let speciesReads = 0;
+    let sliceCalls = 0;
+    class HostileBytes extends Uint8Array {
+      static get [Symbol.species]() {
+        speciesReads += 1;
+        return Uint8Array;
+      }
+      slice(...args) {
+        sliceCalls += 1;
+        return super.slice(...args);
+      }
+      subarray(...args) {
+        sliceCalls += 1;
+        return super.subarray(...args);
+      }
+    }
+
+    const oversizeGet = new HostileBytes(sealed.wire.byteLength + 8);
+    const getAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: 200,
+        headers: { 'content-length': String(sealed.wire.byteLength) },
+        body: oversizeGet,
+      }),
+    });
+    await rejects(
+      getOwnedCiphertext(getAdapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-oversize-copy',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      assertGoogleCode('GOOGLE_DRIVE_READBACK'),
+    );
+    equal(speciesReads, 0);
+    equal(sliceCalls, 0);
+
+    speciesReads = 0;
+    sliceCalls = 0;
+    const oversizeList = new HostileBytes(DRIVE_LIST_JSON_MAX_BYTES + 1);
+    const listAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: 200,
+        headers: {},
+        body: oversizeList,
+      }),
+    });
+    const listed = await listCiphertextCandidates(listAdapter);
+    equal(listed.complete, false);
+    equal(listed.reason, 'GOOGLE_DRIVE_JSON_BOUND');
+    equal(speciesReads, 0);
+    equal(sliceCalls, 0);
+
+    speciesReads = 0;
+    sliceCalls = 0;
+    const okBody = new HostileBytes(sealed.wire);
+    const okAdapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: 200,
+        headers: { 'content-length': String(sealed.wire.byteLength) },
+        body: okBody,
+      }),
+    });
+    const receipt = await getOwnedCiphertext(okAdapter, {
+      permissionId: PERMISSION_ID,
+      fileId: 'file-species-ok',
+      sha256: sealed.sha256,
+      byteCount: sealed.wire.byteLength,
+    });
+    equal(receipt.byteCount, sealed.wire.byteLength);
+    equal(speciesReads, 0);
+    equal(sliceCalls, 0);
+  });
+
+  test('detached injected bodies are rejected without leaking caller data', async () => {
+    const sealed = sealSyntheticBlob();
+    const body = new Uint8Array(sealed.wire);
+    structuredClone(body.buffer, { transfer: [body.buffer] });
+    const adapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async () => ({
+        status: 200,
+        headers: { 'content-length': String(sealed.wire.byteLength) },
+        body,
+      }),
+    });
+    await rejects(
+      getOwnedCiphertext(adapter, {
+        permissionId: PERMISSION_ID,
+        fileId: 'file-detached',
+        sha256: sealed.sha256,
+        byteCount: sealed.wire.byteLength,
+      }),
+      (err) => {
+        assertGoogleCode('GOOGLE_DRIVE_READBACK')(err);
+        equal(inspect(err, { showHidden: true }).includes(TOKEN_SENTINEL), false);
+        return true;
+      },
+    );
   });
 });
 

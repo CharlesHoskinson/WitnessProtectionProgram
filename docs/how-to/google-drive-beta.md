@@ -25,13 +25,21 @@ That command compiles TypeScript and runs `node --test tests/*.test.mjs`.
 - `incompleteSearch` and invalid completion fields
 - page and item exhaustion with at most 100 files per page
 - malformed JSON, size, and file id
+- missing and non-string candidate names, with unrelated string names still ignored
+- absent `nextPageToken` as the only complete pagination signal
+- null, empty, and wrong-type page tokens as incomplete
 - overlong JSON and media streams
 - wrong account or unbound session
 - caller mutation during a read, including public identity assignment
 - corrupt, truncated, and swapped bytes
 - first-page redirect, later-page 3xx with preserved candidates, untrusted page token, and late read error
+- empty first page plus continuation then 302 as incomplete, not a throw
 - hostile locator getters and static redacted transport errors
 - kernel-sealed synthetic read-back opened by the real kernel in the same test
+
+`tests/google-security-boundaries.test.mjs` also covers hostile `bind`
+getters, revoked identity-query proxies, and injected oversize copies that
+must not run `Symbol.species`.
 
 Existing Google tests under `tests/google-drive.test.mjs` and
 `tests/google-security-boundaries.test.mjs` remain injected fixtures as well.

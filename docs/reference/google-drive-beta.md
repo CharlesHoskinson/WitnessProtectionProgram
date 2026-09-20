@@ -53,6 +53,18 @@ open the owned bytes in the WPP kernel against a trusted catalog reference.
 Mutation of `expected` or of the options object after construction does not
 change the copied GET bindings or the captured request client.
 
+`queryBoundPermissionId` captures the auth-client request with intrinsic
+`Function` bind. It does not read a caller-controlled `bind` property. The
+entire public boundary maps throwing getters, revoked proxies, and other
+caller exceptions to a fresh static code. Original exception identity is not
+preserved.
+
+Injected response bodies are copied only after an intrinsic typed-array
+byte-length check against the request ceiling. Oversize bodies are rejected
+before allocation. The copy uses a new bounded buffer. It does not use
+`Symbol.species` or a caller constructor. Detached, proxy, and non-byte bodies
+are rejected.
+
 ## listCiphertextCandidates
 
 `listCiphertextCandidates(session)` is a bounded `files.list` transport. It
@@ -77,16 +89,23 @@ Bounds:
 - `incompleteSearch` must be absent or a boolean. Any other value is incomplete.
 
 Name grammar for a retained candidate is `lowercase64hex.wpp`. Unrelated
-filenames are ignored. A matching `.wpp` name with a malformed id, name, or
-size makes the listing incomplete. Repeated `fileId` values collapse only when
-name and size agree. Conflicting metadata makes the listing incomplete.
+string filenames are ignored. A missing name or a non-string name is malformed
+page data. A matching `.wpp` name with a malformed id, name, or size makes the
+listing incomplete. Repeated `fileId` values collapse only when name and size
+agree. Conflicting metadata makes the listing incomplete.
 
-The transport never follows an arbitrary URL from the response. It detects
-repeated `nextPageToken` values as cycles. `incompleteSearch: true`, a page or
-request failure, a later-page 3xx, a missing next page, and a count, byte, or
-page ceiling all return `{ complete: false, reason, candidates }`. Already
-collected candidates are preserved. A first-page 3xx still fails as
-`GOOGLE_DRIVE_REDIRECT`. A partial listing is never `complete: true`.
+Pagination is complete only when `nextPageToken` is absent. A null token, an
+empty string, or any other type is incomplete. The transport never follows an
+arbitrary URL from the response. It detects repeated `nextPageToken` values as
+cycles. `incompleteSearch: true`, a page or request failure, a later-page 3xx,
+a missing next page, and a count, byte, or page ceiling all return
+`{ complete: false, reason, candidates }`. Already collected candidates are
+preserved.
+
+The transport identifies the first page by page index, not by candidate count.
+A first-page 3xx still fails as `GOOGLE_DRIVE_REDIRECT`. An empty first page
+with a continuation token and a later 3xx returns `complete: false`. A partial
+listing is never `complete: true`.
 
 `complete: true` means only that provider pagination finished and every
 accepted response was valid. It does not prove global freshness. It does not
