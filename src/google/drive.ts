@@ -4,10 +4,9 @@ import {
   copyOwnedBytes,
   LIMIT_PACKAGE_BYTES,
   LIMIT_PLAINTEXT_BYTES,
-  parseJsonBytes,
   wipeBytes,
 } from "../kernel/json.js";
-import { decodeBase64Url, decodeNonce12, decodeTag16, validatePackageWire } from "../kernel/validation.js";
+import { decodeBase64Url, decodeNonce12, decodeTag16, parsePackageWireBytes } from "../kernel/validation.js";
 import {
   ERR_BIND_IDENTITY,
   ERR_DRIVE_AUTH,
@@ -318,8 +317,7 @@ function assertSealedPackageGrammar(bytes: Uint8Array): void {
   let tag: Buffer | undefined;
   let ciphertext: Buffer | undefined;
   try {
-    const parsed = parseJsonBytes(bytes, LIMIT_PACKAGE_BYTES);
-    const wire = validatePackageWire(parsed);
+    const wire = parsePackageWireBytes(bytes, LIMIT_PACKAGE_BYTES);
     nonce = decodeNonce12(wire.header.nonce);
     tag = decodeTag16(wire.tag);
     ciphertext = decodeBase64Url(wire.ciphertext, LIMIT_PLAINTEXT_BYTES);

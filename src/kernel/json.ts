@@ -1,5 +1,5 @@
 import { types } from "node:util";
-import { visit, ParseErrorCode, type JSONVisitor } from "jsonc-parser";
+import { visit, ParseErrorCode, type JSONPath, type JSONVisitor } from "jsonc-parser";
 import canonicalize from "canonicalize";
 
 export type JsonPrimitive = null | boolean | number | string;
@@ -12,6 +12,7 @@ export const LIMIT_RECOVERY_WIRE_BYTES = 96 * 1024;
 export const LIMIT_HEADER_CANONICAL_BYTES = 4 * 1024;
 export const LIMIT_METADATA_CANONICAL_BYTES = 64 * 1024;
 export const LIMIT_JSON_DEPTH = 32;
+export const MAX_HEADER_VERSION_TOKEN_CHARS = 64;
 
 export const ERR_INPUT_TOO_LARGE = "WPP_INPUT_TOO_LARGE";
 export const ERR_BOM = "WPP_BOM";
@@ -343,6 +344,123 @@ function assertJsonTree(value: JsonValue): void {
       }
       stack.push(child);
     }
+  }
+}
+
+function isDigitCode(code: number): boolean {
+  return code >= 0x30 && code <= 0x39;
+}
+
+function exactDecimalIntegerOne(token: string): boolean {
+  const size = token.length;
+  if (size < 1 || size > MAX_HEADER_VERSION_TOKEN_CHARS) {
+    return false;
+  }
+  let index = 0;
+  const first = token.charCodeAt(index);
+  if (!isDigitCode(first)) {
+    return false;
+  }
+  const digits: number[] = [];
+  if (first === 0x30) {
+    digits.push(0);
+    index += 1;
+    if (index < size && isDigitCode(token.charCodeAt(index))) {
+      return false;
+    }
+  } else {
+    while (index < size && isDigitCode(token.charCodeAt(index))) {
+      digits.push(token.charCodeAt(index) - 0x30);
+      index += 1;
+    }
+  }
+  let fractionDigits = 0;
+  if (index < size && token.charCodeAt(index) === 0x2e) {
+    index += 1;
+    const fractionStart = index;
+    if (index >= size || !isDigitCode(token.charCodeAt(index))) {
+      return false;
+    }
+    while (index < size && isDigitCode(token.charCodeAt(index))) {
+      digits.push(token.charCodeAt(index) - 0x30);
+      index += 1;
+    }
+    fractionDigits = index - fractionStart;
+  }
+  let exponent = 0;
+  let exponentSign = 1;
+  if (index < size && (token.charCodeAt(index) === 0x65 || token.charCodeAt(index) === 0x45)) {
+    index += 1;
+    if (index < size && (token.charCodeAt(index) === 0x2b || token.charCodeAt(index) === 0x2d)) {
+      if (token.charCodeAt(index) === 0x2d) {
+        exponentSign = -1;
+      }
+      index += 1;
+    }
+    if (index >= size || !isDigitCode(token.charCodeAt(index))) {
+      return false;
+    }
+    while (index < size && isDigitCode(token.charCodeAt(index))) {
+      const digit = token.charCodeAt(index) - 0x30;
+      if (exponent > 100) {
+        return false;
+      }
+      exponent = exponent * 10 + digit;
+      index += 1;
+    }
+  }
+  if (index !== size) {
+    return false;
+  }
+  let start = 0;
+  while (start < digits.length - 1 && digits[start] === 0) {
+    start += 1;
+  }
+  if (digits[start] === 0) {
+    return false;
+  }
+  let end = digits.length;
+  let scale = exponentSign * exponent - fractionDigits;
+  while (end - start > 1 && digits[end - 1] === 0) {
+    end -= 1;
+    scale += 1;
+  }
+  return end - start === 1 && digits[start] === 1 && scale === 0;
+}
+
+function isHeaderVersionPath(path: JSONPath): boolean {
+  return path.length === 2 && path[0] === "header" && path[1] === "version";
+}
+
+// JSON.parse rounds some inexact tokens to 1. Header version uses the exact decimal value.
+export function assertPackageHeaderVersionToken(text: string): void {
+  let matches = 0;
+  const visitor: JSONVisitor = {
+    onLiteralValue: (
+      _value: unknown,
+      offset: number,
+      length: number,
+      _startLine: number,
+      _startCharacter: number,
+      pathSupplier: () => JSONPath,
+    ) => {
+      if (!isHeaderVersionPath(pathSupplier())) {
+        return;
+      }
+      matches += 1;
+      if (
+        matches !== 1 ||
+        length < 1 ||
+        length > MAX_HEADER_VERSION_TOKEN_CHARS ||
+        !exactDecimalIntegerOne(text.slice(offset, offset + length))
+      ) {
+        throw new KernelError(ERR_SCHEMA);
+      }
+    },
+  };
+  visit(text, visitor, VISIT_OPTIONS);
+  if (matches !== 1) {
+    throw new KernelError(ERR_SCHEMA);
   }
 }
 

@@ -1,5 +1,6 @@
 import { equal, match, ok, rejects } from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import canonicalize from 'canonicalize';
 import { request as nodeHttpRequest } from 'node:http';
 import { inspect } from 'node:util';
 import { spawn } from 'node:child_process';
@@ -11,6 +12,7 @@ import { OAuth2Client } from 'google-auth-library';
 
 import { UnlockedVault } from '../dist/kernel/index.js';
 import { LIMIT_PACKAGE_BYTES } from '../dist/kernel/json.js';
+import { planCatalogShards } from '../dist/storage/index.js';
 import {
   DRIVE_FILE_SCOPE,
   GoogleError,
@@ -140,6 +142,70 @@ function sealSyntheticBlob() {
       recordId: vector.inputs.header.recordId,
       payloadUtf8: utf8(JSON.stringify(vector.inputs.payload)),
     });
+  } finally {
+    vault.lock();
+  }
+}
+
+function headerVersionAt(text) {
+  const needle = '"version":1';
+  const at = text.indexOf(needle);
+  if (at < 0) {
+    throw new Error('missing header version');
+  }
+  const next = text[at + needle.length];
+  if (next !== '}' && next !== ',') {
+    throw new Error(`version boundary ${next}`);
+  }
+  return { at, nextIndex: at + needle.length };
+}
+
+function withHeaderVersionMember(wire, member) {
+  const text = Buffer.from(wire).toString('utf8');
+  const spot = headerVersionAt(text);
+  const bytes = utf8(`${text.slice(0, spot.at)}${member}${text.slice(spot.nextIndex)}`);
+  return { wire: bytes, sha256: sha256Hex(bytes) };
+}
+
+function sealCatalogKinds() {
+  const vault = UnlockedVault.fromRootRecord(utf8(JSON.stringify(vectorRoot())), [vectorCodec()]);
+  try {
+    const catalogs = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../fixtures/catalog-v1-examples.json', import.meta.url)), 'utf8'),
+    );
+    const catalog = vault.sealCatalog(utf8(JSON.stringify(catalogs.catalogs.baseline)));
+    const root = vectorRoot();
+    const record = {
+      recordKind: 'snapshot',
+      body: {
+        entryKind: 'snapshot',
+        package: {
+          sha256: sha256Hex(utf8('google-catalog-node')),
+          byteLength: 1024,
+          rootEpoch: root.epochs[0].rootEpoch,
+          scopeId: Buffer.alloc(32, 2).toString('base64url'),
+          recordId: Buffer.alloc(32, 3).toString('base64url'),
+          generationId: Buffer.alloc(32, 4).toString('base64url'),
+        },
+        metadata: vector.inputs.payload.metadata,
+        label: 'synthetic-node',
+        locators: [
+          {
+            provider: 'google-drive',
+            accountBinding: { scheme: 'google-drive-permission-id', value: 'perm1' },
+            objectId: 'obj1',
+            revisionId: 'rev1',
+          },
+        ],
+      },
+    };
+    const plan = planCatalogShards(utf8(canonicalize([record])));
+    const leaf = plan.leaves.find((item) => item.empty !== true);
+    if (!leaf) {
+      throw new Error('missing shard leaf');
+    }
+    const shard = vault.sealCatalogNode(Buffer.from(leaf.payloadUtf8));
+    return { catalog, shard };
   } finally {
     vault.lock();
   }
@@ -869,6 +935,63 @@ describe('Drive ciphertext adapter', () => {
       assertNoSecret(logs.text());
     } finally {
       logs.restore();
+    }
+  });
+
+  test('inexact header version tokens send no POST', async () => {
+    const sealed = sealSyntheticBlob();
+    const { catalog, shard } = sealCatalogKinds();
+    equal(JSON.parse(Buffer.from(catalog.wire).toString('utf8')).header.kind, 'catalog');
+    equal(JSON.parse(Buffer.from(shard.wire).toString('utf8')).header.kind, 'catalog');
+    const longToken = `1.${'0'.repeat(63)}`;
+    equal(longToken.length, 65);
+    const rejected = [
+      withHeaderVersionMember(sealed.wire, '"version":1.0000000000000001'),
+      withHeaderVersionMember(sealed.wire, `"version":${longToken}`),
+      withHeaderVersionMember(sealed.wire, '"vers\\u0069on":1.0000000000000001'),
+      withHeaderVersionMember(sealed.wire, '"version":1,"version":1'),
+      withHeaderVersionMember(sealed.wire, '"version":1,"vers\\u0069on":1'),
+      withHeaderVersionMember(catalog.wire, '"version":1.0000000000000001'),
+      withHeaderVersionMember(shard.wire, `"version":${longToken}`),
+    ];
+    const unknown = JSON.parse(Buffer.from(sealed.wire).toString('utf8'));
+    unknown.header.kind = 'backup';
+    const unknownWire = utf8(JSON.stringify(unknown));
+    rejected.push({ wire: unknownWire, sha256: sha256Hex(unknownWire) });
+
+    let posts = 0;
+    const adapter = createGoogleDriveAdapter({
+      permissionId: PERMISSION_ID,
+      request: async (opts) => {
+        if (String(opts.method ?? 'GET').toUpperCase() === 'POST') {
+          posts += 1;
+        }
+        return { status: 500, headers: {}, body: utf8('unexpected') };
+      },
+    });
+    for (const item of rejected) {
+      await rejects(adapter.putOwnedCiphertext(item.wire, item.sha256), assertGoogleCode('GOOGLE_DRIVE_INPUT'));
+      equal(posts, 0);
+    }
+
+    const accepted = [
+      withHeaderVersionMember(sealed.wire, '"version":1.0'),
+      withHeaderVersionMember(sealed.wire, '"version":1e0'),
+      withHeaderVersionMember(sealed.wire, '"version":10e-1'),
+      withHeaderVersionMember(sealed.wire, '"vers\\u0069on":1'),
+      { wire: catalog.wire, sha256: catalog.sha256 },
+      { wire: shard.wire, sha256: shard.sha256 },
+      withHeaderVersionMember(shard.wire, '"vers\\u0069on":1e0'),
+    ];
+    for (const item of accepted) {
+      const drive = memoryDrive();
+      const uploader = createGoogleDriveAdapter({
+        permissionId: PERMISSION_ID,
+        request: drive.request,
+      });
+      const receipt = await uploader.putOwnedCiphertext(item.wire, item.sha256);
+      equal(receipt.sha256, item.sha256);
+      equal(drive.calls.filter((call) => call.method === 'POST').length, 1);
     }
   });
 });

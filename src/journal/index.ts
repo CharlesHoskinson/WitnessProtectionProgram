@@ -1,5 +1,5 @@
-import { LIMIT_PACKAGE_BYTES, LIMIT_PLAINTEXT_BYTES, parseJsonBytes, wipeBytes } from "../kernel/json.js";
-import { decodeBase64Url, decodeNonce12, decodeTag16, validatePackageWire } from "../kernel/validation.js";
+import { LIMIT_PACKAGE_BYTES, LIMIT_PLAINTEXT_BYTES, wipeBytes } from "../kernel/json.js";
+import { decodeBase64Url, decodeNonce12, decodeTag16, parsePackageWireBytes } from "../kernel/validation.js";
 import {
   JournalError,
   assertRegularOwnedFile,
@@ -84,8 +84,7 @@ function assertSealedGrammar(wire: Uint8Array, digest: string): void {
   let tag: Buffer | undefined;
   let ciphertext: Buffer | undefined;
   try {
-    const parsed = parseJsonBytes(wire, LIMIT_PACKAGE_BYTES);
-    const pack = validatePackageWire(parsed);
+    const pack = parsePackageWireBytes(wire, LIMIT_PACKAGE_BYTES);
     nonce = decodeNonce12(pack.header.nonce);
     tag = decodeTag16(pack.tag);
     ciphertext = decodeBase64Url(pack.ciphertext, LIMIT_PLAINTEXT_BYTES);

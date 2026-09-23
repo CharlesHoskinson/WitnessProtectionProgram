@@ -53,7 +53,12 @@ The receipt fields are file ID, SHA-256, and byte count only.
 The command does not print tokens, roots, ciphertext buffers, or plaintext.
 `verified` means the kernel opened the downloaded bytes, not the local input copy.
 
-The Drive adapter checks sealed-package grammar before upload.
+The Drive adapter checks sealed-package grammar on one owned copy before upload.
+The check includes the exact raw header `version` token.
+A malformed version token sends no POST.
+A matching caller SHA-256 does not bypass that check.
+Kinds `snapshot` and `catalog` stay accepted.
+A catalog-node envelope uses kind `catalog`.
 That check is not AEAD validation. The adapter has no decryption key.
 
 ## WSL loopback limit

@@ -1,4 +1,5 @@
 import { createDecipheriv, createHash, createHmac } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { deepEqual, equal, match, notEqual, ok, throws } from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
@@ -314,5 +315,25 @@ describe('buildVector', () => {
     equal(vector.profile, SYNTHETIC_PROFILE);
     match(vector.profile, /synthetic/);
     equal(typeof vector.expected.nativeExportPassword, 'string');
+  });
+
+  test('shared wire corpus canonical case is the published fixture wire', () => {
+    const corpusBytes = readFileSync(new URL('../fixtures/wpp-v1-wire-corpus.json', import.meta.url));
+    const fixtureBytes = readFileSync(new URL('../fixtures/wpp-v1-vectors.json', import.meta.url));
+    const corpus = JSON.parse(Buffer.from(corpusBytes).toString('utf8'));
+    const fixture = JSON.parse(Buffer.from(fixtureBytes).toString('utf8'));
+    const canonical = corpus.cases.find((entry) => entry.id === 'canonical');
+    equal(canonical.outcome, 'accept');
+    equal(canonical.wireUtf8, fixture.expected.wireUtf8);
+    equal(canonical.wireUtf8, buildVector().expected.wireUtf8);
+    equal(Buffer.from(corpusBytes).toString('utf8').includes(fixture.inputs.secretRootHex), false);
+    equal(corpus.comparison, 'accept-or-reject-only');
+    const ids = corpus.cases.map((entry) => entry.id);
+    equal(new Set(ids).size, ids.length);
+    for (const entry of corpus.cases) {
+      ok(entry.outcome === 'accept' || entry.outcome === 'reject', entry.id);
+      equal(typeof entry.wireUtf8, 'string', entry.id);
+      equal(Buffer.from(entry.wireUtf8, 'utf8').toString('utf8'), entry.wireUtf8, entry.id);
+    }
   });
 });

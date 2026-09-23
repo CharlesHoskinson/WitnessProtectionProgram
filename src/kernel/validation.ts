@@ -13,9 +13,14 @@ import {
   KernelError,
   LIMIT_HEADER_CANONICAL_BYTES,
   LIMIT_METADATA_CANONICAL_BYTES,
+  assertPackageHeaderVersionToken,
   canonicalizeJson,
   canonicalizeJsonBytes,
+  copyOwnedBytes,
+  decodeUtf8Fatal,
   isolatedJsonView,
+  parseJsonText,
+  rejectBom,
   wipeBytes,
   type JsonValue,
 } from "./json.js";
@@ -332,6 +337,27 @@ export function validateRecoveryWire(value: unknown): RecoveryWire {
   const wire = value as RecoveryWire;
   assertCanonicalObjectSize(wire.header as unknown as JsonValue, LIMIT_HEADER_CANONICAL_BYTES);
   return wire;
+}
+
+function parseOwnedHeaderText(bytes: Uint8Array, maxBytes: number): JsonValue {
+  const owned = copyOwnedBytes(bytes, maxBytes);
+  try {
+    rejectBom(owned);
+    const text = decodeUtf8Fatal(owned);
+    const parsed = parseJsonText(text);
+    assertPackageHeaderVersionToken(text);
+    return parsed;
+  } finally {
+    wipeBytes(owned);
+  }
+}
+
+export function parsePackageWireBytes(bytes: Uint8Array, maxBytes: number): PackageWire {
+  return validatePackageWire(parseOwnedHeaderText(bytes, maxBytes));
+}
+
+export function parseRecoveryWireBytes(bytes: Uint8Array, maxBytes: number): RecoveryWire {
+  return validateRecoveryWire(parseOwnedHeaderText(bytes, maxBytes));
 }
 
 export function validateSnapshotPayload(value: unknown): SnapshotPayload {

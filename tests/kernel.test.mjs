@@ -9,6 +9,7 @@ import canonicalize from 'canonicalize';
 import { UnlockedVault } from '../dist/kernel/index.js';
 import * as kernelApi from '../dist/kernel/index.js';
 import { deriveKeys } from '../dist/kernel/crypto.js';
+import { planCatalogShards } from '../dist/storage/index.js';
 import {
   assertCanonicalObjectSize,
   decodeBase64Url,
@@ -151,6 +152,111 @@ function expectedOf(meta, scopeId, recordId) {
 
 function vectorExpected() {
   return expectedOf(vector.inputs.payload.metadata, vector.inputs.header.scopeId, vector.inputs.header.recordId);
+}
+
+function sha256Hex(bytes) {
+  return crypto.createHash('sha256').update(bytes).digest('hex');
+}
+
+function headerVersionAt(text) {
+  const needle = '"version":1';
+  const at = text.indexOf(needle);
+  if (at < 0) {
+    throw new Error('missing header version');
+  }
+  const next = text[at + needle.length];
+  if (next !== '}' && next !== ',') {
+    throw new Error(`version boundary ${next}`);
+  }
+  return { at, nextIndex: at + needle.length };
+}
+
+function withHeaderVersionMember(wire, member) {
+  const text = Buffer.from(wire).toString('utf8');
+  const spot = headerVersionAt(text);
+  return Buffer.from(`${text.slice(0, spot.at)}${member}${text.slice(spot.nextIndex)}`, 'utf8');
+}
+
+function sealCatalogFixture(vault) {
+  const catalogs = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../fixtures/catalog-v1-examples.json', import.meta.url)), 'utf8'),
+  );
+  return vault.sealCatalog(utf8(JSON.stringify(catalogs.catalogs.baseline)));
+}
+
+function nodeLocator(suffix) {
+  return {
+    provider: 'google-drive',
+    accountBinding: { scheme: 'google-drive-permission-id', value: `perm${suffix}` },
+    objectId: `obj${suffix}`,
+    revisionId: `rev${suffix}`,
+  };
+}
+
+function sealCatalogShard(vault, root) {
+  const record = {
+    recordKind: 'snapshot',
+    body: {
+      entryKind: 'snapshot',
+      package: {
+        sha256: sha256Hex(utf8(`digest:${root.vaultId}`)),
+        byteLength: 1024,
+        rootEpoch: root.epochs[0].rootEpoch,
+        scopeId: id32(2),
+        recordId: id32(3),
+        generationId: id32(4),
+      },
+      metadata: metadata(vectorCodec.id),
+      label: 'synthetic-node',
+      locators: [nodeLocator('1')],
+    },
+  };
+  const plan = planCatalogShards(utf8(canonicalize([record])));
+  const leaf = plan.leaves.find((item) => item.empty !== true);
+  if (!leaf) {
+    throw new Error('missing shard leaf');
+  }
+  const sealed = vault.sealCatalogNode(Buffer.from(leaf.payloadUtf8));
+  const header = JSON.parse(Buffer.from(sealed.wire).toString('utf8')).header;
+  return {
+    sealed,
+    header,
+    reference: {
+      prefix: leaf.prefix,
+      empty: false,
+      recordId: header.recordId,
+      generationId: header.generationId,
+      rootEpoch: header.rootEpoch,
+      wireSha256: sealed.sha256,
+      wireByteLength: sealed.wire.byteLength,
+      plaintextByteLength: leaf.plaintextByteLength,
+      entryCount: leaf.entryCount,
+      observationCount: leaf.observationCount,
+      canonicalRecordsSha256: leaf.canonicalRecordsSha256,
+      locators: [nodeLocator('1')],
+    },
+  };
+}
+
+function withPackageDecodePoison(nonce, fn) {
+  const original = TextDecoder.prototype.decode;
+  let matches = 0;
+  TextDecoder.prototype.decode = function decode(input, options) {
+    if (input instanceof Uint8Array && Buffer.from(input).toString('latin1').includes(nonce)) {
+      matches += 1;
+      if (matches === 2) {
+        const text = Buffer.from(input).toString('latin1');
+        const spot = headerVersionAt(text);
+        input[spot.at + '"version":'.length] = 0x32;
+      }
+    }
+    return original.call(this, input, options);
+  };
+  try {
+    return fn();
+  } finally {
+    TextDecoder.prototype.decode = original;
+  }
 }
 
 function unlockVector(codecs = [vectorCodec, appCodec]) {
@@ -1218,5 +1324,176 @@ describe('UnlockedVault kernel', () => {
     }
     equal(opened.packageSha256, sealedA.sha256);
     deepEqual(opened.content, bodyA.content);
+  });
+
+  test('fractional application payload values still open', () => {
+    const { vault, scopeId, recordId } = session();
+    const body = payload({ label: 'kept', ratio: 1.5 });
+    const sealed = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(body)),
+    });
+    const opened = vault.openSnapshot(sealed.wire, expectedOf(body.metadata, scopeId, recordId));
+    equal(opened.content.ratio, 1.5);
+    equal(opened.content.label, 'kept');
+  });
+
+  test('shared wire corpus agrees on accept and reject', () => {
+    const corpusBytes = readFileSync(
+      fileURLToPath(new URL('../fixtures/wpp-v1-wire-corpus.json', import.meta.url)),
+    );
+    const corpus = JSON.parse(Buffer.from(corpusBytes).toString('utf8'));
+    equal(corpus.comparison, 'accept-or-reject-only');
+    ok(String(corpus.errorClassNote).includes('Error code classes can differ'));
+    equal(Buffer.from(corpusBytes).toString('utf8').includes(vector.inputs.secretRootHex), false);
+    const vault = unlockVector();
+    const expected = vectorExpected();
+    const seen = new Set();
+    for (const entry of corpus.cases) {
+      ok(!seen.has(entry.id), entry.id);
+      seen.add(entry.id);
+      const wire = Buffer.from(entry.wireUtf8, 'utf8');
+      let opened = null;
+      try {
+        opened = vault.openSnapshot(wire, expected);
+      } catch (err) {
+        assertPublicError(err);
+        opened = null;
+      }
+      if (entry.outcome === 'accept') {
+        ok(opened, entry.id);
+        equal(opened.header.version, 1, entry.id);
+        deepEqual(opened.content, vector.inputs.payload.content, entry.id);
+      } else {
+        equal(entry.outcome, 'reject', entry.id);
+        equal(opened, null, entry.id);
+      }
+    }
+    equal(seen.size, 25);
+  });
+
+  test('recovery, catalog, and catalog-node checks share one owned package decode', () => {
+    const { vault, root, scopeId, recordId } = session();
+    const snapshot = vault.sealSnapshot({
+      scopeId,
+      recordId,
+      payloadUtf8: utf8(JSON.stringify(payload({ slot: 'owned-decode' }))),
+    });
+    const snapshotHeader = JSON.parse(Buffer.from(snapshot.wire).toString('utf8')).header;
+    const openedSnapshot = withPackageDecodePoison(snapshotHeader.nonce, () =>
+      vault.openSnapshot(snapshot.wire, expectedOf(metadata(appCodec.id), scopeId, recordId)),
+    );
+    equal(openedSnapshot.header.version, 1);
+    equal(openedSnapshot.content.slot, 'owned-decode');
+
+    const pack = vault.createRecoveryPack();
+    const recoveryHeader = JSON.parse(Buffer.from(pack.wire).toString('utf8')).header;
+    const recovered = withPackageDecodePoison(recoveryHeader.nonce, () =>
+      UnlockedVault.fromRecoveryPack(pack.wire, pack.recoveryKey, [appCodec]),
+    );
+    ok(recovered);
+    recovered.lock();
+
+    const catalog = sealCatalogFixture(vault);
+    const catalogHeader = JSON.parse(Buffer.from(catalog.wire).toString('utf8')).header;
+    const openedCatalog = withPackageDecodePoison(catalogHeader.nonce, () => vault.openCatalog(catalog.wire));
+    equal(openedCatalog.header.kind, 'catalog');
+    equal(openedCatalog.header.version, 1);
+
+    const shard = sealCatalogShard(vault, root);
+    const openedShard = withPackageDecodePoison(shard.header.nonce, () =>
+      vault.openCatalogNode(shard.sealed.wire, { nodeType: 'shard', reference: shard.reference }),
+    );
+    equal(openedShard.header.kind, 'catalog');
+    equal(openedShard.header.version, 1);
+    equal(openedShard.node.role, 'shard');
+  });
+
+  test('recovery, catalog, and catalog-node reject inexact raw version tokens', () => {
+    const { vault, root, scopeId, recordId } = session();
+    const longToken = `1.${'0'.repeat(63)}`;
+    equal(longToken.length, 65);
+    const pack = vault.createRecoveryPack();
+    for (const token of ['1.0000000000000001', longToken]) {
+      const wire = withHeaderVersionMember(pack.wire, `"version":${token}`);
+      throws(
+        () => UnlockedVault.fromRecoveryPack(wire, pack.recoveryKey, [appCodec]),
+        assertCode('WPP_SCHEMA'),
+      );
+    }
+    const recovered = UnlockedVault.fromRecoveryPack(
+      withHeaderVersionMember(pack.wire, '"version":1.0'),
+      pack.recoveryKey,
+      [appCodec],
+    );
+    ok(recovered);
+    recovered.lock();
+
+    const catalog = sealCatalogFixture(vault);
+    throws(
+      () => vault.openCatalog(withHeaderVersionMember(catalog.wire, '"version":1.0000000000000001')),
+      assertCode('WPP_SCHEMA'),
+    );
+    throws(
+      () => vault.openCatalog(withHeaderVersionMember(catalog.wire, `"version":${longToken}`)),
+      assertCode('WPP_SCHEMA'),
+    );
+    const openedCatalog = vault.openCatalog(withHeaderVersionMember(catalog.wire, '"version":10e-1'));
+    equal(openedCatalog.header.kind, 'catalog');
+    equal(openedCatalog.header.version, 1);
+    throws(
+      () =>
+        vault.openSnapshot(catalog.wire, expectedOf(metadata(appCodec.id), scopeId, recordId)),
+      assertCode('WPP_UNSUPPORTED'),
+    );
+    throws(
+      () => vault.openCatalog(withHeaderVersionMember(catalog.wire, '"version":1,"version":1')),
+      assertCode('WPP_JSON_DUPLICATE_KEY'),
+    );
+    throws(
+      () => vault.openCatalog(withHeaderVersionMember(catalog.wire, '"version":1,"vers\\u0069on":1')),
+      assertCode('WPP_JSON_DUPLICATE_KEY'),
+    );
+
+    const shard = sealCatalogShard(vault, root);
+    const badShard = withHeaderVersionMember(shard.sealed.wire, `"version":${longToken}`);
+    throws(
+      () =>
+        vault.openCatalogNode(badShard, {
+          nodeType: 'shard',
+          reference: {
+            ...shard.reference,
+            wireSha256: sha256Hex(badShard),
+            wireByteLength: badShard.byteLength,
+          },
+        }),
+      assertCode('WPP_SCHEMA'),
+    );
+    const spelledShard = withHeaderVersionMember(shard.sealed.wire, '"vers\\u0069on":1e0');
+    const openedShard = vault.openCatalogNode(spelledShard, {
+      nodeType: 'shard',
+      reference: {
+        ...shard.reference,
+        wireSha256: sha256Hex(spelledShard),
+        wireByteLength: spelledShard.byteLength,
+      },
+    });
+    equal(openedShard.header.kind, 'catalog');
+    equal(openedShard.header.version, 1);
+    equal(openedShard.node.role, 'shard');
+    const roundedShard = withHeaderVersionMember(shard.sealed.wire, '"vers\\u0069on":1.0000000000000001');
+    throws(
+      () =>
+        vault.openCatalogNode(roundedShard, {
+          nodeType: 'shard',
+          reference: {
+            ...shard.reference,
+            wireSha256: sha256Hex(roundedShard),
+            wireByteLength: roundedShard.byteLength,
+          },
+        }),
+      assertCode('WPP_SCHEMA'),
+    );
   });
 });

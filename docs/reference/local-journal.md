@@ -18,8 +18,12 @@ the one journal leaf directory with mode `0700`. It does not create parent
 directories. After it creates that leaf, it fsyncs the parent directory.
 
 `put({wire, sha256})` copies bounded wire bytes before its first await. It
-checks the supplied SHA-256 digest and the kernel package grammar. It then
-persists those exact bytes. A successful call returns
+checks the supplied SHA-256 digest and the kernel package grammar on that
+owned copy. The grammar includes the exact raw header `version` token. A
+token such as `1.0000000000000001`, or a token longer than 64 characters, is
+`INVALID_INPUT`. The call creates no durable record. Kinds `snapshot` and
+`catalog` stay accepted. A catalog-node envelope uses kind `catalog`. The
+journal then persists exact accepted bytes. A successful call returns
 `{sha256, byteLength, status: "local-durable"}`. The status is not
 `Backup verified`. Structural grammar and digest checks are not kernel
 authentication.

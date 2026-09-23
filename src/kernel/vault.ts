@@ -83,10 +83,10 @@ import {
   decodeNonce12,
   decodeTag16,
   encodeBase64Url,
+  parsePackageWireBytes,
+  parseRecoveryWireBytes,
   validateCodecPolicies,
   validateExpectedSnapshot,
-  validatePackageWire,
-  validateRecoveryWire,
   validateRootRecord,
   validateSnapshotPayload,
   type CodecPolicy,
@@ -762,8 +762,7 @@ export class UnlockedVault {
     const keyCopy = copyExactOwnedBytes(recoveryKey, 32, ERR_RECOVERY);
     let plaintext: Buffer | undefined;
     try {
-      const parsed = parseJsonBytes(wire, LIMIT_RECOVERY_WIRE_BYTES);
-      const pack = validateRecoveryWire(parsed);
+      const pack = parseRecoveryWireBytes(wire, LIMIT_RECOVERY_WIRE_BYTES);
       const nonce = decodeNonce12(pack.header.nonce);
       const tag = decodeTag16(pack.tag);
       const ciphertext = decodeBase64Url(pack.ciphertext, LIMIT_ROOT_BYTES);
@@ -866,8 +865,7 @@ export class UnlockedVault {
     const packageBytes = copyOwnedBytes(wire, LIMIT_PACKAGE_BYTES);
     const expectedBinding = validateExpectedSnapshot(expected);
     const packageSha256 = sha256Hex(packageBytes);
-    const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);
-    const pack = validatePackageWire(parsed);
+    const pack = parsePackageWireBytes(packageBytes, LIMIT_PACKAGE_BYTES);
     if (pack.header.kind !== "snapshot") {
       throw new KernelError(ERR_UNSUPPORTED);
     }
@@ -896,8 +894,7 @@ export class UnlockedVault {
     this.#requireUnlocked();
     const packageBytes = copyOwnedBytes(wire, LIMIT_PACKAGE_BYTES);
     const packageSha256 = sha256Hex(packageBytes);
-    const parsed = parseJsonBytes(packageBytes, LIMIT_PACKAGE_BYTES);
-    const pack = validatePackageWire(parsed);
+    const pack = parsePackageWireBytes(packageBytes, LIMIT_PACKAGE_BYTES);
     if (pack.header.kind !== "catalog") {
       throw new KernelError(ERR_UNSUPPORTED);
     }
@@ -1004,8 +1001,7 @@ export class UnlockedVault {
       if (packageBytes.byteLength !== expectedLength || packageSha256 !== expectedHash) {
         throw new KernelError(ERR_BINDING);
       }
-      const parsed = parseJsonBytes(packageBytes, wireLimit);
-      const pack = validatePackageWire(parsed);
+      const pack = parsePackageWireBytes(packageBytes, wireLimit);
       if (pack.header.kind !== "catalog") {
         throw new KernelError(ERR_UNSUPPORTED);
       }

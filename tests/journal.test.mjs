@@ -20,6 +20,7 @@ import canonicalize from 'canonicalize';
 import { CiphertextJournal, JournalError } from '../dist/journal/index.js';
 import { UnlockedVault } from '../dist/kernel/index.js';
 import { LIMIT_PLAINTEXT_BYTES } from '../dist/kernel/json.js';
+import { planCatalogShards } from '../dist/storage/index.js';
 
 const CHILD = fileURLToPath(new URL('./helpers/journal-child.mjs', import.meta.url));
 const VECTOR = JSON.parse(
@@ -131,6 +132,67 @@ function sealWith(vault) {
     recordId: VECTOR.inputs.header.recordId,
     payloadUtf8: payloadUtf8(),
   });
+}
+
+function headerVersionAt(text) {
+  const needle = '"version":1';
+  const at = text.indexOf(needle);
+  if (at < 0) {
+    throw new Error('missing header version');
+  }
+  const next = text[at + needle.length];
+  if (next !== '}' && next !== ',') {
+    throw new Error(`version boundary ${next}`);
+  }
+  return { at, nextIndex: at + needle.length };
+}
+
+function withHeaderVersionMember(wire, member) {
+  const text = Buffer.from(wire).toString('utf8');
+  const spot = headerVersionAt(text);
+  const bytes = utf8(`${text.slice(0, spot.at)}${member}${text.slice(spot.nextIndex)}`);
+  return { wire: bytes, sha256: sha256Hex(bytes) };
+}
+
+function sealCatalogFixture(vault) {
+  const catalogs = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../fixtures/catalog-v1-examples.json', import.meta.url)), 'utf8'),
+  );
+  return vault.sealCatalog(utf8(JSON.stringify(catalogs.catalogs.baseline)));
+}
+
+function sealCatalogShard(vault) {
+  const root = vectorRoot();
+  const record = {
+    recordKind: 'snapshot',
+    body: {
+      entryKind: 'snapshot',
+      package: {
+        sha256: sha256Hex(utf8('journal-catalog-node')),
+        byteLength: 1024,
+        rootEpoch: root.epochs[0].rootEpoch,
+        scopeId: id32(2),
+        recordId: id32(3),
+        generationId: id32(4),
+      },
+      metadata: VECTOR.inputs.payload.metadata,
+      label: 'synthetic-node',
+      locators: [
+        {
+          provider: 'google-drive',
+          accountBinding: { scheme: 'google-drive-permission-id', value: 'perm1' },
+          objectId: 'obj1',
+          revisionId: 'rev1',
+        },
+      ],
+    },
+  };
+  const plan = planCatalogShards(utf8(canonicalize([record])));
+  const leaf = plan.leaves.find((item) => item.empty !== true);
+  if (!leaf) {
+    throw new Error('missing shard leaf');
+  }
+  return vault.sealCatalogNode(Buffer.from(leaf.payloadUtf8));
 }
 
 function withMutatedCiphertext(sealed, ciphertext) {
@@ -1139,6 +1201,63 @@ describe('CiphertextJournal', () => {
           sha256: sealed.sha256,
         });
         equal(fromBuffer.byteLength, trueLength);
+      });
+    } finally {
+      vault.lock();
+    }
+  });
+
+  test('inexact header version tokens are not local-durable', async () => {
+    const vault = unlock();
+    try {
+      const sealed = sealWith(vault);
+      const catalog = sealCatalogFixture(vault);
+      const shard = sealCatalogShard(vault);
+      equal(JSON.parse(Buffer.from(catalog.wire).toString('utf8')).header.kind, 'catalog');
+      equal(JSON.parse(Buffer.from(shard.wire).toString('utf8')).header.kind, 'catalog');
+      const longToken = `1.${'0'.repeat(63)}`;
+      equal(longToken.length, 65);
+      const rejected = [
+        withHeaderVersionMember(sealed.wire, '"version":1.0000000000000001'),
+        withHeaderVersionMember(sealed.wire, `"version":${longToken}`),
+        withHeaderVersionMember(sealed.wire, '"vers\\u0069on":1.0000000000000001'),
+        withHeaderVersionMember(sealed.wire, '"version":1,"version":1'),
+        withHeaderVersionMember(sealed.wire, '"version":1,"vers\\u0069on":1'),
+        withHeaderVersionMember(catalog.wire, '"version":1.0000000000000001'),
+        withHeaderVersionMember(shard.wire, `"version":${longToken}`),
+      ];
+      const unknown = JSON.parse(Buffer.from(sealed.wire).toString('utf8'));
+      unknown.header.kind = 'backup';
+      const unknownWire = utf8(JSON.stringify(unknown));
+      rejected.push({ wire: unknownWire, sha256: sha256Hex(unknownWire) });
+
+      await withJournal(async ({ dir, journal }) => {
+        equal((await readdir(dir)).length, 0);
+        for (const item of rejected) {
+          await rejects(() => journal.put(item), codeIs('INVALID_INPUT'));
+          equal((await readdir(dir)).length, 0, item.sha256);
+          deepEqual([...(await journal.list())], []);
+        }
+
+        const accepted = [
+          withHeaderVersionMember(sealed.wire, '"version":1.0'),
+          withHeaderVersionMember(sealed.wire, '"version":1e0'),
+          withHeaderVersionMember(sealed.wire, '"version":10e-1'),
+          withHeaderVersionMember(sealed.wire, '"vers\\u0069on":1'),
+          { wire: catalog.wire, sha256: catalog.sha256 },
+          withHeaderVersionMember(catalog.wire, '"version":1.0'),
+          { wire: shard.wire, sha256: shard.sha256 },
+          withHeaderVersionMember(shard.wire, '"vers\\u0069on":1e0'),
+        ];
+        const digests = [];
+        for (const item of accepted) {
+          const stored = await journal.put(item);
+          equal(stored.status, 'local-durable');
+          equal(stored.sha256, item.sha256);
+          equal(existsSync(join(dir, committedName(item.sha256))), true);
+          digests.push(item.sha256);
+        }
+        deepEqual([...(await journal.list())].sort(), [...new Set(digests)].sort());
       });
     } finally {
       vault.lock();

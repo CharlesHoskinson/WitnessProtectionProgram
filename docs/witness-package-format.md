@@ -1,6 +1,6 @@
 # WPP witness package — draft v0.1
 
-Status: proposed application interchange profile. This tree includes a local TypeScript envelope kernel for snapshot seal and open. That kernel is not a production encoder, not a security-approved decoder, and not a substitute for the fixture generator. This is not an adopted Midnight protocol or a replacement for the native Midnight.js export format.
+Status: proposed application interchange profile. This tree includes a local TypeScript envelope kernel for snapshot seal and open. That kernel is not a production encoder, not a security-approved decoder, and not a substitute for the fixture generator. This is not an adopted Midnight protocol or a replacement for the native Midnight.js export format. One independent Python encoder and decoder for the public synthetic vector is recorded in the [format vectors reference](reference/format-vectors.md). That evidence does not freeze this profile.
 
 ## Encoding and bounds
 
@@ -24,9 +24,13 @@ The v0.1 plaintext ceiling is 16 MiB per object; the wire-file ceiling is 24 MiB
 | `kind` | `snapshot` or `catalog` |
 | `nonce` | Fresh random 12-byte AES-GCM IV, base64url |
 
+Header `version` is the integer value 1. A JSON number token is that value only when its exact decimal value is the integer 1 and the token has at most 64 characters. The tokens `1`, `1.0`, `1e0`, and `10e-1` are accepted examples. `1.0000000000000001` and `0.99999999999999999` are rejected. JavaScript `JSON.parse` rounds those two tokens to 1. This profile does not use that rounding. Boolean `true`, non-finite numbers, and numbers outside `-9007199254740991` through `9007199254740991` are rejected. A numeric token longer than 64 characters is malformed. Canonical header bytes use the token `1`. Those bytes are the AES-GCM additional authenticated data, including when the outer wire uses another accepted spelling. This rule applies to the package header `version` field. It does not reject fractional numbers in an application payload.
+
+Vault open, local journal admission, and Google Drive upload each parse one owned copy of the package bytes. The raw header version check uses that same copy. A rounded token or a token longer than 64 characters fails before a durable journal record or a Drive POST. A matching caller SHA-256 does not bypass the check. A recovery pack uses this raw-number rule and keeps the separate recovery-pack schema. Decoded header names are the names that the check sees. A duplicate `version` key is rejected. The JSON spelling `vers\u0069on` is the header field `version`.
+
 The public header leaks format, grouping and version relationships through random stable identifiers, plus the object kind. The provider also sees size, timing, account association and duplicate ciphertext across destinations. Random IDs conceal semantic names; they do not prevent traffic analysis. Padding can be added only in a future version with specified encoding.
 
-`ciphertext` is the encrypted plaintext bytes, base64url. `tag` is the separate 16-byte GCM authentication tag, base64url. APIs that concatenate ciphertext and tag must split/join at precisely 16 bytes. The provider locator is not part of the package: the same bytes must survive storage migration.
+`ciphertext` is the encrypted plaintext bytes, base64url. Reject ciphertext text longer than 22369622 characters before base64url decoding. That is the unpadded base64url length of 16 MiB. Reject decoded ciphertext longer than 16 MiB before AES-GCM. `tag` is the separate 16-byte GCM authentication tag, base64url. APIs that concatenate ciphertext and tag must split/join at precisely 16 bytes. The provider locator is not part of the package: the same bytes must survive storage migration.
 
 ## Exact key derivation profile
 
